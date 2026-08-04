@@ -477,7 +477,47 @@ type LedgerEntry = {
   };
 };
 
-function HistoryView({ invoices, deposit, cctpOperations, fiatPayouts, recovering, recoveryNote, onRecover, onRefreshCctp, onRefreshFiat }: { invoices: InvoiceData[]; deposit: DepositNotice | null; cctpOperations: CctpOperation[]; fiatPayouts: FiatPayout[]; recovering: boolean; recoveryNote: string; onRecover: () => void; onRefreshCctp: () => void; onRefreshFiat: () => void }) {
+function proofSteps(entry: LedgerEntry): Array<{ label: string; detail: string; tone: "muted" | "good" | "warning"; txHash?: string; explorerUrl?: string }> {
+  const statusLabel = entry.status === "confirmed" ? "Confirmed" : entry.status === "failed" ? "Failed" : entry.status === "submitted" ? "Submitted" : "Pending";
+  const sandboxTransfer = /sandbox fiat transfer/i.test(entry.activity) || /sandbox fiat balance/i.test(entry.rail);
+  if (entry.kind === "fiat") {
+    return sandboxTransfer
+      ? [
+          { label: "Transfer request", detail: "A sandbox fiat transfer was submitted against the local ledger.", tone: "muted" as const },
+          { label: "Transfer ID", detail: entry.txHash, txHash: entry.txHash, tone: "good" as const },
+          { label: "Balance update", detail: `${statusLabel} · the sender and recipient fiat balances were updated in OffGrid.`, tone: "good" as const },
+        ]
+      : [
+          { label: "Payout request", detail: "The sandbox bank payout was submitted from the live session.", tone: "muted" as const },
+          { label: "Circle payout ID", detail: entry.meta?.circlePayoutId ?? entry.txHash, txHash: (entry.meta?.circlePayoutId ?? entry.txHash) || undefined, explorerUrl: entry.explorerUrl || undefined, tone: "good" as const },
+          { label: "Bank route", detail: `${entry.meta?.bankAccountId ?? "Linked Circle Mint bank account"} · ${statusLabel}${entry.meta?.trackingRef ? ` · tracking ${entry.meta.trackingRef}` : ""}`, tone: entry.status === "failed" ? "warning" as const : "good" as const },
+        ];
+  }
+  if (entry.kind === "cctp") {
+    const burnLog = entry.logs.find((log) => /burn/i.test(log.name));
+    const mintLog = entry.logs.find((log) => /mint|attest/i.test(log.name));
+    return [
+      { label: "Intent", detail: "CCTP was selected to move source-chain USDC to Arc.", tone: "muted" as const },
+      { label: "Source burn", detail: burnLog?.txHash ? "Circle can trace the source burn transaction." : "Waiting for the source burn to appear.", txHash: burnLog?.txHash, explorerUrl: burnLog?.explorerUrl, tone: burnLog?.txHash ? "good" as const : "warning" as const },
+      { label: "Arc mint", detail: mintLog?.txHash ? "The Arc mint was recorded in the settlement trail." : "Mint not yet recorded in the trail.", txHash: mintLog?.txHash, explorerUrl: mintLog?.explorerUrl, tone: mintLog?.txHash ? "good" as const : "warning" as const },
+      { label: "Receipt", detail: entry.receiptUrl ? "A verified invoice exists for this transfer." : statusLabel, tone: entry.receiptUrl ? "good" as const : "muted" as const },
+    ];
+  }
+  if (entry.kind === "deposit") {
+    return [
+      { label: "Intent", detail: "USDC was deposited into Circle Gateway to update the unified balance.", tone: "muted" as const },
+      { label: "Source transaction", detail: entry.txHash, txHash: entry.txHash, explorerUrl: entry.explorerUrl, tone: "good" as const },
+      { label: "Gateway indexing", detail: entry.status === "confirmed" ? "Gateway confirmed the deposit and updated the spendable balance." : "Gateway is still indexing this deposit.", tone: entry.status === "confirmed" ? "good" as const : "warning" as const },
+    ];
+  }
+  return [
+    { label: "Intent", detail: "A direct Arc transfer or Gateway spend was executed.", tone: "muted" as const },
+    { label: "Transaction hash", detail: entry.txHash, txHash: entry.txHash, explorerUrl: entry.explorerUrl, tone: "good" as const },
+    { label: "Receipt", detail: entry.receiptUrl ? "A matching OffGrid receipt is available." : statusLabel, tone: entry.receiptUrl ? "good" as const : "muted" as const },
+  ];
+}
+
+function HistoryView({ invoices, deposit, cctpOperations, fiatPayouts, recovering, recoveryNote, onRecover, onRefreshCctp, onRefreshFiat, onSelectEntry }: { invoices: InvoiceData[]; deposit: DepositNotice | null; cctpOperations: CctpOperation[]; fiatPayouts: FiatPayout[]; recovering: boolean; recoveryNote: string; onRecover: () => void; onRefreshCctp: () => void; onRefreshFiat: () => void; onSelectEntry: (entry: LedgerEntry) => void }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | LedgerEntry["kind"]>("all");
   const [sort, setSort] = useState<"newest" | "oldest" | "amount_high" | "amount_low">("newest");
@@ -486,7 +526,6 @@ function HistoryView({ invoices, deposit, cctpOperations, fiatPayouts, recoverin
   const [recoveryHash, setRecoveryHash] = useState("");
   const [manualRecoveryBusy, setManualRecoveryBusy] = useState(false);
   const [manualRecoveryNote, setManualRecoveryNote] = useState("");
-  const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null);
 
   const entries = useMemo<LedgerEntry[]>(() => {
     const payments = invoices.map((item): LedgerEntry => ({
@@ -582,46 +621,6 @@ function HistoryView({ invoices, deposit, cctpOperations, fiatPayouts, recoverin
     window.setTimeout(() => setCopiedHash(""), 1_500);
   }
 
-  function proofSteps(entry: LedgerEntry): Array<{ label: string; detail: string; tone: "muted" | "good" | "warning"; txHash?: string; explorerUrl?: string }> {
-    const statusLabel = entry.status === "confirmed" ? "Confirmed" : entry.status === "failed" ? "Failed" : entry.status === "submitted" ? "Submitted" : "Pending";
-    const sandboxTransfer = /sandbox fiat transfer/i.test(entry.activity) || /sandbox fiat balance/i.test(entry.rail);
-    if (entry.kind === "fiat") {
-      return sandboxTransfer
-        ? [
-            { label: "Transfer request", detail: "A sandbox fiat transfer was submitted against the local ledger.", tone: "muted" as const },
-            { label: "Transfer ID", detail: entry.txHash, txHash: entry.txHash, tone: "good" as const },
-            { label: "Balance update", detail: `${statusLabel} · the sender and recipient fiat balances were updated in OffGrid.`, tone: "good" as const },
-          ]
-        : [
-            { label: "Payout request", detail: "The sandbox bank payout was submitted from the live session.", tone: "muted" as const },
-            { label: "Circle payout ID", detail: entry.meta?.circlePayoutId ?? entry.txHash, txHash: (entry.meta?.circlePayoutId ?? entry.txHash) || undefined, explorerUrl: entry.explorerUrl || undefined, tone: "good" as const },
-            { label: "Bank route", detail: `${entry.meta?.bankAccountId ?? "Linked Circle Mint bank account"} · ${statusLabel}${entry.meta?.trackingRef ? ` · tracking ${entry.meta.trackingRef}` : ""}`, tone: entry.status === "failed" ? "warning" as const : "good" as const },
-          ];
-    }
-    if (entry.kind === "cctp") {
-      const burnLog = entry.logs.find((log) => /burn/i.test(log.name));
-      const mintLog = entry.logs.find((log) => /mint|attest/i.test(log.name));
-      return [
-        { label: "Intent", detail: "CCTP was selected to move source-chain USDC to Arc.", tone: "muted" as const },
-        { label: "Source burn", detail: burnLog?.txHash ? "Circle can trace the source burn transaction." : "Waiting for the source burn to appear.", txHash: burnLog?.txHash, explorerUrl: burnLog?.explorerUrl, tone: burnLog?.txHash ? "good" as const : "warning" as const },
-        { label: "Arc mint", detail: mintLog?.txHash ? "The Arc mint was recorded in the settlement trail." : "Mint not yet recorded in the trail.", txHash: mintLog?.txHash, explorerUrl: mintLog?.explorerUrl, tone: mintLog?.txHash ? "good" as const : "warning" as const },
-        { label: "Receipt", detail: entry.receiptUrl ? "A verified invoice exists for this transfer." : statusLabel, tone: entry.receiptUrl ? "good" as const : "muted" as const },
-      ];
-    }
-    if (entry.kind === "deposit") {
-      return [
-        { label: "Intent", detail: "USDC was deposited into Circle Gateway to update the unified balance.", tone: "muted" as const },
-        { label: "Source transaction", detail: entry.txHash, txHash: entry.txHash, explorerUrl: entry.explorerUrl, tone: "good" as const },
-        { label: "Gateway indexing", detail: entry.status === "confirmed" ? "Gateway confirmed the deposit and updated the spendable balance." : "Gateway is still indexing this deposit.", tone: entry.status === "confirmed" ? "good" as const : "warning" as const },
-      ];
-    }
-    return [
-      { label: "Intent", detail: "A direct Arc transfer or Gateway spend was executed.", tone: "muted" as const },
-      { label: "Transaction hash", detail: entry.txHash, txHash: entry.txHash, explorerUrl: entry.explorerUrl, tone: "good" as const },
-      { label: "Receipt", detail: entry.receiptUrl ? "A matching OffGrid receipt is available." : statusLabel, tone: entry.receiptUrl ? "good" as const : "muted" as const },
-    ];
-  }
-
   async function recoverHash() {
     setManualRecoveryBusy(true); setManualRecoveryNote("");
     try {
@@ -648,9 +647,8 @@ function HistoryView({ invoices, deposit, cctpOperations, fiatPayouts, recoverin
     </div>
     <div className="ledger-panel">
       <div className="ledger-toolbar"><div><b>Activity ledger</b><small>{visibleEntries.length} of {entries.length} transactions</small></div><label className="ledger-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search activity or transaction ID" /></label><label className="ledger-select"><span>TYPE</span><select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}><option value="all">All activity</option><option value="transfer">Arc transfers</option><option value="gateway">Gateway spends</option><option value="cctp">CCTP bridges</option><option value="deposit">Deposits</option><option value="fiat">Bank payouts</option></select><ChevronDown size={12} /></label><label className="ledger-select"><span>SORT</span><select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="amount_high">Amount: high</option><option value="amount_low">Amount: low</option></select><ChevronDown size={12} /></label></div>
-      <div className="ledger-table-wrap"><table className="ledger-table"><thead><tr><th>Status</th><th>Activity / logs</th><th>Route</th><th>Transaction ID</th><th>Date</th><th>Amount</th><th /></tr></thead><tbody>{visibleEntries.map((entry) => <tr key={entry.id}><td><span className={`ledger-status ${entry.status}`}><i />{entry.status}</span></td><td><div className="ledger-activity"><b>{entry.activity}</b><small>{entry.detail}</small><details><summary>{entry.logs.length} protocol {entry.logs.length === 1 ? "log" : "logs"}</summary><div>{entry.logs.map((log, index) => <span key={`${log.name}-${index}`}><i />{log.name}{log.txHash && <em>{shortAddress(log.txHash, 6)}</em>}</span>)}</div></details></div></td><td><span className={`route-badge ${entry.kind}`}>{entry.rail}</span></td><td>{entry.txHash ? <div className="tx-id"><code>{shortAddress(entry.txHash, 7)}</code><button onClick={() => copyHash(entry.txHash)} aria-label="Copy transaction ID">{copiedHash === entry.txHash ? <Check size={12} /> : <Copy size={12} />}</button></div> : <span className="tx-not-submitted">NOT SUBMITTED</span>}</td><td><time>{new Date(entry.createdAt).toLocaleDateString()}<small>{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small></time></td><td><strong>{displayMoney(entry.amount)}<small>USDC</small></strong></td><td><div className="ledger-actions"><button className="ledger-proof-button" onClick={() => setSelectedEntry(entry)}>Proof</button>{entry.receiptUrl ? <a href={entry.receiptUrl} aria-label="Open receipt"><ExternalLink size={13} /></a> : entry.explorerUrl ? <a href={entry.explorerUrl} target="_blank" rel="noreferrer" aria-label="Open transaction"><ExternalLink size={13} /></a> : null}</div></td></tr>)}</tbody></table>{visibleEntries.length === 0 && <div className="ledger-empty"><Receipt size={24} /><b>{entries.length ? "No transactions match these filters" : "No onchain activity yet"}</b><p>{entries.length ? "Adjust the search, type, or sorting controls." : "Completed transfers and Gateway deposits will appear here automatically."}</p></div>}</div>
+      <div className="ledger-table-wrap"><table className="ledger-table"><thead><tr><th>Status</th><th>Activity / logs</th><th>Route</th><th>Transaction ID</th><th>Date</th><th>Amount</th><th /></tr></thead><tbody>{visibleEntries.map((entry) => <tr key={entry.id}><td><span className={`ledger-status ${entry.status}`}><i />{entry.status}</span></td><td><div className="ledger-activity"><b>{entry.activity}</b><small>{entry.detail}</small><details><summary>{entry.logs.length} protocol {entry.logs.length === 1 ? "log" : "logs"}</summary><div>{entry.logs.map((log, index) => <span key={`${log.name}-${index}`}><i />{log.name}{log.txHash && <em>{shortAddress(log.txHash, 6)}</em>}</span>)}</div></details></div></td><td><span className={`route-badge ${entry.kind}`}>{entry.rail}</span></td><td>{entry.txHash ? <div className="tx-id"><code>{shortAddress(entry.txHash, 7)}</code><button onClick={() => copyHash(entry.txHash)} aria-label="Copy transaction ID">{copiedHash === entry.txHash ? <Check size={12} /> : <Copy size={12} />}</button></div> : <span className="tx-not-submitted">NOT SUBMITTED</span>}</td><td><time>{new Date(entry.createdAt).toLocaleDateString()}<small>{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small></time></td><td><strong>{displayMoney(entry.amount)}<small>USDC</small></strong></td><td><div className="ledger-actions"><button className="ledger-proof-button" onClick={() => onSelectEntry(entry)}>Proof</button>{entry.receiptUrl ? <a href={entry.receiptUrl} aria-label="Open receipt"><ExternalLink size={13} /></a> : entry.explorerUrl ? <a href={entry.explorerUrl} target="_blank" rel="noreferrer" aria-label="Open transaction"><ExternalLink size={13} /></a> : null}</div></td></tr>)}</tbody></table>{visibleEntries.length === 0 && <div className="ledger-empty"><Receipt size={24} /><b>{entries.length ? "No transactions match these filters" : "No onchain activity yet"}</b><p>{entries.length ? "Adjust the search, type, or sorting controls." : "Completed transfers and Gateway deposits will appear here automatically."}</p></div>}</div>
     </div>
-    {selectedEntry && <div className="overlay"><article className="history-proof-modal"><button className="modal-x" onClick={() => setSelectedEntry(null)}><X size={18} /></button><div className="history-proof-head"><span className="section-tag">TRANSFER PROOF</span><div className="history-proof-actions">{selectedEntry.kind === "fiat" && <button className="history-proof-refresh" onClick={() => { onRefreshFiat(); }}><RefreshCw size={12} /> Refresh Circle status</button>}{selectedEntry.receiptUrl ? <a className="ledger-proof-link" href={selectedEntry.receiptUrl}><Receipt size={12} /> Open receipt</a> : selectedEntry.explorerUrl ? <a className="ledger-proof-link" href={selectedEntry.explorerUrl} target="_blank" rel="noreferrer"><ExternalLink size={12} /> Open explorer</a> : null}</div></div><h2>{selectedEntry.activity}</h2><p>{selectedEntry.kind === "fiat" ? "This view shows the payout request, Circle payout ID, and synced verification status. Use it to confirm the sandbox payout completed." : selectedEntry.kind === "cctp" ? "This view shows the source burn, Arc mint, and receipt trail for the bridge transfer." : selectedEntry.kind === "deposit" ? "This view shows the source transaction that funded Gateway and the indexing step behind the unified balance." : "This view shows the transaction hash and receipt trail behind the transfer."}</p><div className="history-proof-summary"><span><small>STATUS</small><b className={selectedEntry.status}>{selectedEntry.status}</b></span><span><small>AMOUNT</small><b>{displayMoney(selectedEntry.amount)} USDC</b></span><span><small>RAIL</small><b>{selectedEntry.rail}</b></span></div><div className="history-proof-steps">{proofSteps(selectedEntry).map((step, index) => <section key={`${step.label}-${index}`} className={`history-proof-step ${step.tone}`}><span>{index + 1}</span><div><b>{step.label}</b><p>{step.detail}</p>{step.txHash && <code>{step.txHash}</code>}</div>{step.explorerUrl && <a href={step.explorerUrl} target="_blank" rel="noreferrer"><ExternalLink size={11} /></a>}</section>)}</div></article></div>}
   </section>;
 }
 
@@ -701,6 +699,7 @@ export function OffGridDashboard() {
   const [showFaucetMenu, setShowFaucetMenu] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [userModalCopied, setUserModalCopied] = useState(false);
+  const [selectedProofEntry, setSelectedProofEntry] = useState<LedgerEntry | null>(null);
 
   async function fundSandboxFiat() {
     try {
@@ -1723,9 +1722,40 @@ export function OffGridDashboard() {
               </section>
             </>
           )}
-          </div> : activeView === "history" ? walletAddress ? <HistoryView invoices={activity} deposit={depositNotice} cctpOperations={cctpOperations} fiatPayouts={fiatPayouts} recovering={cctpRecovering} recoveryNote={cctpRecoveryNote} onRecover={() => void recoverCctpOperations()} onRefreshCctp={() => void refreshCctpOperations()} onRefreshFiat={() => void refreshFiatPayouts()} /> : <div className="unified-empty"><Receipt size={30} /><h2>Connect a wallet to view history.</h2><p>Transaction activity and receipts stay hidden until your wallet is connected.</p><button className="neon-button" onClick={beginWalletConnection}><Wallet size={15} /> Connect wallet</button></div> : activeView === "unified" ? <UnifiedBalanceView walletAddress={walletAddress} walletOnArc={walletOnArc} arcBalance={arcBalance} unifiedBalance={unifiedBalance} pendingBalance={pendingBalance} chainBalances={gatewayChainBalances} gatewayError={gatewayError} gatewayStale={gatewayStale} solanaAddress={solanaAddress} solanaWalletName={solanaWalletName} solanaUsdcBalance={solanaUsdcBalance} solanaBusy={solanaBusy} onRefresh={() => loadBalances()} onDeposit={() => { setDepositError(""); setShowFunding(true); }} onConnect={beginWalletConnection} onConnectSolana={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} /> : activeView === "mass" ? <MassPaymentView walletAddress={walletAddress} directBalance={arcBalance} unifiedBalance={unifiedBalance} onConnect={beginWalletConnection} onExecute={executeMassPayroll} /> : <section className="agent-soon-view"><div className="agent-orbit"><Sparkles size={27} /><i /><i /><i /></div><span className="section-tag">AUTONOMOUS SETTLEMENT · SOON</span><h1>Agent Payments</h1><p>Policy-controlled wallets, programmable limits, approvals, and auditable payments initiated by trusted agents.</p><div className="agent-soon-grid"><span><ShieldCheck size={16} /><b>Policy engine</b><small>Limits, allowlists, and human approval gates</small></span><span><Network size={16} /><b>Any-to-any rails</b><small>Arc, Gateway, CCTP, and fiat routing</small></span><span><Receipt size={16} /><b>Agent audit trail</b><small>Intent, reasoning reference, and transaction proof</small></span></div><em>IN DEVELOPMENT</em></section>}
+          </div> : activeView === "history" ? walletAddress ? <HistoryView invoices={activity} deposit={depositNotice} cctpOperations={cctpOperations} fiatPayouts={fiatPayouts} recovering={cctpRecovering} recoveryNote={cctpRecoveryNote} onRecover={() => void recoverCctpOperations()} onRefreshCctp={() => void refreshCctpOperations()} onRefreshFiat={() => void refreshFiatPayouts()} onSelectEntry={setSelectedProofEntry} /> : <div className="unified-empty"><Receipt size={30} /><h2>Connect a wallet to view history.</h2><p>Transaction activity and receipts stay hidden until your wallet is connected.</p><button className="neon-button" onClick={beginWalletConnection}><Wallet size={15} /> Connect wallet</button></div> : activeView === "unified" ? <UnifiedBalanceView walletAddress={walletAddress} walletOnArc={walletOnArc} arcBalance={arcBalance} unifiedBalance={unifiedBalance} pendingBalance={pendingBalance} chainBalances={gatewayChainBalances} gatewayError={gatewayError} gatewayStale={gatewayStale} solanaAddress={solanaAddress} solanaWalletName={solanaWalletName} solanaUsdcBalance={solanaUsdcBalance} solanaBusy={solanaBusy} onRefresh={() => loadBalances()} onDeposit={() => { setDepositError(""); setShowFunding(true); }} onConnect={beginWalletConnection} onConnectSolana={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} /> : activeView === "mass" ? <MassPaymentView walletAddress={walletAddress} directBalance={arcBalance} unifiedBalance={unifiedBalance} onConnect={beginWalletConnection} onExecute={executeMassPayroll} /> : <section className="agent-soon-view"><div className="agent-orbit"><Sparkles size={27} /><i /><i /><i /></div><span className="section-tag">AUTONOMOUS SETTLEMENT · SOON</span><h1>Agent Payments</h1><p>Policy-controlled wallets, programmable limits, approvals, and auditable payments initiated by trusted agents.</p><div className="agent-soon-grid"><span><ShieldCheck size={16} /><b>Policy engine</b><small>Limits, allowlists, and human approval gates</small></span><span><Network size={16} /><b>Any-to-any rails</b><small>Arc, Gateway, CCTP, and fiat routing</small></span><span><Receipt size={16} /><b>Agent audit trail</b><small>Intent, reasoning reference, and transaction proof</small></span></div><em>IN DEVELOPMENT</em></section>}
         </section>
       </div>
+
+      {selectedProofEntry && (
+        <div className="overlay">
+          <article className="history-proof-modal">
+            <button className="modal-x" onClick={() => setSelectedProofEntry(null)}><X size={18} /></button>
+            <div className="history-proof-head">
+              <span className="section-tag">TRANSFER PROOF</span>
+              <div className="history-proof-actions">
+                {selectedProofEntry.kind === "fiat" && <button className="history-proof-refresh" onClick={() => { void refreshFiatPayouts(); }}><RefreshCw size={12} /> Refresh Circle status</button>}
+                {selectedProofEntry.receiptUrl ? <a className="ledger-proof-link" href={selectedProofEntry.receiptUrl}><Receipt size={12} /> Open receipt</a> : selectedProofEntry.explorerUrl ? <a className="ledger-proof-link" href={selectedProofEntry.explorerUrl} target="_blank" rel="noreferrer"><ExternalLink size={12} /> Open explorer</a> : null}
+              </div>
+            </div>
+            <h2>{selectedProofEntry.activity}</h2>
+            <p>{selectedProofEntry.kind === "fiat" ? "This view shows the payout request, Circle payout ID, and synced verification status. Use it to confirm the sandbox payout completed." : selectedProofEntry.kind === "cctp" ? "This view shows the source burn, Arc mint, and receipt trail for the bridge transfer." : selectedProofEntry.kind === "deposit" ? "This view shows the source transaction that funded Gateway and the indexing step behind the unified balance." : "This view shows the transaction hash and receipt trail behind the transfer."}</p>
+            <div className="history-proof-summary">
+              <span><small>STATUS</small><b className={selectedProofEntry.status}>{selectedProofEntry.status}</b></span>
+              <span><small>AMOUNT</small><b>{displayMoney(selectedProofEntry.amount)} USDC</b></span>
+              <span><small>RAIL</small><b>{selectedProofEntry.rail}</b></span>
+            </div>
+            <div className="history-proof-steps">
+              {proofSteps(selectedProofEntry).map((step, index) => (
+                <section key={`${step.label}-${index}`} className={`history-proof-step ${step.tone}`}>
+                  <span>{index + 1}</span>
+                  <div><b>{step.label}</b><p>{step.detail}</p>{step.txHash && <code>{step.txHash}</code>}</div>
+                  {step.explorerUrl && <a href={step.explorerUrl} target="_blank" rel="noreferrer"><ExternalLink size={11} /></a>}
+                </section>
+              ))}
+            </div>
+          </article>
+        </div>
+      )}
 
       {showUserModal && (
         <div className="overlay">
