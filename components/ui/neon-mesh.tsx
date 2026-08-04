@@ -77,10 +77,12 @@ export function NeonMesh({
     let constraints: Constraint3D[] = [];
 
     const handleResize = () => {
-      const rect = container.getBoundingClientRect();
+      const targetEl = container.parentElement || container;
+      const rect = targetEl.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      width = rect.width || window.innerWidth;
-      height = rect.height || window.innerHeight;
+      width = rect.width || targetEl.clientWidth || window.innerWidth;
+      height = Math.max(rect.height, targetEl.scrollHeight, targetEl.offsetHeight, 600);
+
       canvas.width = width * dpr;
       canvas.height = height * dpr;
       canvas.style.width = `${width}px`;
@@ -171,6 +173,14 @@ export function NeonMesh({
         }
       }
     };
+
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    if (container.parentElement) {
+      resizeObserver.observe(container.parentElement);
+    }
+    resizeObserver.observe(container);
 
     handleResize();
     window.addEventListener("resize", handleResize);
@@ -323,6 +333,7 @@ export function NeonMesh({
 
     return () => {
       cancelAnimationFrame(animationFrameId);
+      resizeObserver.disconnect();
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("mousemove", handleWindowMouseMove);
       window.removeEventListener("mouseleave", handleWindowMouseLeave);
@@ -332,12 +343,12 @@ export function NeonMesh({
   return (
     <div
       ref={containerRef}
-      className={`absolute inset-0 w-full h-full overflow-hidden pointer-events-none z-0 ${className}`}
+      className={`absolute inset-0 w-full h-full min-h-full overflow-hidden pointer-events-none z-0 ${className}`}
       style={{ opacity }}
     >
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 block pointer-events-none"
+        className="absolute inset-0 block w-full h-full pointer-events-none"
       />
       {(title || subtitle || description) && (
         <div className="relative z-10 flex h-full flex-col items-center justify-center text-center px-4 mix-blend-difference text-white pointer-events-none">

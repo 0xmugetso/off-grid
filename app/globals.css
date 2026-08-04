@@ -177,7 +177,7 @@ html.theme-transitioning .theme-toggle,html.theme-transitioning .theme-toggle *,
 .rail-flow svg { color: var(--acid); }
 .rail-flow > i { display: block; width: 1px; height: 17px; background: var(--line); margin: 3px 0 3px 11px; }
 .logout-button { margin-top: 16px; height: 37px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--faint); display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 8px; }
-.product-main { position: relative; z-index: 1; width: min(1240px, calc(100% - 64px)); margin: 0 auto; padding: 47px 0 60px; }
+.product-main { position: relative; z-index: 1; width: min(1240px, calc(100% - 64px)); min-height: calc(100vh - 68px); margin: 0 auto; padding: 47px 0 60px; }
 .product-main > *:not(.pointer-events-none) { position: relative; z-index: 2; }
 .workspace-head h1, .session-launch-copy h2, .balance-intro h2, .console-head h2, .view-heading h1, .agent-soon-view h1, .escrow-stat-card b { text-shadow: 0 2px 16px rgba(0,0,0,.95), 0 0 32px rgba(0,0,0,.98); }
 .workspace-head p, .session-launch-copy p, .balance-intro p, .section-tag, .field-label, .real-balance p, .view-heading p { text-shadow: 0 1px 10px rgba(0,0,0,.9); }
