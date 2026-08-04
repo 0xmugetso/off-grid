@@ -50,40 +50,54 @@ const usdcTransferAbi = [{
 }] as const;
 
 const BASE_SEPOLIA_CHAIN_ID = 84_532;
-const BASE_SEPOLIA_PUBLIC_FALLBACK = "https://base-sepolia-rpc.publicnode.com";
+const ARBITRUM_SEPOLIA_CHAIN_ID = 421_614;
+const ETHEREUM_SEPOLIA_CHAIN_ID = 11_155_111;
+
 const ARC_TESTNET_PUBLIC_FALLBACK = "https://rpc.testnet.arc.network";
 
 function publicTransportFor(chain: Chain) {
   if (chain.id === ARC.chainId) {
-    // Gateway spends mint on Arc after the source transfer is attested. Keep
-    // that destination RPC independent from the wallet provider and fail over
-    // when a public Arc endpoint has a transient connection failure.
     const urls = Array.from(new Set([
       process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim(),
-      chain.rpcUrls.default.http[0],
       ARC_TESTNET_PUBLIC_FALLBACK,
+      chain.rpcUrls.default.http[0],
     ].filter((url): url is string => Boolean(url))));
     return fallback(
-      urls.map((url) => http(url, { retryCount: 1, retryDelay: 250, timeout: 15_000 })),
-      { retryCount: 1, retryDelay: 300 },
+      urls.map((url) => http(url, { retryCount: 2, retryDelay: 250, timeout: 15_000 })),
+      { retryCount: 2, retryDelay: 300 },
     );
   }
-  if (chain.id !== BASE_SEPOLIA_CHAIN_ID) {
-    return http(undefined, { retryCount: 2, retryDelay: 300, timeout: 15_000 });
+
+  let rpcUrls: string[] = [];
+
+  if (chain.id === BASE_SEPOLIA_CHAIN_ID) {
+    rpcUrls = [
+      process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL?.trim(),
+      "https://base-sepolia-rpc.publicnode.com",
+      "https://base-sepolia.blockpi.network/v1/rpc/public",
+      chain.rpcUrls.default.http[0],
+    ].filter((url): url is string => Boolean(url));
+  } else if (chain.id === ARBITRUM_SEPOLIA_CHAIN_ID) {
+    rpcUrls = [
+      process.env.NEXT_PUBLIC_ARBITRUM_SEPOLIA_RPC_URL?.trim(),
+      "https://arbitrum-sepolia-rpc.publicnode.com",
+      chain.rpcUrls.default.http[0],
+    ].filter((url): url is string => Boolean(url));
+  } else if (chain.id === ETHEREUM_SEPOLIA_CHAIN_ID) {
+    rpcUrls = [
+      process.env.NEXT_PUBLIC_ETHEREUM_SEPOLIA_RPC_URL?.trim(),
+      "https://ethereum-sepolia-rpc.publicnode.com",
+      chain.rpcUrls.default.http[0],
+    ].filter((url): url is string => Boolean(url));
+  } else {
+    rpcUrls = [chain.rpcUrls.default.http[0]].filter(Boolean);
   }
 
-  // Base's first-party Sepolia endpoint is intentionally rate limited. Keep a
-  // dedicated RPC override first when configured, then fail over between the
-  // two public endpoints Base documents for local/testnet development.
-  const urls = Array.from(new Set([
-    process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL?.trim(),
-    chain.rpcUrls.default.http[0],
-    BASE_SEPOLIA_PUBLIC_FALLBACK,
-  ].filter((url): url is string => Boolean(url))));
+  const uniqueUrls = Array.from(new Set(rpcUrls));
 
   return fallback(
-    urls.map((url) => http(url, { retryCount: 1, retryDelay: 250, timeout: 12_000 })),
-    { retryCount: 1, retryDelay: 250 },
+    uniqueUrls.map((url) => http(url, { retryCount: 2, retryDelay: 300, timeout: 12_000 })),
+    { retryCount: 2, retryDelay: 300 },
   );
 }
 
