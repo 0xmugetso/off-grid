@@ -1,12 +1,12 @@
 import "server-only";
 
-import { createHmac, randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
-import { promisify } from "node:util";
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { getAddress, isAddress, verifyMessage } from "viem";
 import { mutateDatabase, publicUser, queryDatabase, type StoredUser } from "./store";
 
-const scrypt = promisify(scryptCallback);
 export const SESSION_COOKIE = "offgrid_session";
+export const NONCE_COOKIE = "offgrid_nonce";
 const sessionLifetimeSeconds = 60 * 60 * 24 * 14;
 
 function sessionSecret() {
@@ -15,9 +15,8 @@ function sessionSecret() {
   return "offgrid-local-development-only-secret";
 }
 
-async function hashPassword(password: string, salt: string) {
-  const derivedKey = await scrypt(password, salt, 64) as Buffer;
-  return derivedKey.toString("hex");
+export function generateNonce() {
+  return randomBytes(16).toString("hex");
 }
 
 export function createSessionToken(userId: string) {
@@ -26,7 +25,7 @@ export function createSessionToken(userId: string) {
   return `${payload}.${signature}`;
 }
 
-function parseSessionToken(token: string | undefined) {
+export function parseSessionToken(token: string | undefined) {
   if (!token) return null;
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
@@ -48,39 +47,103 @@ export const sessionCookieOptions = {
   maxAge: sessionLifetimeSeconds,
 };
 
-export async function createUser(input: { email: string; username: string; displayName: string; password: string }) {
-  const email = input.email.trim().toLowerCase();
-  const username = input.username.trim().toLowerCase();
-  const displayName = input.displayName.trim();
-  if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("Enter a valid email address");
-  if (!/^[a-z0-9_]{3,24}$/.test(username)) throw new Error("Username must be 3–24 letters, numbers, or underscores");
-  if (displayName.length < 2 || displayName.length > 48) throw new Error("Display name must be 2–48 characters");
-  if (input.password.length < 10) throw new Error("Password must be at least 10 characters");
+export const nonceCookieOptions = {
+  httpOnly: true,
+  sameSite: "lax" as const,
+  secure: process.env.NODE_ENV === "production",
+  path: "/",
+  maxAge: 60 * 10, // 10 minutes
+};
 
-  const salt = randomBytes(16).toString("hex");
-  const passwordHash = await hashPassword(input.password, salt);
-  return mutateDatabase((database) => {
-    if (database.users.some((user) => user.email === email)) throw new Error("An account already uses this email");
-    if (database.users.some((user) => user.username === username)) throw new Error("This username is already taken");
-    const user: StoredUser = {
-      id: randomUUID(), email, username, displayName, passwordHash, passwordSalt: salt,
-      walletAddress: null,
-      sandboxFiatBalance: "0",
-      sandboxFiatPending: "0",
-      createdAt: new Date().toISOString(),
-    };
-    database.users.push(user);
-    return publicUser(user);
-  });
+export async function verifySiweMessage(params: {
+  address: string;
+  message: string;
+  signature: string;
+  storedNonce?: string;
+}) {
+  const { address, message, signature, storedNonce } = params;
+  if (!address || (!isAddress(address) && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address))) {
+    throw new Error("Invalid wallet address");
+  }
+  if (!message || !signature) {
+    throw new Error("Missing SIWE message or signature");
+  }
+
+  // Check nonce if provided
+  if (storedNonce && !message.includes(storedNonce)) {
+    throw new Error("SIWE nonce mismatch or expired challenge");
+  }
+
+  // Verify EVM signature using Viem
+  if (isAddress(address)) {
+    const checksummed = getAddress(address);
+    const isValid = await verifyMessage({
+      address: checksummed,
+      message,
+      signature: signature as `0x${string}`,
+    }).catch(() => false);
+
+    if (!isValid) {
+      throw new Error("Invalid SIWE signature for address");
+    }
+    return checksummed;
+  }
+
+  // Solana / non-EVM address fallback
+  return address;
 }
 
-export async function authenticateUser(login: string, password: string) {
-  const normalized = login.trim().toLowerCase();
-  const user = await queryDatabase((database) => database.users.find((entry) => entry.email === normalized || entry.username === normalized));
-  if (!user) return null;
-  const candidate = Buffer.from(await hashPassword(password, user.passwordSalt), "hex");
-  const expected = Buffer.from(user.passwordHash, "hex");
-  return candidate.length === expected.length && timingSafeEqual(candidate, expected) ? publicUser(user) : null;
+export async function authenticateOrRegisterSiweUser(input: {
+  address: string;
+  message: string;
+  signature: string;
+  username?: string;
+  displayName?: string;
+}) {
+  const cookieStore = await cookies();
+  const storedNonce = cookieStore.get(NONCE_COOKIE)?.value;
+  const verifiedAddress = await verifySiweMessage({
+    address: input.address,
+    message: input.message,
+    signature: input.signature,
+    storedNonce,
+  });
+
+  const normalizedAddress = verifiedAddress.toLowerCase();
+  const defaultHandle = `${verifiedAddress.slice(0, 6)}...${verifiedAddress.slice(-4)}`;
+  const requestedUsername = (input.username?.trim() || defaultHandle).toLowerCase();
+  const requestedDisplayName = input.displayName?.trim() || input.username?.trim() || defaultHandle;
+
+  return mutateDatabase((database) => {
+    let user = database.users.find(
+      (u) => u.walletAddress && u.walletAddress.toLowerCase() === normalizedAddress
+    );
+
+    if (user) {
+      // Update display name or username if provided
+      if (input.displayName?.trim()) user.displayName = input.displayName.trim();
+      if (input.username?.trim() && !database.users.some((u) => u.id !== user!.id && u.username === requestedUsername)) {
+        user.username = requestedUsername;
+      }
+    } else {
+      // Create new SIWE user
+      const takenUsername = database.users.some((u) => u.username === requestedUsername);
+      const finalUsername = takenUsername ? `${requestedUsername}_${randomBytes(2).toString("hex")}` : requestedUsername;
+
+      user = {
+        id: randomUUID(),
+        walletAddress: verifiedAddress,
+        username: finalUsername,
+        displayName: requestedDisplayName,
+        sandboxFiatBalance: "0",
+        sandboxFiatPending: "0",
+        createdAt: new Date().toISOString(),
+      };
+      database.users.push(user);
+    }
+
+    return publicUser(user);
+  });
 }
 
 export async function getCurrentUser() {

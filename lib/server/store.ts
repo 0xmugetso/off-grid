@@ -7,12 +7,9 @@ import { randomUUID } from "node:crypto";
 
 export interface StoredUser {
   id: string;
-  email: string;
+  walletAddress: string;
   username: string;
   displayName: string;
-  passwordHash: string;
-  passwordSalt: string;
-  walletAddress: string | null;
   sandboxFiatBalance: string;
   sandboxFiatPending: string;
   createdAt: string;
@@ -142,14 +139,12 @@ function emptyDatabase(): Database {
 }
 
 function normalizeUser(user: Partial<StoredUser>): StoredUser {
+  const walletAddress = typeof user.walletAddress === "string" ? user.walletAddress : "";
   return {
     id: String(user.id ?? randomUUID()),
-    email: String(user.email ?? ""),
-    username: String(user.username ?? ""),
-    displayName: String(user.displayName ?? ""),
-    passwordHash: String(user.passwordHash ?? ""),
-    passwordSalt: String(user.passwordSalt ?? ""),
-    walletAddress: typeof user.walletAddress === "string" ? user.walletAddress : null,
+    walletAddress,
+    username: String(user.username ?? (walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : "")),
+    displayName: String(user.displayName ?? user.username ?? walletAddress),
     sandboxFiatBalance: typeof user.sandboxFiatBalance === "string" ? user.sandboxFiatBalance : "0",
     sandboxFiatPending: typeof user.sandboxFiatPending === "string" ? user.sandboxFiatPending : "0",
     createdAt: String(user.createdAt ?? new Date().toISOString()),
@@ -249,10 +244,9 @@ export async function mutateDatabase<T>(mutation: (database: Database) => T | Pr
 export function publicUser(user: StoredUser) {
   return {
     id: user.id,
-    email: user.email,
+    walletAddress: user.walletAddress,
     username: user.username,
     displayName: user.displayName,
-    walletAddress: user.walletAddress,
     sandboxFiatBalance: user.sandboxFiatBalance,
     sandboxFiatPending: user.sandboxFiatPending,
     createdAt: user.createdAt,

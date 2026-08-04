@@ -12,7 +12,7 @@ export async function PATCH(request: Request) {
   const user = await mutateDatabase((database) => {
     const target = database.users.find((entry) => entry.id === current.id);
     if (!target) throw new Error("Account not found");
-    target.walletAddress = typeof walletAddress === "string" ? getAddress(walletAddress) : null;
+    target.walletAddress = typeof walletAddress === "string" ? getAddress(walletAddress) : "";
     return publicUser(target);
   });
   return NextResponse.json({ user });

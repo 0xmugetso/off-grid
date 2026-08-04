@@ -20,8 +20,13 @@ function subtractUsdc(balance: string, delta: bigint) {
 export async function GET() {
   const current = await getCurrentUser();
   if (!current) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const currentWallet = current.walletAddress?.toLowerCase();
   const invoices = await queryDatabase((database) => database.invoices
-    .filter((invoice) => invoice.senderId === current.id || invoice.recipientUserId === current.id)
+    .filter((invoice) => 
+      invoice.senderId === current.id || 
+      invoice.recipientUserId === current.id ||
+      (currentWallet && invoice.recipientAddress.toLowerCase() === currentWallet)
+    )
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
   return NextResponse.json({ invoices });
 }
@@ -73,6 +78,9 @@ export async function POST(request: Request) {
         return database.users.find((entry) => entry.walletAddress && entry.walletAddress.toLowerCase() === recipientAddress.toLowerCase()) ?? null;
       };
       const recipientUser = resolveRecipientUser();
+      if (recipientUser && !invoice.recipientUserId) {
+        invoice.recipientUserId = recipientUser.id;
+      }
       const senderUser = database.users.find((entry) => entry.id === current.id);
       if (!senderUser) throw new Error("Account not found");
       let fiatSender = senderUser;

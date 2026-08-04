@@ -314,20 +314,42 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) => void }) {
-  const [mode, setMode] = useState<AuthMode>("register");
+  const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleSiwe() {
     setBusy(true);
     setError("");
-    const values = Object.fromEntries(new FormData(event.currentTarget));
     try {
-      const { user } = await api<{ user: User }>(`/api/auth/${mode}`, { method: "POST", body: JSON.stringify(values) });
+      const discovered = await discoverBrowserWallets();
+      if (!discovered.length) throw new Error("No Web3 wallet detected. Please install MetaMask, Rabby, or Coinbase Wallet.");
+      const wallet = discovered[0];
+      const address = await requestWalletAccount(wallet.provider);
+
+      const { nonce } = await api<{ nonce: string }>("/api/auth/nonce");
+
+      const domain = window.location.host;
+      const origin = window.location.origin;
+      const statement = "Sign in to OffGrid Payment Command Center.";
+      const issuedAt = new Date().toISOString();
+      const message = `${domain} wants you to sign in with your Ethereum account:\n${address}\n\n${statement}\n\nURI: ${origin}\nVersion: 1\nChain ID: ${ARC.chainId}\nNonce: ${nonce}\nIssued At: ${issuedAt}`;
+
+      const hexMessage = `0x${Buffer.from(message, "utf8").toString("hex")}`;
+      const signature = (await wallet.provider.request({
+        method: "personal_sign",
+        params: [hexMessage, address] as unknown as [`0x${string}`, `0x${string}`],
+      })) as string;
+
+      const { user } = await api<{ user: User }>("/api/auth/siwe", {
+        method: "POST",
+        body: JSON.stringify({ address, message, signature, username, displayName }),
+      });
+
       onAuthenticated(user);
-    } catch (authError) {
-      setError(authError instanceof Error ? authError.message : "Authentication failed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "SIWE authentication failed");
     } finally {
       setBusy(false);
     }
@@ -348,21 +370,32 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
         </div>
       </section>
       <section className="auth-panel">
-        <div className="auth-brand"><Logo /><b>offgrid</b><span>TESTNET</span></div>
-        <form className="auth-form" onSubmit={submit}>
+        <div className="auth-brand"><Logo /><b>offgrid</b><span>TESTNET v0.2.0</span></div>
+        <div className="auth-form">
           <div className="auth-form-head">
-            <span><Fingerprint size={16} /> SECURE ACCESS</span>
-            <h2>{mode === "register" ? "Create your OffGrid ID" : "Welcome back"}</h2>
-            <p>{mode === "register" ? "Your username becomes your global payment handle." : "Sign in to your payment command center."}</p>
+            <span><Fingerprint size={16} /> SIGN-IN WITH WALLET (SIWE)</span>
+            <h2>Welcome to OffGrid</h2>
+            <p>Connect your wallet and sign an EIP-4361 challenge to sign in securely.</p>
           </div>
-          {mode === "register" && <div className="auth-row"><label>Display name<input name="displayName" placeholder="Alex Morgan" autoComplete="name" required /></label><label>Username<div className="prefix-input"><span>@</span><input name="username" placeholder="alex" autoComplete="username" required /></div></label></div>}
-          <label>{mode === "login" ? "Username or email" : "Email"}<input name={mode === "login" ? "login" : "email"} type={mode === "login" ? "text" : "email"} placeholder={mode === "login" ? "@alex or alex@company.com" : "alex@company.com"} autoComplete={mode === "login" ? "username" : "email"} required /></label>
-          <label>Password<input name="password" type="password" minLength={10} placeholder="10+ characters" autoComplete={mode === "login" ? "current-password" : "new-password"} required /></label>
+          <div className="auth-row">
+            <label>Display name (optional)
+              <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Alex Morgan" />
+            </label>
+            <label>Username / Handle
+              <div className="prefix-input">
+                <span>@</span>
+                <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="alex or ens/0xwallet" />
+              </div>
+            </label>
+          </div>
           {error && <p className="form-error"><CircleAlert size={14} /> {error}</p>}
-          <button className="neon-button" disabled={busy}>{busy ? <LoaderCircle className="spin" size={17} /> : <Fingerprint size={17} />}{mode === "register" ? "Create secure account" : "Enter OffGrid"}<ArrowRight size={16} /></button>
-          <p className="auth-switch">{mode === "register" ? "Already have an account?" : "New to OffGrid?"}<button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }}>{mode === "register" ? "Sign in" : "Create account"}</button></p>
-        </form>
-        <p className="auth-security"><LockKeyhole size={13} /> Passwords are scrypt-hashed. Sessions stay in secure HttpOnly cookies.</p>
+          <button className="neon-button" onClick={handleSiwe} disabled={busy}>
+            {busy ? <LoaderCircle className="spin" size={17} /> : <Fingerprint size={17} />}
+            Sign-In With Wallet (SIWE)
+            <ArrowRight size={16} />
+          </button>
+        </div>
+        <p className="auth-security"><LockKeyhole size={13} /> Zero password custody. Cryptographic signatures verify wallet ownership via EIP-4361.</p>
       </section>
     </main>
   );

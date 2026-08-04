@@ -16,6 +16,7 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       service: "offgrid",
+      version: "0.2.0",
       environment: process.env.NODE_ENV,
       persistence: persistenceMode(),
       arc: process.env.NEXT_PUBLIC_ARC_NETWORK ?? "Arc_Testnet",
