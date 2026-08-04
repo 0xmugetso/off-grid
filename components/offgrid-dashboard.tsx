@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { isAddress } from "viem";
+import { NeonMesh } from "@/components/ui/neon-mesh";
 import { ArcPayrollClient, getArcMintStep, type BrowserSolanaAdapter, type BrowserViemAdapter, type CircleAdapter, type GatewayMintRetry } from "@/lib/arc/app-kit-client";
 import { discoverBrowserWallets, ensureArcTestnet, requestWalletAccount, type BrowserWallet } from "@/lib/arc/browser-wallet";
 import { ARC, CCTP_SOURCE_CHAINS, CHAIN_LABELS, SOURCE_CHAINS, type CctpSourceChain, type SourceChain } from "@/lib/arc/config";
@@ -2073,6 +2074,7 @@ export function OffGridDashboard() {
 
   return (
     <main className="product-shell">
+      <NeonMesh opacity={0.28} />
       <header className="product-header">
         <a className="product-brand" href="#top"><Logo /><b>offgrid</b><span>ARC TESTNET</span></a>
         <div className="header-signal"><i /> NETWORK OPERATIONAL <em>{ARC.finalityMs}ms FINALITY</em></div>
