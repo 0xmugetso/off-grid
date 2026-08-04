@@ -711,6 +711,214 @@ interface EscrowItem {
   updatedAt: string;
 }
 
+function CreateEscrowModal({
+  onClose,
+  onCreated,
+  walletAddress,
+}: {
+  onClose: () => void;
+  onCreated: (item: EscrowItem) => void;
+  walletAddress: string;
+}) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState<EscrowItem["category"]>("code");
+  const [providerAddress, setProviderAddress] = useState("");
+  const [amount, setAmount] = useState("50.00");
+  const [specs, setSpecs] = useState("Automated test suite (npm test) must pass with 0 errors. Code must match TypeScript schema.");
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createError, setCreateError] = useState("");
+
+  const handleNext = (e: FormEvent) => {
+    e.preventDefault();
+    if (step === 1) {
+      if (!title.trim()) return setCreateError("Please enter a deliverable title");
+      setCreateError("");
+      setStep(2);
+    } else if (step === 2) {
+      if (!providerAddress.trim() || !isAddress(providerAddress)) return setCreateError("Please enter a valid provider EVM wallet address (0x...)");
+      if (!amount || Number(amount) <= 0) return setCreateError("Amount must be greater than 0 USDC");
+      setCreateError("");
+      setStep(3);
+    } else {
+      void handleSubmit();
+    }
+  };
+
+  const handleSubmit = async () => {
+    setCreateBusy(true);
+    setCreateError("");
+    try {
+      const data = await api<{ escrow: EscrowItem }>("/api/escrows", {
+        method: "POST",
+        body: JSON.stringify({ title, category, providerAddress, amount, specs })
+      });
+      onCreated(data.escrow);
+      onClose();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to deploy escrow contract");
+    } finally {
+      setCreateBusy(false);
+    }
+  };
+
+  return (
+    <div className="overlay">
+      <article className="escrow-wizard-modal">
+        <button className="modal-x" onClick={onClose} aria-label="Close modal"><X size={18}/></button>
+        
+        <div className="escrow-wizard-head">
+          <span className="section-tag">REFUND PROTOCOL · ERC-8183 SPEC</span>
+          <h2>Create AI Escrow Contract</h2>
+          <p>Setup an AI-monitored escrow on Arc Testnet. Funds are locked in vault and released automatically when AI verification passes.</p>
+        </div>
+
+        <div className="escrow-stepper">
+          <div className={`stepper-step ${step >= 1 ? "active" : ""}`}>
+            <span>1</span>
+            <small>Deliverable Scope</small>
+          </div>
+          <i className={step >= 2 ? "active" : ""} />
+          <div className={`stepper-step ${step >= 2 ? "active" : ""}`}>
+            <span>2</span>
+            <small>Counterparty & Amount</small>
+          </div>
+          <i className={step >= 3 ? "active" : ""} />
+          <div className={`stepper-step ${step >= 3 ? "active" : ""}`}>
+            <span>3</span>
+            <small>AI Verification</small>
+          </div>
+        </div>
+
+        <form onSubmit={handleNext} className="escrow-wizard-body">
+          {step === 1 && (
+            <div className="wizard-step-pane">
+              <label className="wizard-label">
+                <span>DELIVERABLE TITLE</span>
+                <input
+                  className="wizard-input"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. Solana Devnet CCTP Integration Module"
+                  autoFocus
+                  required
+                />
+              </label>
+
+              <label className="wizard-label">
+                <span>CATEGORY</span>
+                <select className="wizard-select" value={category} onChange={(e) => setCategory(e.target.value as any)}>
+                  <option value="code">Source Code / Repository</option>
+                  <option value="api_key">API Key / Endpoint Proxy</option>
+                  <option value="digital_goods">Digital Asset / Design</option>
+                  <option value="freelance">Freelance Task / Service</option>
+                </select>
+              </label>
+
+              <div className="wizard-info-box">
+                <FileCode size={18} />
+                <div>
+                  <b>What is an AI Escrow?</b>
+                  <p>Instead of manual approval, your escrow contract uses an AI Sentinel to inspect source code, run tests, or ping endpoints before releasing funds.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="wizard-step-pane">
+              <label className="wizard-label">
+                <span>PROVIDER / SELLER WALLET ADDRESS</span>
+                <input
+                  className="wizard-input"
+                  value={providerAddress}
+                  onChange={(e) => setProviderAddress(e.target.value)}
+                  placeholder="0x..."
+                  autoFocus
+                  required
+                />
+              </label>
+
+              <label className="wizard-label">
+                <span>ESCROW AMOUNT (USDC)</span>
+                <div className="wizard-amount-input">
+                  <input
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+                    placeholder="50.00"
+                    required
+                  />
+                  <span>USDC</span>
+                </div>
+                <small className="wizard-field-note">Locked in Arc Testnet Vault upon funding</small>
+              </label>
+
+              <div className="wizard-rail-badge">
+                <Zap size={14}/>
+                <span>Arc Testnet Settlement Vault · &lt;1.0s Block Finality</span>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="wizard-step-pane">
+              <label className="wizard-label">
+                <span>AI VALIDATION SPECIFICATIONS & RULES</span>
+                <textarea
+                  className="wizard-textarea"
+                  value={specs}
+                  onChange={(e) => setSpecs(e.target.value)}
+                  placeholder="Define test commands, expected JSON output, or quality rules..."
+                  rows={3}
+                  required
+                />
+              </label>
+
+              <div className="escrow-trust-card">
+                <small className="section-tag">EXECUTION & TRUST GUARANTEE</small>
+                <div className="trust-features">
+                  <div>
+                    <Lock size={15} />
+                    <span><b>Vault Lock</b><small>Buyer deposits USDC before work starts</small></span>
+                  </div>
+                  <div>
+                    <Bot size={15} />
+                    <span><b>AI Sentinel</b><small>Automated code & test suite inspection</small></span>
+                  </div>
+                  <div>
+                    <CheckCircle2 size={15} />
+                    <span><b>Instant Release</b><small>Funds transferred on Arc upon green check</small></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {createError && <p className="inline-error"><CircleAlert size={13}/> {createError}</p>}
+
+          <div className="wizard-actions">
+            {step > 1 ? (
+              <button type="button" className="wizard-back-btn" onClick={() => { setCreateError(""); setStep((s) => (s - 1) as any); }}>
+                Back
+              </button>
+            ) : <span />}
+
+            {step < 3 ? (
+              <button type="submit" className="neon-button">
+                Continue to Step {step + 1} <ArrowRight size={15} />
+              </button>
+            ) : (
+              <button type="button" className="neon-button wizard-deploy-btn" disabled={createBusy} onClick={() => void handleSubmit()}>
+                {createBusy ? <LoaderCircle className="spin" size={16} /> : <Scale size={16} />} Deploy AI Escrow Contract
+              </button>
+            )}
+          </div>
+        </form>
+      </article>
+    </div>
+  );
+}
+
 function EscrowView({
   walletAddress,
   arcBalance,
@@ -725,13 +933,6 @@ function EscrowView({
   const [escrows, setEscrows] = useState<EscrowItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<EscrowItem["category"]>("code");
-  const [providerAddress, setProviderAddress] = useState("");
-  const [amount, setAmount] = useState("50.00");
-  const [specs, setSpecs] = useState("Automated test suite (npm test) must pass with 0 errors. Code must match TypeScript schema.");
-  const [createBusy, setCreateBusy] = useState(false);
-  const [createError, setCreateError] = useState("");
 
   const [activeEscrow, setActiveEscrow] = useState<EscrowItem | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
@@ -740,57 +941,9 @@ function EscrowView({
   const loadEscrows = async () => {
     try {
       const data = await api<{ escrows: EscrowItem[] }>("/api/escrows");
-      if (data.escrows?.length) {
-        setEscrows(data.escrows);
-      } else {
-        setEscrows([
-          {
-            id: "escrow-demo-1",
-            title: "Solana Devnet CCTP Integration Module",
-            category: "code",
-            clientAddress: walletAddress || "0x6bD8969f69747970876418E97E1c54A7b7c558cd",
-            clientName: "You (Client)",
-            providerAddress: "0x37c89f53e2049281a89c4902a28e51b149b5816f",
-            providerName: "@alex.sol",
-            amount: "150.00",
-            specs: "Provide a verified TypeScript browser adapter for CCTP burn/mint on Solana Devnet. Automated test suite must pass.",
-            status: "validated",
-            deliverableProof: "https://github.com/0xmugetso/off-grid/pull/4",
-            depositTxHash: "0xa2f83d91b490e1c27845f7823901b849204859a1098234ef09823485712903ab",
-            releaseTxHash: "0x89234b09c1823948e71239048123948712394871239487123948712394871239",
-            aiVerificationLogs: [
-              `[${new Date().toISOString()}] Arc Escrow contract deployed under ERC-8183 spec.`,
-              `[${new Date().toISOString()}] Client deposited 150.00 USDC to Arc Escrow vault.`,
-              `[${new Date().toISOString()}] Provider submitted GitHub PR deliverable proof.`,
-              `[${new Date().toISOString()}] AI Arbiter executed Vitest sandbox: 14/14 tests passed.`,
-              `[${new Date().toISOString()}] Arc Testnet settlement complete: 150.00 USDC released to @alex.sol.`
-            ],
-            createdAt: new Date(Date.now() - 86400000).toISOString(),
-            updatedAt: new Date().toISOString()
-          },
-          {
-            id: "escrow-demo-2",
-            title: "Circle Gateway Unified Balance API Proxy",
-            category: "api_key",
-            clientAddress: walletAddress || "0x6bD8969f69747970876418E97E1c54A7b7c558cd",
-            clientName: "You (Client)",
-            providerAddress: "0x892a01f9c823402391048b712394871239487123",
-            providerName: "@gateway_dev",
-            amount: "50.00",
-            specs: "HTTP 200 OK verification on Gateway indexing endpoint. Must return spendable balance JSON.",
-            status: "funded",
-            depositTxHash: "0x789234bf09128347918237498127349812734918273491827349182734918273",
-            aiVerificationLogs: [
-              `[${new Date().toISOString()}] Buyer locked 50.00 USDC in Escrow vault on Arc Testnet.`,
-              `[${new Date().toISOString()}] Awaiting Provider deliverable submission.`
-            ],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }
-        ]);
-      }
+      setEscrows(data.escrows || []);
     } catch {
-      // Fallback
+      setEscrows([]);
     } finally {
       setLoading(false);
     }
@@ -799,27 +952,6 @@ function EscrowView({
   useEffect(() => {
     void loadEscrows();
   }, []);
-
-  const handleCreate = async (e: FormEvent) => {
-    e.preventDefault();
-    setCreateBusy(true);
-    setCreateError("");
-    try {
-      const data = await api<{ escrow: EscrowItem }>("/api/escrows", {
-        method: "POST",
-        body: JSON.stringify({ title, category, providerAddress, amount, specs })
-      });
-      setEscrows((prev) => [data.escrow, ...prev]);
-      setShowCreateModal(false);
-      setTitle("");
-      setProviderAddress("");
-      setAmount("50.00");
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create escrow");
-    } finally {
-      setCreateBusy(false);
-    }
-  };
 
   const handleAction = async (item: EscrowItem, action: "fund" | "submit" | "verify" | "refund") => {
     setActionBusy(true);
@@ -885,132 +1017,98 @@ function EscrowView({
             <b>Escrow Sessions</b>
             <small>{escrows.length} AI-monitored contracts</small>
           </div>
-          <span className="live-data-pill"><i /> ARC TESTNET CONTRACTS</span>
         </div>
 
-        <div className="escrow-cards-grid">
-          {escrows.map((item) => (
-            <div key={item.id} className={`escrow-item-card ${item.status}`}>
-              <div className="escrow-card-head">
-                <span className={`escrow-category-badge ${item.category}`}>
-                  {item.category === "code" ? <FileCode size={12}/> : item.category === "api_key" ? <Bot size={12}/> : <FileCheck size={12}/>}
-                  {item.category.toUpperCase().replace("_", " ")}
-                </span>
-                <span className={`escrow-status-pill ${item.status}`}>
-                  <i /> {item.status.toUpperCase()}
-                </span>
-              </div>
-
-              <h3>{item.title}</h3>
-              <p className="escrow-specs-text">{item.specs}</p>
-
-              <div className="escrow-participants">
-                <div>
-                  <small>CLIENT</small>
-                  <b>{item.clientName}</b>
+        {escrows.length === 0 ? (
+          <div className="escrow-empty-state">
+            <div className="escrow-empty-icon"><Scale size={28} /></div>
+            <h3>No Escrow Contracts Yet</h3>
+            <p>Create your first AI-validated escrow for digital goods, code repositories, or freelance tasks with instant Arc USDC settlement.</p>
+            <button className="neon-button" onClick={() => setShowCreateModal(true)}>
+              <Plus size={15} /> Create AI Escrow Contract
+            </button>
+          </div>
+        ) : (
+          <div className="escrow-cards-grid">
+            {escrows.map((item) => (
+              <div key={item.id} className={`escrow-item-card ${item.status}`}>
+                <div className="escrow-card-head">
+                  <span className={`escrow-category-badge ${item.category}`}>
+                    {item.category === "code" ? <FileCode size={12}/> : item.category === "api_key" ? <Bot size={12}/> : <FileCheck size={12}/>}
+                    {item.category.toUpperCase().replace("_", " ")}
+                  </span>
+                  <span className={`escrow-status-pill ${item.status}`}>
+                    <i /> {item.status.toUpperCase()}
+                  </span>
                 </div>
-                <ArrowRight size={14} className="arrow-split" />
-                <div>
-                  <small>PROVIDER</small>
-                  <b>{item.providerName}</b>
+
+                <h3>{item.title}</h3>
+                <p className="escrow-specs-text">{item.specs}</p>
+
+                <div className="escrow-participants">
+                  <div>
+                    <small>CLIENT</small>
+                    <b>{item.clientName}</b>
+                  </div>
+                  <ArrowRight size={14} className="arrow-split" />
+                  <div>
+                    <small>PROVIDER</small>
+                    <b>{item.providerName}</b>
+                  </div>
                 </div>
-              </div>
 
-              <div className="escrow-amount-row">
-                <span>
-                  <small>LOCKED AMOUNT</small>
-                  <b>{displayMoney(item.amount)} USDC</b>
-                </span>
-                <button className="escrow-detail-btn" onClick={() => setActiveEscrow(item)}>
-                  Inspect Contract <ArrowRight size={12}/>
-                </button>
-              </div>
-
-              {item.status === "created" && (
-                <button className="neon-button escrow-action-full" disabled={actionBusy} onClick={() => void handleAction(item, "fund")}>
-                  <Lock size={14}/> Fund Escrow ({item.amount} USDC)
-                </button>
-              )}
-
-              {item.status === "funded" && (
-                <div className="escrow-inline-submit">
-                  <input
-                    value={deliverableInput}
-                    onChange={(e) => setDeliverableInput(e.target.value)}
-                    placeholder="Paste GitHub PR or deliverable URL..."
-                  />
-                  <button className="neon-button" disabled={actionBusy || !deliverableInput.trim()} onClick={() => void handleAction(item, "submit")}>
-                    Submit Deliverable
+                <div className="escrow-amount-row">
+                  <span>
+                    <small>LOCKED AMOUNT</small>
+                    <b>{displayMoney(item.amount)} USDC</b>
+                  </span>
+                  <button className="escrow-detail-btn" onClick={() => setActiveEscrow(item)}>
+                    Inspect Contract <ArrowRight size={12}/>
                   </button>
                 </div>
-              )}
 
-              {item.status === "submitted" && (
-                <button className="neon-button escrow-action-full" disabled={actionBusy} onClick={() => void handleAction(item, "verify")}>
-                  <Bot size={15}/> Run AI Verification & Release
-                </button>
-              )}
+                {item.status === "created" && (
+                  <button className="neon-button escrow-action-full" disabled={actionBusy} onClick={() => void handleAction(item, "fund")}>
+                    <Lock size={14}/> Fund Escrow ({item.amount} USDC)
+                  </button>
+                )}
 
-              {item.status === "validated" && (
-                <div className="escrow-success-banner">
-                  <CheckCircle2 size={15}/> Validated & Released on Arc Testnet
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+                {item.status === "funded" && (
+                  <div className="escrow-inline-submit">
+                    <input
+                      value={deliverableInput}
+                      onChange={(e) => setDeliverableInput(e.target.value)}
+                      placeholder="Paste GitHub PR or deliverable URL..."
+                    />
+                    <button className="neon-button" disabled={actionBusy || !deliverableInput.trim()} onClick={() => void handleAction(item, "submit")}>
+                      Submit Deliverable
+                    </button>
+                  </div>
+                )}
+
+                {item.status === "submitted" && (
+                  <button className="neon-button escrow-action-full" disabled={actionBusy} onClick={() => void handleAction(item, "verify")}>
+                    <Bot size={15}/> Run AI Verification & Release
+                  </button>
+                )}
+
+                {item.status === "validated" && (
+                  <div className="escrow-success-banner">
+                    <CheckCircle2 size={15}/> Validated & Released on Arc Testnet
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {showCreateModal && (
-        <div className="overlay">
-          <article className="session-create-modal">
-            <button className="modal-x" onClick={() => setShowCreateModal(false)}><X size={18}/></button>
-            <span className="section-tag">REFUND PROTOCOL · ERC-8183</span>
-            <h2>Create AI Escrow Contract</h2>
-            <p>Lock funds in escrow on Arc Testnet. Payment is released to the seller only when your AI specification rules pass.</p>
-
-            <form onSubmit={handleCreate}>
-              <label>
-                Deliverable Title
-                <input className="session-memo-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. React Dashboard UI Component" required />
-              </label>
-
-              <label>
-                Category
-                <select className="session-memo-input" value={category} onChange={(e) => setCategory(e.target.value as any)}>
-                  <option value="code">Source Code / Repository</option>
-                  <option value="api_key">API Key / Integration Endpoint</option>
-                  <option value="digital_goods">Digital Asset / Design</option>
-                  <option value="freelance">Freelance Task</option>
-                </select>
-              </label>
-
-              <label>
-                Provider / Seller Wallet Address
-                <input className="session-memo-input" value={providerAddress} onChange={(e) => setProviderAddress(e.target.value)} placeholder="0x..." required />
-              </label>
-
-              <label>
-                Escrow Amount (USDC)
-                <div className="fund-amount">
-                  <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="50.00" required />
-                  <span>USDC</span>
-                </div>
-              </label>
-
-              <label>
-                AI Validation Specifications & Rules
-                <textarea className="session-memo-input" style={{ height: "70px", paddingTop: "8px" }} value={specs} onChange={(e) => setSpecs(e.target.value)} placeholder="Define strict testing rules, test suite outputs, or JSON schema requirements..." required />
-              </label>
-
-              {createError && <p className="inline-error"><CircleAlert size={13}/> {createError}</p>}
-
-              <button className="neon-button" style={{ width: "100%", marginTop: "16px" }} type="submit" disabled={createBusy}>
-                {createBusy ? <LoaderCircle className="spin" size={15}/> : <Scale size={15}/>} Deploy AI Escrow Contract
-              </button>
-            </form>
-          </article>
-        </div>
+        <CreateEscrowModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={(newItem) => setEscrows((prev) => [newItem, ...prev])}
+          walletAddress={walletAddress}
+        />
       )}
 
       {activeEscrow && (
