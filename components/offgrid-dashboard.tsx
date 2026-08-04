@@ -1125,7 +1125,7 @@ export function OffGridDashboard() {
     setWalletBusy(true);
     setWalletError("");
     try {
-      await api("/api/account/wallet", { method: "PATCH", body: JSON.stringify({ walletAddress: null }) });
+      await api("/api/auth/logout", { method: "POST" });
       providerRef.current = null;
       adapterRef.current = null;
       clientRef.current = null;
@@ -1146,6 +1146,7 @@ export function OffGridDashboard() {
       setGatewayStale(false);
       setShowWalletMenu(false);
       try { window.localStorage.removeItem("offgrid-last-evm-wallet"); } catch { /* ignore */ }
+      setUser(null);
     } catch (error) {
       setWalletError(error instanceof Error ? error.message : "Could not disconnect wallet");
     } finally {
@@ -1525,7 +1526,7 @@ export function OffGridDashboard() {
         <a className="product-brand" href="#top"><Logo /><b>offgrid</b><span>ARC TESTNET</span></a>
         <div className="header-signal"><i /> NETWORK OPERATIONAL <em>{ARC.finalityMs}ms FINALITY</em></div>
         <div className="header-actions">
-          {displayWalletAddress && <button className="arc-switch-button" onClick={switchToArc} disabled={walletBusy || walletOnArc}>{walletBusy ? <LoaderCircle className="spin" size={12} /> : <Network size={12} />} {walletOnArc ? "Arc active" : "Switch to Arc"}</button>}
+          {displayWalletAddress && !walletOnArc && <button className="arc-switch-button" onClick={switchToArc} disabled={walletBusy}>{walletBusy ? <LoaderCircle className="spin" size={12} /> : <Network size={12} />} Switch to Arc</button>}
           <a className="faucet-button" href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><Fuel size={15} /> Get test USDC <ExternalLink size={12} /></a>
           <button className={`solana-wallet-button ${solanaAddress ? "connected" : ""}`} onClick={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} disabled={solanaBusy} title={solanaAddress ? `${solanaWalletName}: ${solanaAddress}` : "Connect a Solana Devnet source wallet"}><ChainLogo chain="Solana_Devnet" size={18}/><span><b>{solanaAddress ? shortAddress(solanaAddress, 5) : "Connect Solana"}</b>{solanaAddress && <small>{solanaUsdcBalance === null ? "BALANCE —" : `${displayMoney(solanaUsdcBalance)} USDC`}</small>}</span>{solanaBusy ? <LoaderCircle className="spin" size={12}/> : solanaAddress ? <RefreshCw size={12}/> : null}</button>
           {displayWalletAddress ? <div className={`connected-wallet-shell ${showWalletMenu ? "open" : ""}`} ref={walletMenuRef}><button className="connected-wallet" onClick={() => setShowWalletMenu((current) => !current)} onMouseEnter={() => setShowWalletMenu(true)}><span><i /></span><b>{shortAddress(displayWalletAddress)}</b><small>{walletName || user.displayName}</small><RefreshCw size={13} /></button><div className="connected-wallet-menu"><button onClick={() => { setShowWalletMenu(false); void loadBalances(); }}><RefreshCw size={12} /> Refresh balances</button><button onClick={() => { void disconnectWallet(); }}><LogOut size={12} /> Disconnect wallet</button></div></div> : <button className="connect-wallet" onClick={beginWalletConnection} disabled={walletBusy}>{walletBusy ? <LoaderCircle className="spin" size={15} /> : <Wallet size={15} />} Connect wallet</button>}
