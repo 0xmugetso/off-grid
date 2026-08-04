@@ -685,3 +685,30 @@ html[data-theme="light"] .history-proof-modal { width: min(540px, 100%); border-
 html[data-theme="light"] .history-proof-summary span,html[data-theme="light"] .history-proof-step { background: rgba(255,255,255,.54); border-color: var(--line-bright); }
 html[data-theme="light"] .history-proof-refresh { border-color: rgba(21,135,91,.17); background: rgba(21,135,91,.05); color: #156e57; }
 html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-color: rgba(21,135,91,.3); }
+
+/* Faucet Dropdown & Header Additions */
+.faucet-shell { position: relative; display: inline-block; }
+.faucet-menu { position: absolute; top: calc(100% + 6px); right: 0; min-width: 230px; padding: 6px; border: 1px solid var(--line-bright); border-radius: 8px; background: var(--panel); box-shadow: 0 16px 38px rgba(0,0,0,.5); z-index: 100; display: flex; flex-direction: column; gap: 4px; animation: soft-reveal .18s ease; }
+.faucet-menu a { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; color: var(--ink); text-decoration: none; font-size: 12px; transition: background .15s, color .15s; }
+.faucet-menu a:hover { background: var(--panel-2); color: var(--acid); }
+.faucet-menu a svg:last-child { margin-left: auto; opacity: .6; }
+
+.solana-dropdown-row { width: 100%; display: flex; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--ink); font-size: 12px; cursor: pointer; text-align: left; transition: border-color .15s, background .15s; }
+.solana-dropdown-row:hover { border-color: var(--acid); background: var(--panel-3); }
+.solana-dropdown-row span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.solana-dropdown-row small { color: var(--acid); font-family: var(--mono); }
+
+.menu-divider { height: 1px; background: var(--line); margin: 6px 0; }
+
+/* User Control Modal */
+.user-control-modal { width: min(440px, 92vw); padding: 26px; border: 1px solid var(--line-bright); border-radius: 14px; background: linear-gradient(155deg, var(--panel), var(--bg)); box-shadow: 0 24px 80px rgba(0,0,0,.6); position: relative; animation: premium-enter .25s ease; }
+.user-control-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.user-avatar-large { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, var(--acid), var(--cyan)); color: #000; font: 700 16px var(--mono); display: grid; place-items: center; }
+.user-control-info h3 { margin: 0 0 2px; font-size: 18px; }
+.user-control-info p { margin: 0; color: var(--muted); font: 12px var(--mono); }
+.user-control-details { display: grid; gap: 10px; background: var(--panel-2); padding: 14px; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 20px; font-size: 12px; }
+.user-detail-row { display: flex; justify-content: space-between; align-items: center; }
+.user-detail-row small { color: var(--muted); font: 10px var(--mono); }
+.user-detail-row span { color: var(--ink); font-weight: 500; font-family: var(--mono); }
+.user-control-actions { display: grid; gap: 10px; }
+

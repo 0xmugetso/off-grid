@@ -314,12 +314,13 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) => void }) {
+  const [tab, setTab] = useState<"signin" | "register">("signin");
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function handleSiwe() {
+  async function handleWalletSignIn() {
     setBusy(true);
     setError("");
     try {
@@ -344,12 +345,18 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
 
       const { user } = await api<{ user: User }>("/api/auth/siwe", {
         method: "POST",
-        body: JSON.stringify({ address, message, signature, username, displayName }),
+        body: JSON.stringify({
+          address,
+          message,
+          signature,
+          username: tab === "register" ? username : undefined,
+          displayName: tab === "register" ? displayName : undefined,
+        }),
       });
 
       onAuthenticated(user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "SIWE authentication failed");
+      setError(err instanceof Error ? err.message : "Authentication failed");
     } finally {
       setBusy(false);
     }
@@ -373,29 +380,37 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
         <div className="auth-brand"><Logo /><b>offgrid</b><span>TESTNET v0.2.0</span></div>
         <div className="auth-form">
           <div className="auth-form-head">
-            <span><Fingerprint size={16} /> SIGN-IN WITH WALLET (SIWE)</span>
-            <h2>Welcome to OffGrid</h2>
-            <p>Connect your wallet and sign an EIP-4361 challenge to sign in securely.</p>
+            <span><Fingerprint size={16} /> {tab === "signin" ? "SECURE WALLET SIGN-IN" : "CREATE OFFGRID ACCOUNT"}</span>
+            <h2>{tab === "signin" ? "Welcome back" : "Create your OffGrid ID"}</h2>
+            <p>{tab === "signin" ? "Sign in to your payment command center with your Web3 wallet." : "Set your display name and handle to bind with your Web3 wallet."}</p>
           </div>
-          <div className="auth-row">
-            <label>Display name (optional)
-              <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Alex Morgan" />
-            </label>
-            <label>Username / Handle
-              <div className="prefix-input">
-                <span>@</span>
-                <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="alex or ens/0xwallet" />
-              </div>
-            </label>
-          </div>
+          {tab === "register" && (
+            <div className="auth-row">
+              <label>Display name (optional)
+                <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Alex Morgan" />
+              </label>
+              <label>Username / Handle
+                <div className="prefix-input">
+                  <span>@</span>
+                  <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="alex or ens/0xwallet" />
+                </div>
+              </label>
+            </div>
+          )}
           {error && <p className="form-error"><CircleAlert size={14} /> {error}</p>}
-          <button className="neon-button" onClick={handleSiwe} disabled={busy}>
+          <button className="neon-button" onClick={handleWalletSignIn} disabled={busy}>
             {busy ? <LoaderCircle className="spin" size={17} /> : <Fingerprint size={17} />}
-            Sign-In With Wallet (SIWE)
+            {tab === "signin" ? "Sign in with Wallet" : "Register & Sign in with Wallet"}
             <ArrowRight size={16} />
           </button>
+          <p className="auth-switch">
+            {tab === "signin" ? "Don't have an account?" : "Already have an account?"}{" "}
+            <button type="button" onClick={() => { setTab(tab === "signin" ? "register" : "signin"); setError(""); }}>
+              {tab === "signin" ? "Register here" : "Sign in here"}
+            </button>
+          </p>
         </div>
-        <p className="auth-security"><LockKeyhole size={13} /> Zero password custody. Cryptographic signatures verify wallet ownership via EIP-4361.</p>
+        <p className="auth-security"><LockKeyhole size={13} /> Zero password custody. Cryptographic signatures verify wallet ownership.</p>
       </section>
     </main>
   );
@@ -683,6 +698,18 @@ export function OffGridDashboard() {
   const [pendingBalance, setPendingBalance] = useState<string | null>(null);
   const [gatewayChainBalances, setGatewayChainBalances] = useState<GatewayChainBalance[] | null>(null);
   const [balanceError, setBalanceError] = useState("");
+  const [showFaucetMenu, setShowFaucetMenu] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [userModalCopied, setUserModalCopied] = useState(false);
+
+  async function fundSandboxFiat() {
+    try {
+      const { user: updatedUser } = await api<{ user: User }>("/api/fiat/deposit", { method: "POST", body: JSON.stringify({ amount: "1000" }) });
+      setUser(updatedUser);
+    } catch (err) {
+      setWalletError(err instanceof Error ? err.message : "Fiat deposit failed");
+    }
+  }
   const [gatewayError, setGatewayError] = useState("");
   const [gatewayStale, setGatewayStale] = useState(false);
   const [walletBusy, setWalletBusy] = useState(false);
@@ -822,6 +849,17 @@ export function OffGridDashboard() {
     depositPollRef.current += 1;
   }, []);
   useEffect(() => { if (user) api<{ invoices: InvoiceData[] }>("/api/invoices").then(({ invoices }) => setActivity(invoices)).catch(() => undefined); }, [user, invoice]);
+  useEffect(() => {
+    if (user && typeof window !== "undefined" && window.ethereum) {
+      window.ethereum.request({ method: "eth_chainId" }).then((chainId) => {
+        const isArc = Number.parseInt(String(chainId), 16) === ARC.chainId;
+        if (isArc) {
+          setWalletOnArc(true);
+          setChainReady(true);
+        }
+      }).catch(() => undefined);
+    }
+  }, [user]);
   useEffect(() => {
     if (!user) return;
     void refreshFiatPayouts();
@@ -1527,11 +1565,52 @@ export function OffGridDashboard() {
         <div className="header-signal"><i /> NETWORK OPERATIONAL <em>{ARC.finalityMs}ms FINALITY</em></div>
         <div className="header-actions">
           {displayWalletAddress && !walletOnArc && <button className="arc-switch-button" onClick={switchToArc} disabled={walletBusy}>{walletBusy ? <LoaderCircle className="spin" size={12} /> : <Network size={12} />} Switch to Arc</button>}
-          <a className="faucet-button" href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><Fuel size={15} /> Get test USDC <ExternalLink size={12} /></a>
-          <button className={`solana-wallet-button ${solanaAddress ? "connected" : ""}`} onClick={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} disabled={solanaBusy} title={solanaAddress ? `${solanaWalletName}: ${solanaAddress}` : "Connect a Solana Devnet source wallet"}><ChainLogo chain="Solana_Devnet" size={18}/><span><b>{solanaAddress ? shortAddress(solanaAddress, 5) : "Connect Solana"}</b>{solanaAddress && <small>{solanaUsdcBalance === null ? "BALANCE —" : `${displayMoney(solanaUsdcBalance)} USDC`}</small>}</span>{solanaBusy ? <LoaderCircle className="spin" size={12}/> : solanaAddress ? <RefreshCw size={12}/> : null}</button>
-          {displayWalletAddress ? <div className={`connected-wallet-shell ${showWalletMenu ? "open" : ""}`} ref={walletMenuRef}><button className="connected-wallet" onClick={() => setShowWalletMenu((current) => !current)} onMouseEnter={() => setShowWalletMenu(true)}><span><i /></span><b>{shortAddress(displayWalletAddress)}</b><small>{walletName || user.displayName}</small><RefreshCw size={13} /></button><div className="connected-wallet-menu"><button onClick={() => { setShowWalletMenu(false); void loadBalances(); }}><RefreshCw size={12} /> Refresh balances</button><button onClick={() => { void disconnectWallet(); }}><LogOut size={12} /> Disconnect wallet</button></div></div> : <button className="connect-wallet" onClick={beginWalletConnection} disabled={walletBusy}>{walletBusy ? <LoaderCircle className="spin" size={15} /> : <Wallet size={15} />} Connect wallet</button>}
+          
+          <div className="faucet-shell" onMouseLeave={() => setShowFaucetMenu(false)}>
+            <button className="faucet-button" onClick={() => setShowFaucetMenu((curr) => !curr)} onMouseEnter={() => setShowFaucetMenu(true)}>
+              <Fuel size={15} /> Get test USDC <ChevronDown size={12} />
+            </button>
+            {showFaucetMenu && (
+              <div className="faucet-menu">
+                <a href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><ChainLogo chain="Arc_Testnet" size={16}/> Arc Testnet Faucet <ExternalLink size={11} /></a>
+                <a href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><ChainLogo chain="Base_Sepolia" size={16}/> Base Sepolia Faucet <ExternalLink size={11} /></a>
+                <a href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><ChainLogo chain="Arbitrum_Sepolia" size={16}/> Arbitrum Sepolia Faucet <ExternalLink size={11} /></a>
+                <a href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><ChainLogo chain="Ethereum_Sepolia" size={16}/> Ethereum Sepolia Faucet <ExternalLink size={11} /></a>
+                <a href="https://faucet.solana.com/" target="_blank" rel="noreferrer"><ChainLogo chain="Solana_Devnet" size={16}/> Solana Devnet Faucet <ExternalLink size={11} /></a>
+              </div>
+            )}
+          </div>
+
+          {displayWalletAddress ? (
+            <div className={`connected-wallet-shell ${showWalletMenu ? "open" : ""}`} ref={walletMenuRef}>
+              <button className="connected-wallet" onClick={() => setShowWalletMenu((current) => !current)} onMouseEnter={() => setShowWalletMenu(true)}>
+                <span><Wallet size={14} /></span>
+                <b>{shortAddress(displayWalletAddress)}</b>
+                <small>{walletName || user.displayName}</small>
+                <ChevronDown size={13} />
+              </button>
+              <div className="connected-wallet-menu">
+                <button className="solana-dropdown-row" onClick={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} disabled={solanaBusy}>
+                  <ChainLogo chain="Solana_Devnet" size={16}/>
+                  <span>{solanaAddress ? `Solana: ${shortAddress(solanaAddress, 4)}` : "Connect Solana wallet"}</span>
+                  {solanaAddress && <small>{solanaUsdcBalance === null ? "" : `${displayMoney(solanaUsdcBalance)} USDC`}</small>}
+                </button>
+                <div className="menu-divider" />
+                <button onClick={() => { setShowWalletMenu(false); void loadBalances(); }}><RefreshCw size={12} /> Refresh balances</button>
+                <button onClick={() => { void disconnectWallet(); }}><LogOut size={12} /> Disconnect wallet</button>
+              </div>
+            </div>
+          ) : (
+            <button className="connect-wallet" onClick={beginWalletConnection} disabled={walletBusy}>
+              {walletBusy ? <LoaderCircle className="spin" size={15} /> : <Wallet size={15} />} Connect wallet
+            </button>
+          )}
+
           <ThemeToggle />
-          <button className="user-menu" title={`Signed in as @${user.username}`}><span>{user.displayName.split(" ").map((part) => part[0]).slice(0,2).join("")}</span><ChevronDown size={13} /></button>
+          <button className="user-menu" onClick={() => setShowUserModal(true)} title={`Signed in as @${user.username}`}>
+            <span>{user.displayName.split(" ").map((part) => part[0]).slice(0,2).join("")}</span>
+            <ChevronDown size={13} />
+          </button>
         </div>
       </header>
 
@@ -1565,8 +1644,8 @@ export function OffGridDashboard() {
               <section className="real-balances">
                 <div className="balance-intro"><span className="section-tag">REAL TESTNET BALANCES</span><h2>Your money, live.</h2><p>Read directly from Arc and Circle Gateway. No demo numbers.</p></div>
                 <article className="real-balance primary"><div><span className="balance-icon"><ChainLogo chain="Arc_Testnet" size={25}/></span><small>ARC WALLET</small><button onClick={() => loadBalances()} aria-label="Refresh balances"><RefreshCw size={13} /></button></div><b>{arcBalance === null ? "—" : displayMoney(arcBalance)} <em>USDC</em></b><p className={balanceError ? "balance-read-error" : ""} title={balanceError || undefined}>{balanceError ? "Arc RPC unavailable · retry" : shortAddress(displayWalletAddress)}</p></article>
-                <article className="real-balance"><div><span className="balance-icon gateway"><Network size={16} /></span><small>UNIFIED BALANCE</small><button onClick={() => loadBalances()} aria-label="Refresh balances"><RefreshCw size={13} /></button></div><b>{unifiedBalance === null ? "—" : displayMoney(unifiedBalance)} <em>USDC</em></b><p className={gatewayError ? "balance-read-error" : ""} title={gatewayError || undefined}>{gatewayError ? "Gateway temporarily unavailable · retry" : pendingBalance && Number(pendingBalance) > 0 ? `${displayMoney(pendingBalance)} USDC pending` : "Circle Gateway · confirmed"}</p><button className="deposit-link" onClick={() => { setDepositError(""); setShowFunding(true); }}><Plus size={12} /> Deposit</button></article>
-                <article className="real-balance fiat"><div><span className="balance-icon fiat"><Banknote size={16} /></span><small>SANDBOX FIAT</small><button onClick={() => { void refreshCurrentUser(); }} aria-label="Refresh fiat balance"><RefreshCw size={13} /></button></div><b>{fiatBalance === null ? "—" : displayMoney(fiatBalance)} <em>USD</em></b><p>{Number(fiatPending) > 0 ? `${displayMoney(fiatPending)} USD pending` : "Local sandbox ledger · spendable in transfer tab"}</p><button className="deposit-link" onClick={() => { setActiveView("transfer"); setFundingMethod("fiat_bank"); }}><Plus size={12} /> Pay fiat</button></article>
+                <article className="real-balance"><div><span className="balance-icon gateway"><Network size={16} /></span><small>UNIFIED BALANCE</small><button onClick={() => loadBalances()} aria-label="Refresh balances"><RefreshCw size={13} /></button></div><b>{unifiedBalance === null ? "—" : displayMoney(unifiedBalance)} <em>USDC</em></b><p className={gatewayError ? "balance-read-error" : ""} title={gatewayError || undefined}>{gatewayError || (pendingBalance && Number(pendingBalance) > 0 ? `${displayMoney(pendingBalance)} USDC pending` : "Circle Gateway · confirmed")}</p><button className="deposit-link" onClick={() => { setDepositError(""); setShowFunding(true); }}><Plus size={12} /> Deposit</button></article>
+                <article className="real-balance fiat"><div><span className="balance-icon fiat"><Banknote size={16} /></span><small>SANDBOX FIAT</small><button onClick={() => { void refreshCurrentUser(); }} aria-label="Refresh fiat balance"><RefreshCw size={13} /></button></div><b>{fiatBalance === null ? "—" : displayMoney(fiatBalance)} <em>USD</em></b><p>{Number(fiatPending) > 0 ? `${displayMoney(fiatPending)} USD pending` : "Local sandbox ledger · spendable in transfer tab"}</p><button className="deposit-link" onClick={() => { void fundSandboxFiat(); }}><Plus size={12} /> Fund fiat balance</button></article>
               </section>
 
               {depositNotice && <section className={`gateway-status ${depositNotice.state}`}>
@@ -1627,6 +1706,53 @@ export function OffGridDashboard() {
           </div> : activeView === "history" ? walletAddress ? <HistoryView invoices={activity} deposit={depositNotice} cctpOperations={cctpOperations} fiatPayouts={fiatPayouts} recovering={cctpRecovering} recoveryNote={cctpRecoveryNote} onRecover={() => void recoverCctpOperations()} onRefreshCctp={() => void refreshCctpOperations()} onRefreshFiat={() => void refreshFiatPayouts()} /> : <div className="unified-empty"><Receipt size={30} /><h2>Connect a wallet to view history.</h2><p>Transaction activity and receipts stay hidden until your wallet is connected.</p><button className="neon-button" onClick={beginWalletConnection}><Wallet size={15} /> Connect wallet</button></div> : activeView === "unified" ? <UnifiedBalanceView walletAddress={walletAddress} walletOnArc={walletOnArc} arcBalance={arcBalance} unifiedBalance={unifiedBalance} pendingBalance={pendingBalance} chainBalances={gatewayChainBalances} gatewayError={gatewayError} gatewayStale={gatewayStale} solanaAddress={solanaAddress} solanaWalletName={solanaWalletName} solanaUsdcBalance={solanaUsdcBalance} solanaBusy={solanaBusy} onRefresh={() => loadBalances()} onDeposit={() => { setDepositError(""); setShowFunding(true); }} onConnect={beginWalletConnection} onConnectSolana={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} /> : activeView === "mass" ? <MassPaymentView walletAddress={walletAddress} directBalance={arcBalance} unifiedBalance={unifiedBalance} onConnect={beginWalletConnection} onExecute={executeMassPayroll} /> : <section className="agent-soon-view"><div className="agent-orbit"><Sparkles size={27} /><i /><i /><i /></div><span className="section-tag">AUTONOMOUS SETTLEMENT · SOON</span><h1>Agent Payments</h1><p>Policy-controlled wallets, programmable limits, approvals, and auditable payments initiated by trusted agents.</p><div className="agent-soon-grid"><span><ShieldCheck size={16} /><b>Policy engine</b><small>Limits, allowlists, and human approval gates</small></span><span><Network size={16} /><b>Any-to-any rails</b><small>Arc, Gateway, CCTP, and fiat routing</small></span><span><Receipt size={16} /><b>Agent audit trail</b><small>Intent, reasoning reference, and transaction proof</small></span></div><em>IN DEVELOPMENT</em></section>}
         </section>
       </div>
+
+      {showUserModal && (
+        <div className="overlay">
+          <div className="user-control-modal">
+            <button className="modal-x" onClick={() => setShowUserModal(false)}><X size={18} /></button>
+            <div className="user-control-head">
+              <div className="user-avatar-large">{user.displayName.split(" ").map((part) => part[0]).slice(0,2).join("")}</div>
+              <div className="user-control-info">
+                <h3>{user.displayName}</h3>
+                <p>@{user.username}</p>
+              </div>
+            </div>
+
+            <div className="user-control-details">
+              <div className="user-detail-row">
+                <small>PRIMARY WALLET</small>
+                <span>{user.walletAddress ? shortAddress(user.walletAddress, 6) : "Not bound"}</span>
+              </div>
+              <div className="user-detail-row">
+                <small>ACCOUNT ID</small>
+                <span>{user.id.slice(0, 8)}...</span>
+              </div>
+              <div className="user-detail-row">
+                <small>FIAT BALANCE</small>
+                <span>${displayMoney(user.sandboxFiatBalance || "0")} USD</span>
+              </div>
+            </div>
+
+            <div className="user-control-actions">
+              <button className="neon-button" onClick={() => { void fundSandboxFiat(); }}>
+                <Plus size={16} /> Fund Sandbox Fiat (+$1,000 USD)
+              </button>
+              <button className="session-cta-secondary" onClick={() => {
+                const inviteUrl = `${window.location.origin}/?invite=${user.id}`;
+                navigator.clipboard.writeText(inviteUrl);
+                setUserModalCopied(true);
+                setTimeout(() => setUserModalCopied(false), 2000);
+              }}>
+                <Share2 size={15} /> {userModalCopied ? "Link Copied!" : "Copy Payment Session Link"}
+              </button>
+              <button className="logout-button" onClick={() => { setShowUserModal(false); void logout(); }}>
+                <LogOut size={15} /> Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showWallets && <div className="overlay"><article className="wallet-picker"><button className="modal-x" onClick={() => setShowWallets(false)}><X size={18} /></button><span className="section-tag">SELECT SIGNER</span><h2>Choose your wallet</h2><p>OffGrid found these EIP-6963 providers in your browser.</p>{wallets.map((wallet) => <button className="wallet-choice" key={wallet.info.uuid} onClick={() => connectWallet(wallet)}>{wallet.info.icon ? <img src={wallet.info.icon} alt="" /> : <Wallet size={21} />}<span><b>{wallet.info.name}</b><small>{wallet.info.rdns}</small></span><ArrowRight size={16} /></button>)}</article></div>}
 
