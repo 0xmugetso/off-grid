@@ -701,6 +701,14 @@ export function OffGridDashboard() {
   const [userModalCopied, setUserModalCopied] = useState(false);
   const [selectedProofEntry, setSelectedProofEntry] = useState<LedgerEntry | null>(null);
 
+  function disconnectSolanaWallet() {
+    solanaAdapterRef.current = null;
+    setSolanaAddress("");
+    setSolanaWalletName("");
+    setSolanaUsdcBalance(null);
+    setSolanaError("");
+  }
+
   async function fundSandboxFiat() {
     try {
       const { user: updatedUser } = await api<{ user: User }>("/api/fiat/deposit", { method: "POST", body: JSON.stringify({ amount: "1000" }) });
@@ -1761,26 +1769,74 @@ export function OffGridDashboard() {
         <div className="overlay">
           <div className="user-control-modal">
             <button className="modal-x" onClick={() => setShowUserModal(false)}><X size={18} /></button>
-            <div className="user-control-head">
-              <div className="user-avatar-large">{user.displayName.split(" ").map((part) => part[0]).slice(0,2).join("")}</div>
-              <div className="user-control-info">
-                <h3>{user.displayName}</h3>
-                <p>@{user.username}</p>
+
+            <div className="user-profile-header">
+              <div className="user-avatar-glowing">
+                <span>{user.displayName.split(" ").map((part) => part[0]).slice(0,2).join("")}</span>
+              </div>
+              <div className="user-profile-info">
+                <div className="user-name-line">
+                  <h3>{user.displayName}</h3>
+                  <BadgeCheck size={16} className="user-verified-icon" />
+                </div>
+                <p>@{user.username} · <span className="user-id-tag">ID: {user.id.slice(0, 8)}</span></p>
               </div>
             </div>
 
-            <div className="user-control-details">
-              <div className="user-detail-row">
-                <small>PRIMARY WALLET</small>
-                <span>{user.walletAddress ? shortAddress(user.walletAddress, 6) : "Not bound"}</span>
+            <div className="user-modal-stats">
+              <div className="modal-stat-chip primary">
+                <small><ChainLogo chain="Arc_Testnet" size={14}/> ARC WALLET</small>
+                <b>{arcBalance === null ? "—" : displayMoney(arcBalance)} <em>USDC</em></b>
               </div>
-              <div className="user-detail-row">
-                <small>ACCOUNT ID</small>
-                <span>{user.id.slice(0, 8)}...</span>
+              <div className="modal-stat-chip">
+                <small><Network size={13}/> UNIFIED</small>
+                <b>{unifiedBalance === null ? "—" : displayMoney(unifiedBalance)} <em>USDC</em></b>
               </div>
-              <div className="user-detail-row">
-                <small>FIAT BALANCE</small>
-                <span>${displayMoney(user.sandboxFiatBalance || "0")} USD</span>
+              <div className="modal-stat-chip">
+                <small><Banknote size={13}/> FIAT</small>
+                <b>${displayMoney(user.sandboxFiatBalance || "0")} <em>USD</em></b>
+              </div>
+            </div>
+
+            <div className="user-signers-section">
+              <span className="section-tag">CONNECTED SIGNERS</span>
+
+              <div className={`signer-row ${displayWalletAddress ? "connected" : "unlinked"}`}>
+                <div className="signer-info">
+                  <div className="signer-icon-box"><Wallet size={18} /></div>
+                  <div>
+                    <b>{walletName || "Primary EVM Wallet"}</b>
+                    <small>{displayWalletAddress ? shortAddress(displayWalletAddress, 6) : "No EVM wallet connected"}</small>
+                  </div>
+                </div>
+                {displayWalletAddress ? (
+                  <button className="signer-action-btn disconnect" onClick={() => { setShowUserModal(false); void disconnectWallet(); }}>
+                    <LogOut size={12} /> Disconnect
+                  </button>
+                ) : (
+                  <button className="signer-action-btn connect" onClick={() => { setShowUserModal(false); void beginWalletConnection(); }}>
+                    <Wallet size={12} /> Connect
+                  </button>
+                )}
+              </div>
+
+              <div className={`signer-row ${solanaAddress ? "connected" : "unlinked"}`}>
+                <div className="signer-info">
+                  <div className="signer-icon-box solana"><ChainLogo chain="Solana_Devnet" size={20}/></div>
+                  <div>
+                    <b>{solanaAddress ? solanaWalletName : "Solana Devnet Signer"}</b>
+                    <small>{solanaAddress ? `${shortAddress(solanaAddress, 6)} ${solanaUsdcBalance !== null ? `· ${displayMoney(solanaUsdcBalance)} USDC` : ""}` : "Phantom · Solflare · Backpack"}</small>
+                  </div>
+                </div>
+                {solanaAddress ? (
+                  <button className="signer-action-btn disconnect" onClick={disconnectSolanaWallet}>
+                    <LogOut size={12} /> Disconnect
+                  </button>
+                ) : (
+                  <button className="signer-action-btn connect" onClick={() => { setShowUserModal(false); void beginSolanaConnection(); }} disabled={solanaBusy}>
+                    <Wallet size={12} /> {solanaBusy ? "Connecting…" : "Connect"}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1797,7 +1853,7 @@ export function OffGridDashboard() {
                 <Share2 size={15} /> {userModalCopied ? "Link Copied!" : "Copy Payment Session Link"}
               </button>
               <button className="logout-button" onClick={() => { setShowUserModal(false); void logout(); }}>
-                <LogOut size={15} /> Sign out
+                <LogOut size={15} /> Sign out account
               </button>
             </div>
           </div>

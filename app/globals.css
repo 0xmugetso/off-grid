@@ -714,15 +714,213 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
 
 .menu-divider { height: 1px; background: var(--line); margin: 6px 0; }
 
-/* User Control Modal */
-.user-control-modal { width: min(440px, 92vw); padding: 26px; border: 1px solid var(--line-bright); border-radius: 14px; background: linear-gradient(155deg, var(--panel), var(--bg)); box-shadow: 0 24px 80px rgba(0,0,0,.6); position: relative; animation: premium-enter .25s ease; }
-.user-control-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
-.user-avatar-large { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, var(--acid), var(--cyan)); color: #000; font: 700 16px var(--mono); display: grid; place-items: center; }
-.user-control-info h3 { margin: 0 0 2px; font-size: 18px; }
-.user-control-info p { margin: 0; color: var(--muted); font: 12px var(--mono); }
-.user-control-details { display: grid; gap: 10px; background: var(--panel-2); padding: 14px; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 20px; font-size: 12px; }
-.user-detail-row { display: flex; justify-content: space-between; align-items: center; }
-.user-detail-row small { color: var(--muted); font: 10px var(--mono); }
-.user-detail-row span { color: var(--ink); font-weight: 500; font-family: var(--mono); }
-.user-control-actions { display: grid; gap: 10px; }
+/* User Control Modal Redesign */
+.user-control-modal {
+  width: min(500px, 94vw);
+  padding: 28px;
+  border: 1px solid var(--line-bright);
+  border-radius: 16px;
+  background: linear-gradient(160deg, #12170e, #090b08 60%);
+  box-shadow: 0 35px 110px rgba(0, 0, 0, 0.65), 0 0 60px rgba(199, 255, 61, 0.04);
+  position: relative;
+  box-sizing: border-box;
+}
+
+.user-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.user-avatar-glowing {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--acid), var(--cyan));
+  color: #040504;
+  font: 700 17px var(--mono);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 25px rgba(199, 255, 61, 0.28);
+}
+
+.user-name-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.user-name-line h3 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+
+.user-verified-icon {
+  color: var(--acid);
+}
+
+.user-profile-info p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font: 10px var(--mono);
+}
+
+.user-id-tag {
+  color: var(--faint);
+}
+
+/* Modal Stats Grid */
+.user-modal-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.modal-stat-chip {
+  padding: 10px 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #090b08;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.modal-stat-chip.primary {
+  border-color: rgba(199, 255, 61, 0.3);
+  background: rgba(199, 255, 61, 0.025);
+}
+
+.modal-stat-chip small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--faint);
+  font: 8px var(--mono);
+}
+
+.modal-stat-chip b {
+  font-size: 13px;
+  font-family: var(--mono);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-stat-chip b em {
+  font-size: 8px;
+  color: var(--acid);
+  font-style: normal;
+}
+
+/* Connected Signers */
+.user-signers-section {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.signer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #090b08;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.signer-row.connected {
+  border-color: rgba(199, 255, 61, 0.22);
+}
+
+.signer-row.unlinked {
+  opacity: 0.75;
+}
+
+.signer-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.signer-icon-box {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  display: grid;
+  place-items: center;
+  color: var(--acid);
+  flex-shrink: 0;
+}
+
+.signer-icon-box.solana {
+  color: #9945ff;
+}
+
+.signer-info b {
+  display: block;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.signer-info small {
+  display: block;
+  color: var(--muted);
+  font: 9px var(--mono);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signer-action-btn {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font: 10px var(--mono);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.signer-action-btn.disconnect {
+  border: 1px solid #422929;
+  background: rgba(220, 53, 69, 0.08);
+  color: #ff6b6b;
+}
+
+.signer-action-btn.disconnect:hover {
+  border-color: #ff4d4d;
+  background: rgba(220, 53, 69, 0.18);
+  color: #fff;
+}
+
+.signer-action-btn.connect {
+  border: 1px solid rgba(199, 255, 61, 0.3);
+  background: rgba(199, 255, 61, 0.05);
+  color: var(--acid);
+}
+
+.signer-action-btn.connect:hover {
+  border-color: var(--acid);
+  background: var(--acid);
+  color: #000;
+}
+
+.user-control-actions { display: grid; gap: 8px; }
 
