@@ -29,6 +29,7 @@ import {
   Share2,
   ShieldCheck,
   Sparkles,
+  User,
   UserRound,
   Wallet,
   X,
@@ -1635,7 +1636,7 @@ export function OffGridDashboard() {
 
           <ThemeToggle />
           <button className="user-menu" onClick={() => setShowUserModal(true)} title={`Signed in as @${user.username}`}>
-            <span>{user.displayName.split(" ").map((part) => part[0]).slice(0,2).join("")}</span>
+            <span className="user-emblem-sm"><User size={14} /></span>
             <ChevronDown size={13} />
           </button>
         </div>
@@ -1645,7 +1646,7 @@ export function OffGridDashboard() {
 
       <div className="product-grid" id="top">
         <aside className="command-rail">
-          <div className="rail-user"><span>{user.displayName.split(" ").map((part) => part[0]).slice(0,2).join("")}</span><div><b>{user.displayName}</b><small>@{user.username}</small></div><BadgeCheck size={16} /></div>
+          <div className="rail-user"><span className="user-emblem"><User size={16} /></span><div><b>{user.displayName}</b><small>@{user.username}</small></div><BadgeCheck size={16} /></div>
           <nav><button className={activeView === "transfer" ? "active" : ""} onClick={() => setActiveView("transfer")}><Send size={17} /> Transfer</button><button className={activeView === "history" ? "active" : ""} onClick={() => setActiveView("history")}><Receipt size={17} /> History {displayWalletAddress && <span>{activity.length + fiatPayouts.length + cctpOperations.filter((operation) => !operation.invoiceId && isSubmittedCctpOperation(operation)).length + (depositNotice ? 1 : 0)}</span>}</button><button className={activeView === "unified" ? "active" : ""} onClick={() => { setActiveView("unified"); void loadBalances(); }}><Network size={17} /> Unified Balance</button><button className={activeView === "mass" ? "active" : ""} onClick={() => setActiveView("mass")}><UserRound size={17} /> Mass Payment</button><button className={activeView === "agents" ? "active" : ""} onClick={() => setActiveView("agents")}><Sparkles size={17} /> Agent Payments <span className="soon-badge">SOON</span></button></nav>
           <div className="rail-flow"><small>LIVE PAYMENT STACK</small><div><span>01</span><p><b>IDENTITY</b><em>Authenticated</em></p><Check size={13} /></div><i /><div><span>02</span><p><b>WALLET</b><em>{displayWalletAddress ? "Connected" : "Waiting"}</em></p>{displayWalletAddress ? <Check size={13} /> : <Radio size={13} />}</div><i /><div><span>03</span><p><b>NETWORK</b><em>{walletOnArc ? "Arc active" : chainReady ? "Switch to Arc" : "Not configured"}</em></p>{walletOnArc ? <Check size={13} /> : <Radio size={13} />}</div><i /><div><span>04</span><p><b>SETTLEMENT</b><em>App Kit</em></p><Zap size={13} /></div></div>
           <button className="logout-button" onClick={logout}><LogOut size={15} /> Sign out</button>
@@ -1772,7 +1773,8 @@ export function OffGridDashboard() {
 
             <div className="user-profile-header">
               <div className="user-avatar-glowing">
-                <span>{user.displayName.split(" ").map((part) => part[0]).slice(0,2).join("")}</span>
+                <User size={22} />
+                <i className="avatar-ring-glow" />
               </div>
               <div className="user-profile-info">
                 <div className="user-name-line">
@@ -1841,19 +1843,31 @@ export function OffGridDashboard() {
             </div>
 
             <div className="user-control-actions">
-              <button className="neon-button" onClick={() => { void fundSandboxFiat(); }}>
-                <Plus size={16} /> Fund Sandbox Fiat (+$1,000 USD)
-              </button>
-              <button className="session-cta-secondary" onClick={() => {
-                const inviteUrl = `${window.location.origin}/?invite=${user.id}`;
-                navigator.clipboard.writeText(inviteUrl);
-                setUserModalCopied(true);
-                setTimeout(() => setUserModalCopied(false), 2000);
-              }}>
-                <Share2 size={15} /> {userModalCopied ? "Link Copied!" : "Copy Payment Session Link"}
-              </button>
-              <button className="logout-button" onClick={() => { setShowUserModal(false); void logout(); }}>
-                <LogOut size={15} /> Sign out account
+              <div className="user-actions-row">
+                <button className="user-action-card fund" onClick={() => { void fundSandboxFiat(); }}>
+                  <div className="action-card-icon"><Plus size={16} /></div>
+                  <div className="action-card-text">
+                    <b>Fund Fiat</b>
+                    <small>+$1,000 USD credit</small>
+                  </div>
+                </button>
+
+                <button className="user-action-card share" onClick={() => {
+                  const inviteUrl = `${window.location.origin}/?invite=${user.id}`;
+                  navigator.clipboard.writeText(inviteUrl);
+                  setUserModalCopied(true);
+                  setTimeout(() => setUserModalCopied(false), 2000);
+                }}>
+                  <div className="action-card-icon"><Share2 size={15} /></div>
+                  <div className="action-card-text">
+                    <b>{userModalCopied ? "Copied!" : "Share Link"}</b>
+                    <small>{userModalCopied ? "Link in clipboard" : "Copy session URL"}</small>
+                  </div>
+                </button>
+              </div>
+
+              <button className="user-logout-btn" onClick={() => { setShowUserModal(false); void logout(); }}>
+                <LogOut size={14} /> Sign out of account
               </button>
             </div>
           </div>

@@ -922,5 +922,150 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
   color: #000;
 }
 
-.user-control-actions { display: grid; gap: 8px; }
+.user-emblem, .user-emblem-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(199,255,61,.18), rgba(85,231,209,.12));
+  border: 1px solid rgba(199,255,61,.3);
+  color: var(--acid);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.user-emblem-sm {
+  width: 26px;
+  height: 26px;
+  border-color: rgba(199,255,61,.22);
+}
+
+.user-avatar-glowing {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #182213, #0f160e);
+  border: 1.5px solid var(--acid);
+  color: var(--acid);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 0 25px rgba(199, 255, 61, 0.25), inset 0 0 15px rgba(199, 255, 61, 0.1);
+}
+
+.avatar-ring-glow {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px dashed rgba(199, 255, 61, 0.35);
+  animation: spin 18s linear infinite;
+  pointer-events: none;
+}
+
+.user-control-actions { display: grid; gap: 10px; }
+
+.user-actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.user-action-card {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #090b08;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.user-action-card.fund {
+  border-color: rgba(199, 255, 61, 0.28);
+  background: linear-gradient(135deg, rgba(199, 255, 61, 0.05), #090b08);
+}
+
+.user-action-card.fund:hover {
+  border-color: var(--acid);
+  background: rgba(199, 255, 61, 0.12);
+  transform: translateY(-1px);
+}
+
+.user-action-card.share {
+  border-color: rgba(85, 231, 209, 0.22);
+  background: linear-gradient(135deg, rgba(85, 231, 209, 0.03), #090b08);
+}
+
+.user-action-card.share:hover {
+  border-color: var(--cyan);
+  background: rgba(85, 231, 209, 0.1);
+  transform: translateY(-1px);
+}
+
+.action-card-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.user-action-card.fund .action-card-icon {
+  color: var(--acid);
+  border-color: rgba(199, 255, 61, 0.3);
+}
+
+.user-action-card.share .action-card-icon {
+  color: var(--cyan);
+  border-color: rgba(85, 231, 209, 0.3);
+}
+
+.action-card-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.action-card-text b {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.action-card-text small {
+  font: 9px var(--mono);
+  color: var(--muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-logout-btn {
+  width: 100%;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid #3d2424;
+  background: rgba(220, 53, 69, 0.06);
+  color: #ff6b6b;
+  font: 11px var(--mono);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.user-logout-btn:hover {
+  border-color: #ff4d4d;
+  background: rgba(220, 53, 69, 0.16);
+  color: #fff;
+}
 
