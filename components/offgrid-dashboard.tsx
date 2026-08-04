@@ -1200,12 +1200,42 @@ export function OffGridDashboard() {
     finally { setWalletBusy(false); }
   }
 
+  async function ensureClientAndAdapter(): Promise<{ client: ArcPayrollClient; adapter: BrowserViemAdapter }> {
+    if (clientRef.current && adapterRef.current) {
+      return { client: clientRef.current, adapter: adapterRef.current };
+    }
+    const client = clientRef.current ?? new ArcPayrollClient();
+    clientRef.current = client;
+
+    const discovered = await discoverBrowserWallets();
+    if (!discovered.length) throw new Error("No EVM wallet detected. Install MetaMask, Rabby, or Coinbase Wallet.");
+    const wallet = discovered[0];
+    providerRef.current = wallet.provider;
+    const address = await requestWalletAccount(wallet.provider);
+    setWalletAddress(address);
+    setWalletName(wallet.info.name);
+    persistWalletProfile(wallet, address);
+
+    const adapter = await client.connectEvmWallet(wallet.provider);
+    adapterRef.current = adapter;
+    return { client, adapter };
+  }
+
   async function depositToGateway() {
-    if (!clientRef.current) return;
     setDepositBusy(true); setDepositError("");
     try {
-      const adapter = depositChain === "Solana_Devnet" ? solanaAdapterRef.current : adapterRef.current;
-      if (!adapter) throw new Error(depositChain === "Solana_Devnet" ? "Connect your Solana wallet before depositing from Solana Devnet" : "Connect your EVM wallet before depositing from this network");
+      let adapter: CircleAdapter;
+      let client: ArcPayrollClient;
+      if (depositChain === "Solana_Devnet") {
+        if (!solanaAdapterRef.current) throw new Error("Connect your Solana wallet before depositing from Solana Devnet");
+        adapter = solanaAdapterRef.current;
+        client = clientRef.current ?? new ArcPayrollClient();
+        clientRef.current = client;
+      } else {
+        const ready = await ensureClientAndAdapter();
+        client = ready.client;
+        adapter = ready.adapter;
+      }
       if (!(Number(depositAmount) > 0)) throw new Error("Enter an amount greater than zero");
       let confirmedBefore = Number(unifiedBalance ?? 0);
       try {
@@ -1214,7 +1244,7 @@ export function OffGridDashboard() {
       } catch {
         // A temporary read failure should not block a valid wallet deposit.
       }
-      const result = await clientRef.current.deposit(adapter, depositChain, depositAmount);
+      const result = await client.deposit(adapter, depositChain, depositAmount);
       const notice = {
         amount: result.amount,
         chain: String(result.chain),
@@ -1328,20 +1358,21 @@ export function OffGridDashboard() {
         setPaymentEstimate({ title: "Sandbox fiat transfer", detail: "OffGrid will debit your sandbox fiat balance and credit the recipient immediately.", fees: "Sandbox ledger only · no chain fee" });
         return;
       }
-      if (!clientRef.current || !adapterRef.current || !recipientAddress || !user) return;
+      if (!recipientAddress || !user) throw new Error("Please select or enter a recipient address");
+      const { client, adapter } = await ensureClientAndAdapter();
       if (fundingMethod === "arc_wallet") {
-        await clientRef.current.estimateArcSend(adapterRef.current, recipientAddress, amount);
+        await client.estimateArcSend(adapter, recipientAddress, amount);
         setPaymentEstimate({ title: "Direct Arc transfer", detail: `${amount} USDC settles directly on Arc Testnet`, fees: "Arc gas is paid in USDC" });
       } else if (fundingMethod === "unified_balance") {
-        const destinationAdapter = adapterRef.current;
+        const destinationAdapter = adapter;
         const sourceAdapters = connectedPaymentAdapters();
-        if (!destinationAdapter || !sourceAdapters.length) throw new Error("Connect an EVM wallet before checking the Gateway route");
-        await clientRef.current.estimatePayrollToArc(sourceAdapters, recipientAddress, amount, destinationAdapter);
+        if (!sourceAdapters.length) sourceAdapters.push(adapter);
+        await client.estimatePayrollToArc(sourceAdapters, recipientAddress, amount, destinationAdapter);
         setPaymentEstimate({ title: "Gateway unified spend", detail: `App Kit automatically allocates confirmed deposits${solanaAddress ? ", including Solana Devnet" : ""}`, fees: "Final destination: Arc Testnet" });
       } else {
-        const sourceAdapter = bridgeSourceChain === "Solana_Devnet" ? solanaAdapterRef.current : adapterRef.current;
+        const sourceAdapter = bridgeSourceChain === "Solana_Devnet" ? solanaAdapterRef.current : adapter;
         if (!sourceAdapter) throw new Error("Connect the selected source wallet first");
-        const estimate = await clientRef.current.estimateBridgeToArc(sourceAdapter, bridgeSourceChain, recipientAddress, amount);
+        const estimate = await client.estimateBridgeToArc(sourceAdapter, bridgeSourceChain, recipientAddress, amount);
         setPaymentEstimate({ title: `${CHAIN_LABELS[bridgeSourceChain]} → Arc Testnet`, detail: "CCTP V2 standard burn with Circle Forwarder completing the Arc mint", fees: bridgeFeeSummary(estimate) });
       }
     } catch (error) {
@@ -1365,10 +1396,11 @@ export function OffGridDashboard() {
   }
 
   async function retryGatewayMint() {
-    if (!clientRef.current || !adapterRef.current || !recipientAddress || !user || !gatewayMintRetry) return;
+    if (!recipientAddress || !user || !gatewayMintRetry) return;
+    const { client, adapter } = await ensureClientAndAdapter();
     setGatewayMintBusy(true); setStep("processing"); setPaymentPhase("settlement"); setPaymentError(""); setProtocolEvents([]);
     try {
-      const result = await clientRef.current.retryGatewayMint(adapterRef.current, recipientAddress, amount, gatewayMintRetry);
+      const result = await client.retryGatewayMint(adapter, recipientAddress, amount, gatewayMintRetry);
       await saveGatewayPaymentResult(result);
     } catch (error) {
       setPaymentError(error instanceof Error ? error.message : "Arc mint retry failed");
@@ -1404,7 +1436,7 @@ export function OffGridDashboard() {
       }
       return;
     }
-    if (!clientRef.current || !adapterRef.current) return;
+    const { client, adapter } = await ensureClientAndAdapter();
     setStep("processing"); setPaymentPhase("signature"); setPaymentError(""); setProtocolEvents([]);
     if (fundingMethod === "cctp_bridge") {
       const sourceAdapter = bridgeSourceChain === "Solana_Devnet" ? solanaAdapterRef.current : adapterRef.current;
@@ -1427,8 +1459,8 @@ export function OffGridDashboard() {
         cctpRunsRef.current.set(operation.id, run);
         activeCctpFormRef.current = operation.id;
         setCctpOperations((current) => [operation!, ...current.filter((entry) => entry.id !== operation!.id)]);
-        let result = await clientRef.current.bridgeToArc(sourceAdapter, bridgeSourceChain, recipientAddress, amount, operation.id);
-        if (result.state === "error") result = await clientRef.current.retryBridge(result, sourceAdapter);
+        let result = await client.bridgeToArc(sourceAdapter, bridgeSourceChain, recipientAddress, amount, operation.id);
+        if (result.state === "error") result = await client.retryBridge(result, sourceAdapter);
         if (result.state !== "success") {
           const failed = result.steps.find((item) => item.state === "error");
           throw new Error(failed?.errorMessage ?? "CCTP bridge did not complete");
@@ -1480,8 +1512,8 @@ export function OffGridDashboard() {
     try {
       let txHash = "";
       const result = fundingMethod === "arc_wallet"
-        ? await clientRef.current.sendArcUsdc(adapterRef.current, recipientAddress, amount)
-        : await clientRef.current.settlePayrollToArc(connectedPaymentAdapters(), recipientAddress, amount, adapterRef.current);
+        ? await client.sendArcUsdc(adapter, recipientAddress, amount)
+        : await client.settlePayrollToArc(connectedPaymentAdapters(), recipientAddress, amount, adapter);
       setPaymentPhase("settlement");
       if (fundingMethod === "unified_balance") {
         await saveGatewayPaymentResult(result);
@@ -1506,7 +1538,8 @@ export function OffGridDashboard() {
         setGatewayMintBusy(true);
         try {
           await new Promise((resolve) => window.setTimeout(resolve, 900));
-          const recovered = await clientRef.current.retryGatewayMint(adapterRef.current, recipientAddress, amount, retry);
+          const recovered = await client.retryGatewayMint(adapter, recipientAddress, amount, retry);
+          await saveGatewayPaymentResult(recovered);
           await saveGatewayPaymentResult(recovered);
         } catch (retryError) {
           setPaymentError(retryError instanceof Error ? `Arc mint still needs recovery: ${retryError.message}` : "Arc mint still needs recovery. Retry the saved mint; the source will not be charged again.");
@@ -1566,20 +1599,7 @@ export function OffGridDashboard() {
         <div className="header-actions">
           {displayWalletAddress && !walletOnArc && <button className="arc-switch-button" onClick={switchToArc} disabled={walletBusy}>{walletBusy ? <LoaderCircle className="spin" size={12} /> : <Network size={12} />} Switch to Arc</button>}
           
-          <div className="faucet-shell" onMouseLeave={() => setShowFaucetMenu(false)}>
-            <button className="faucet-button" onClick={() => setShowFaucetMenu((curr) => !curr)} onMouseEnter={() => setShowFaucetMenu(true)}>
-              <Fuel size={15} /> Get test USDC <ChevronDown size={12} />
-            </button>
-            {showFaucetMenu && (
-              <div className="faucet-menu">
-                <a href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><ChainLogo chain="Arc_Testnet" size={16}/> Arc Testnet Faucet <ExternalLink size={11} /></a>
-                <a href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><ChainLogo chain="Base_Sepolia" size={16}/> Base Sepolia Faucet <ExternalLink size={11} /></a>
-                <a href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><ChainLogo chain="Arbitrum_Sepolia" size={16}/> Arbitrum Sepolia Faucet <ExternalLink size={11} /></a>
-                <a href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><ChainLogo chain="Ethereum_Sepolia" size={16}/> Ethereum Sepolia Faucet <ExternalLink size={11} /></a>
-                <a href="https://faucet.solana.com/" target="_blank" rel="noreferrer"><ChainLogo chain="Solana_Devnet" size={16}/> Solana Devnet Faucet <ExternalLink size={11} /></a>
-              </div>
-            )}
-          </div>
+          <a className="faucet-button" href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><Fuel size={15} /> Get test USDC <ExternalLink size={12} /></a>
 
           {displayWalletAddress ? (
             <div className={`connected-wallet-shell ${showWalletMenu ? "open" : ""}`} ref={walletMenuRef}>
