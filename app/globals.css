@@ -1117,7 +1117,7 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
 .escrow-success-banner { padding: 10px; border-radius: 6px; border: 1px solid rgba(199,255,61,.22); background: rgba(199,255,61,.03); color: var(--acid); font: 11px var(--mono); display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 8px; }
 
 .escrow-audit-logs { margin-top: 16px; display: grid; gap: 8px; background: #060806; padding: 12px; border-radius: 8px; border: 1px solid var(--line); }
-.audit-log-line { display: flex; items-center; gap: 8px; color: var(--muted); font: 11px var(--mono); }
+.audit-log-line { display: flex; align-items: center; gap: 8px; color: var(--muted); font: 11px var(--mono); }
 .audit-log-line svg { color: var(--acid); flex-shrink: 0; }
 .escrow-proof-box { margin-top: 14px; padding: 10px; border: 1px dashed var(--line-bright); border-radius: 8px; display: flex; flex-direction: column; gap: 4px; }
 .escrow-proof-box small { color: var(--faint); font: 8px var(--mono); }
