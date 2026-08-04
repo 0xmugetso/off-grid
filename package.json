@@ -1,0 +1,35 @@
+{
+  "name": "off-grid",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "circle:create-wire-account": "node scripts/create-circle-mint-wire-account.mjs"
+  },
+  "dependencies": {
+    "@circle-fin/adapter-solana": "^1.6.4",
+    "@circle-fin/adapter-viem-v2": "1.14.1",
+    "@circle-fin/app-kit": "1.11.0",
+    "@neondatabase/serverless": "^1.1.0",
+    "@solana/web3.js": "^1.98.4",
+    "lucide-react": "1.28.0",
+    "next": "16.2.12",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "viem": "2.55.10"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}
