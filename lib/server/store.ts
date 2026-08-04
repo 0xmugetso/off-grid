@@ -101,12 +101,36 @@ export interface StoredPaymentSession {
   expiresAt: string;
 }
 
+export type EscrowStatus = "created" | "funded" | "submitted" | "validated" | "refunded";
+
+export interface StoredEscrow {
+  id: string;
+  creatorId: string;
+  title: string;
+  category: "code" | "digital_goods" | "api_key" | "freelance";
+  clientAddress: string;
+  clientName: string;
+  providerAddress: string;
+  providerName: string;
+  amount: string;
+  specs: string;
+  status: EscrowStatus;
+  deliverableUrl?: string;
+  deliverableProof?: string;
+  aiVerificationLogs: string[];
+  depositTxHash?: string;
+  releaseTxHash?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Database {
   users: StoredUser[];
   invoices: StoredInvoice[];
   paymentSessions: StoredPaymentSession[];
   cctpOperations: StoredCctpOperation[];
   fiatPayouts: StoredFiatPayout[];
+  escrows: StoredEscrow[];
 }
 
 const dataDirectory = path.join(process.cwd(), ".data");
@@ -135,7 +159,7 @@ function hostedSql() {
 }
 
 function emptyDatabase(): Database {
-  return { users: [], invoices: [], paymentSessions: [], cctpOperations: [], fiatPayouts: [] };
+  return { users: [], invoices: [], paymentSessions: [], cctpOperations: [], fiatPayouts: [], escrows: [] };
 }
 
 function normalizeUser(user: Partial<StoredUser>): StoredUser {
@@ -163,6 +187,7 @@ function normalizeDatabase(value: unknown): Database {
     paymentSessions: Array.isArray(parsed.paymentSessions) ? parsed.paymentSessions : [],
     cctpOperations: Array.isArray(parsed.cctpOperations) ? parsed.cctpOperations : [],
     fiatPayouts: Array.isArray(parsed.fiatPayouts) ? parsed.fiatPayouts : [],
+    escrows: Array.isArray(parsed.escrows) ? parsed.escrows : [],
   };
 }
 
@@ -189,10 +214,11 @@ async function readDatabase(): Promise<Database> {
       paymentSessions: parsed.paymentSessions ?? [],
       cctpOperations: parsed.cctpOperations ?? [],
       fiatPayouts: parsed.fiatPayouts ?? [],
+      escrows: parsed.escrows ?? [],
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    return { users: [], invoices: [], paymentSessions: [], cctpOperations: [], fiatPayouts: [] };
+    return { users: [], invoices: [], paymentSessions: [], cctpOperations: [], fiatPayouts: [], escrows: [] };
   }
 }
 
