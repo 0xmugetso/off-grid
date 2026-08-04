@@ -2074,7 +2074,6 @@ export function OffGridDashboard() {
 
   return (
     <main className="product-shell">
-      <NeonMesh opacity={0.28} />
       <header className="product-header">
         <a className="product-brand" href="#top"><Logo /><b>offgrid</b><span>ARC TESTNET</span></a>
         <div className="header-signal"><i /> NETWORK OPERATIONAL <em>{ARC.finalityMs}ms FINALITY</em></div>
@@ -2127,6 +2126,7 @@ export function OffGridDashboard() {
         </aside>
 
         <section className="product-main">
+          <NeonMesh opacity={0.22} />
           {activeView === "transfer" ? <div className="transfer-view">
           {displayWalletAddress && <section className="session-launchpad">
             <div className="session-launch-glow" />

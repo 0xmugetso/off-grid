@@ -332,7 +332,7 @@ export function NeonMesh({
   return (
     <div
       ref={containerRef}
-      className={`fixed inset-0 w-full h-full overflow-hidden pointer-events-none z-0 ${className}`}
+      className={`absolute inset-0 w-full h-full overflow-hidden pointer-events-none z-0 ${className}`}
       style={{ opacity }}
     >
       <canvas

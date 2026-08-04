@@ -177,7 +177,10 @@ html.theme-transitioning .theme-toggle,html.theme-transitioning .theme-toggle *,
 .rail-flow svg { color: var(--acid); }
 .rail-flow > i { display: block; width: 1px; height: 17px; background: var(--line); margin: 3px 0 3px 11px; }
 .logout-button { margin-top: 16px; height: 37px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--faint); display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 8px; }
-.product-main { width: min(1240px, calc(100% - 64px)); margin: 0 auto; padding: 47px 0 60px; }
+.product-main { position: relative; z-index: 1; width: min(1240px, calc(100% - 64px)); margin: 0 auto; padding: 47px 0 60px; }
+.product-main > *:not(.pointer-events-none) { position: relative; z-index: 2; }
+.workspace-head h1, .session-launch-copy h2, .balance-intro h2, .console-head h2, .view-heading h1, .agent-soon-view h1, .escrow-stat-card b { text-shadow: 0 2px 16px rgba(0,0,0,.95), 0 0 32px rgba(0,0,0,.98); }
+.workspace-head p, .session-launch-copy p, .balance-intro p, .section-tag, .field-label, .real-balance p, .view-heading p { text-shadow: 0 1px 10px rgba(0,0,0,.9); }
 .transfer-view, .history-view, .unified-view { animation: premium-enter .34s cubic-bezier(.22,.75,.25,1) both; }.session-launchpad { animation: soft-reveal .38s .04s ease-out both; }.real-balances { animation: soft-reveal .38s .08s ease-out both; }.pay-console { animation: soft-reveal .42s .12s ease-out both; }
 .workspace-head > span { color: var(--acid); display: flex; align-items: center; gap: 6px; font: 7px var(--mono); letter-spacing: .14em; }
 .workspace-head h1 { margin: 13px 0 11px; font-size: clamp(38px, 4.5vw, 64px); line-height: .94; letter-spacing: -.06em; font-weight: 610; }
