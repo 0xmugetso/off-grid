@@ -89,26 +89,25 @@ export function PaymentSessionWindow({ token }: { token: string }) {
     }
   }
 
-  async function fundSandboxBalance() {
+  async function executeBankWirePayout() {
     if (!session) return;
-    setFundBusy(true); setFundError("");
+    setFiatBusy(true); setFiatError("");
     try {
-      const amount = Math.max(Number(session.amount) + 20, 50).toFixed(2);
-      const response = await request<{ funding: { amount: string; trackingRef: string | null; status: string }, user: DatabaseUserView | null }>("/api/fiat/fund", {
+      const response = await request<{ payout: { id: string; status: string; trackingRef?: string | null; circlePayoutId?: string | null } }>("/api/fiat/payouts", {
         method: "POST",
         body: JSON.stringify({
-          amount,
-          memo: session.memo || session.id,
+          amount: session.amount,
+          reference: session.memo || `SESSION-${session.id.slice(0, 8)}`,
+          paymentSessionToken: token,
         }),
       });
-      setFundNotice(response.funding);
-      setSandboxFunded(true);
-      if (response.user) setUser(response.user);
-      await request<{ configured: boolean }>(`/api/fiat/status`).catch(() => undefined);
+      setFiatPayout(response.payout);
+      setSession((current) => current ? { ...current, status: "complete" } : current);
+      await request<{ payouts: unknown[] }>("/api/fiat/payouts").catch(() => undefined);
     } catch (cause) {
-      setFundError(cause instanceof Error ? cause.message : "Unable to fund sandbox balance");
+      setFiatError(cause instanceof Error ? cause.message : "Unable to create bank payout");
     } finally {
-      setFundBusy(false);
+      setFiatBusy(false);
     }
   }
 
@@ -122,7 +121,6 @@ export function PaymentSessionWindow({ token }: { token: string }) {
 
   const otherParty = session?.role === "creator" ? session.counterparty : session?.creator;
   const hasFiatLeg = session?.payerRail === "fiat_bank" || session?.receiverRail === "fiat_bank";
-  const readyForWeb3 = session?.status === "ready" && !hasFiatLeg;
 
   return (
     <main className="session-shell">
@@ -141,12 +139,38 @@ export function PaymentSessionWindow({ token }: { token: string }) {
 
             {session.role === "creator" && session.status === "open" && <div className="session-action"><span className="section-tag">SHARE SECURELY</span><h2>Send this payment window.</h2><p>Only the first authenticated invitee can claim the counterparty position. After that, every other account is denied.</p><button className="neon-button" onClick={copyLink}><Copy size={15} />{copied ? "Payment link copied" : "Copy private payment link"}</button></div>}
 
-            {session.role === "invitee" && session.status === "open" && <div className="session-action"><span className="section-tag">YOUR PREFERENCE</span><h2>How do you want to {session.actionRole === "payer" ? "pay" : "receive"}?</h2><p>Your selection becomes part of the locked two-party payment terms.</p><div className="session-rail-options"><button className={rail === "web3_usdc" ? "active" : ""} onClick={() => setRail("web3_usdc")}><Wallet size={19} /><span><b>Web3 USDC</b><small>Arc, Gateway, or CCTP</small></span>{rail === "web3_usdc" && <Check size={15} />}</button><button className={rail === "fiat_bank" ? "active" : ""} onClick={() => setRail("fiat_bank")}><Banknote size={19} /><span><b>Bank / fiat</b><small>Sandbox provider required</small></span>{rail === "fiat_bank" && <Check size={15} />}</button></div><button className="neon-button" disabled={busy} onClick={acceptInvite}>{busy ? <LoaderCircle className="spin" size={15} /> : <ShieldCheck size={15} />} Accept & lock my choice</button>{error && <p className="inline-error"><CircleAlert size={13} />{error}</p>}</div>}
+            {session.role === "invitee" && session.status === "open" && <div className="session-action"><span className="section-tag">YOUR PREFERENCE</span><h2>How do you want to {session.actionRole === "payer" ? "pay" : "receive"}?</h2><p>Your selection becomes part of the locked two-party payment terms.</p><div className="session-rail-options"><button className={rail === "web3_usdc" ? "active" : ""} onClick={() => setRail("web3_usdc")}><Wallet size={19} /><span><b>Web3 USDC</b><small>Arc, Gateway, or CCTP</small></span>{rail === "web3_usdc" && <Check size={15} />}</button><button className={rail === "fiat_bank" ? "active" : ""} onClick={() => setRail("fiat_bank")}><Banknote size={19} /><span><b>Bank / fiat</b><small>Circle Mint wire settlement</small></span>{rail === "fiat_bank" && <Check size={15} />}</button></div><button className="neon-button" disabled={busy} onClick={acceptInvite}>{busy ? <LoaderCircle className="spin" size={15} /> : <ShieldCheck size={15} />} Accept & lock my choice</button>{error && <p className="inline-error"><CircleAlert size={13} />{error}</p>}</div>}
 
-            {session.status === "ready" && <div className="session-action ready"><span className="section-tag">BOTH SIDES LOCKED</span><h2>{hasFiatLeg ? fiatStatus?.configured ? sandboxFunded ? "Sandbox funded. Ready to pay." : "Sandbox provider connected." : "Fiat provider required." : session.actionRole === "payer" ? "Ready for your signature." : "Waiting for the payer."}</h2>{hasFiatLeg ? <><p>{session.actionRole === "payer" ? "Top up the sandbox balance first, then submit the payout. This mirrors a real provider flow without moving real money." : "The agreement is valid, and the sandbox bank balance can be topped up for testing. This exercises the real Circle Mint test endpoint without moving real money."}</p>{fiatStatus && <div className="fiat-checks">{fiatStatus.checks.map((check) => <span className={check.configured ? "done" : ""} key={check.key}><i>{check.configured ? <Check size={9} /> : "!"}</i>{check.label}</span>)}</div>}<div className="fiat-action-row">{fiatStatus?.configured && !sandboxFunded && <button className="session-cta session-cta-primary" onClick={fundSandboxBalance} disabled={fundBusy || fiatBusy}>{fundBusy ? <LoaderCircle className="spin" size={15} /> : <Banknote size={15} />} <span>{fundBusy ? "Funding sandbox…" : "Fund sandbox balance"}</span></button>}{fiatStatus?.configured && session.actionRole === "payer" && sandboxFunded && <button className="session-cta session-cta-primary" onClick={createSandboxBankPayout} disabled={fiatBusy || fundBusy}>{fiatBusy ? <LoaderCircle className="spin" size={15} /> : <Banknote size={15} />} <span>{fiatBusy ? "Submitting bank payout…" : "Proceed to sandbox payout"}</span></button>}{fiatStatus?.configured && session.actionRole === "payer" && !sandboxFunded && <button className="session-cta session-cta-secondary" disabled><Banknote size={15} /> <span>Pay sandbox balance after funding</span></button>}</div>{fundNotice && <p className="inline-note"><Check size={13} /> Sandbox deposit submitted for {fundNotice.amount}{fundNotice.trackingRef ? ` · tracking ${fundNotice.trackingRef}` : ""}. You can now proceed to the payout step.</p>}{fundError && <p className="inline-error"><CircleAlert size={13} />{fundError}</p>}{fiatError && <p className="inline-error"><CircleAlert size={13} />{fiatError}</p>}<a className="session-guide-link" href="https://developers.circle.com/circle-mint/references/sandbox-and-testing" target="_blank" rel="noreferrer"><ExternalLink size={11} /> Circle Mint sandbox guide</a></> : session.actionRole === "payer" ? <><p>The recipient and amount are locked from this session. Choose Arc, Gateway, or CCTP in the execution console.</p><a className="neon-button" href={`/?session=${encodeURIComponent(token)}`}><Zap size={15} /> Execute payment <ArrowRight size={14} /></a></> : <p>{otherParty?.displayName ?? "The payer"} can now execute the agreed USDC payment. This window will link both of you to the same receipt when it confirms.</p>}</div>}
+            {session.status === "ready" && (
+              <div className="session-action ready">
+                <span className="section-tag">BOTH SIDES LOCKED</span>
+                <h2>{hasFiatLeg ? "Ready for Circle Mint Wire Payout" : session.actionRole === "payer" ? "Ready for your signature" : "Waiting for payer execution"}</h2>
+                {hasFiatLeg ? (
+                  <>
+                    <p>{session.actionRole === "payer" ? "Both preferences are locked. Click below to execute the real Circle Mint Sandbox wire transaction directly." : "Both preferences are locked. Waiting for the payer to execute bank wire transfer via Circle Mint API."}</p>
+                    {session.actionRole === "payer" && (
+                      <div className="fiat-action-row">
+                        <button className="session-cta session-cta-primary" onClick={executeBankWirePayout} disabled={fiatBusy}>
+                          {fiatBusy ? <LoaderCircle className="spin" size={15} /> : <Banknote size={15} />}
+                          <span>{fiatBusy ? "Submitting bank wire..." : "Proceed to Circle Mint Wire Payout"}</span>
+                        </button>
+                      </div>
+                    )}
+                    {fiatError && <p className="inline-error"><CircleAlert size={13} />{fiatError}</p>}
+                  </>
+                ) : session.actionRole === "payer" ? (
+                  <>
+                    <p>The recipient and amount are locked. Proceed to execution console.</p>
+                    <a className="neon-button" href={`/?session=${encodeURIComponent(token)}`}><Zap size={15} /> Execute payment <ArrowRight size={14} /></a>
+                  </>
+                ) : (
+                  <p>{otherParty?.displayName ?? "The payer"} can now execute the agreed USDC payment. This window will link both of you to the same receipt when it confirms.</p>
+                )}
+              </div>
+            )}
 
             {session.status === "complete" && session.invoiceId && <div className="session-action complete"><Check size={26} /><span className="section-tag">PAYMENT FINALIZED</span><h2>Your shared receipt is ready.</h2><a className="neon-button" href={`/invoice/${session.invoiceId}`}>Open verified invoice <ExternalLink size={14} /></a></div>}
-            {session.status === "complete" && !session.invoiceId && hasFiatLeg && <div className="session-action complete"><Check size={26} /><span className="section-tag">SANDBOX BANK PAYOUT</span><h2>Bank transaction submitted.</h2><p>{fiatPayout ? `Circle returned payout ${fiatPayout.circlePayoutId ?? fiatPayout.id}. Track the status in History.` : "The Circle Mint sandbox payout request was accepted. Track the bank transfer in History."}</p>{fiatPayout?.trackingRef && <div className="session-created-link"><LockKeyhole size={15} /><span>{fiatPayout.trackingRef}</span></div>}<a className="neon-button" href="/"><ArrowRight size={14} /> Back to dashboard</a></div>}
+            {session.status === "complete" && !session.invoiceId && hasFiatLeg && <div className="session-action complete"><Check size={26} /><span className="section-tag">CIRCLE MINT WIRE PAYOUT</span><h2>Bank transaction submitted.</h2><p>{fiatPayout ? `Circle returned payout ${fiatPayout.circlePayoutId ?? fiatPayout.id}. Track status in History.` : "The Circle Mint sandbox wire payout request was accepted. Track the bank transfer in History."}</p>{fiatPayout?.trackingRef && <div className="session-created-link"><LockKeyhole size={15} /><span>{fiatPayout.trackingRef}</span></div>}<a className="neon-button" href="/"><ArrowRight size={14} /> Back to dashboard</a></div>}
             <footer><ShieldCheck size={12} /> Authenticated participants · immutable server terms · invite expires {new Date(session.expiresAt).toLocaleDateString()}</footer>
           </article>
         )}
