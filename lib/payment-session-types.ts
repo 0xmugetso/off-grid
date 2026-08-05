@@ -27,6 +27,13 @@ export interface PaymentSessionView {
   invoiceId: string | null;
   createdAt: string;
   expiresAt: string;
+  inviteTokenHash?: string;
+  payerInputRail?: string | null;
+  receiverOutputRail?: string | null;
+  payerRailStatus?: string;
+  receiverRailStatus?: string;
+  clearingStatus?: string;
+  arcEscrowTxHash?: string | null;
   role: "creator" | "counterparty" | "invitee";
   actionRole: "payer" | "receiver";
   payerRail: PaymentRail | null;
