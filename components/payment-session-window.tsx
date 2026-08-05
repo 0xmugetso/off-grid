@@ -1,3 +1,5 @@
+"use client";
+
 import { ArrowRight, Banknote, Check, CircleAlert, Copy, ExternalLink, LoaderCircle, LockKeyhole, Network, Radio, ShieldCheck, Wallet, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AuthScreen } from "@/components/offgrid-dashboard";
