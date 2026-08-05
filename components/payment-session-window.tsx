@@ -1,9 +1,6 @@
-"use client";
-
-import { CreditCard, ArrowRight, Banknote, Check, CircleAlert, Copy, ExternalLink, LoaderCircle, LockKeyhole, Radio, ShieldCheck, Wallet, Zap } from "lucide-react";
+import { ArrowRight, Banknote, Check, CircleAlert, Copy, ExternalLink, LoaderCircle, LockKeyhole, Network, Radio, ShieldCheck, Wallet, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AuthScreen } from "@/components/offgrid-dashboard";
-import { FiatOnRampModal } from "@/components/fiat-onramp-modal";
 import type { DatabaseUserView, PaymentRail, PaymentSessionView } from "@/lib/payment-session-types";
 import { discoverBrowserWallets, ensureArcTestnet, requestWalletAccount } from "@/lib/arc/browser-wallet";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -28,6 +25,41 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 function Logo() { return <span className="og-logo"><i /><i /><i /></span>; }
 function railName(rail: PaymentRail | null) { return rail === "web3_usdc" ? "Web3 USDC" : rail === "fiat_bank" ? "Bank / fiat" : "Not selected"; }
 
+function SessionProgressBar({ status, isClearing }: { status: string; isClearing: boolean }) {
+  const step = status === "open" ? 1 : status === "ready" && !isClearing ? 2 : isClearing ? 3 : status === "complete" ? 4 : 1;
+  const progressPercent = step === 1 ? 25 : step === 2 ? 50 : step === 3 ? 75 : 100;
+
+  return (
+    <div className="session-progress-pipeline">
+      <div className="progress-pipeline-track">
+        <div className="progress-pipeline-fill" style={{ width: `${progressPercent}%` }} />
+      </div>
+
+      <div className="progress-pipeline-steps">
+        <div className={`pipeline-step ${step >= 1 ? "active" : ""} ${step > 1 ? "done" : ""}`}>
+          <div className="step-circle">{step > 1 ? <Check size={11} /> : "1"}</div>
+          <span>Terms Set</span>
+        </div>
+
+        <div className={`pipeline-step ${step >= 2 ? "active" : ""} ${step > 2 ? "done" : ""}`}>
+          <div className="step-circle">{step > 2 ? <Check size={11} /> : "2"}</div>
+          <span>IBAN Locked</span>
+        </div>
+
+        <div className={`pipeline-step ${step >= 3 ? "active" : ""} ${step > 3 ? "done" : ""}`}>
+          <div className="step-circle">{step > 3 ? <Check size={11} /> : isClearing ? <LoaderCircle className="spin" size={11} /> : "3"}</div>
+          <span>Arc Clearing (~0.48s)</span>
+        </div>
+
+        <div className={`pipeline-step ${step >= 4 ? "active" : ""} ${step > 4 ? "done" : ""}`}>
+          <div className="step-circle">{step >= 4 ? <Check size={11} /> : "4"}</div>
+          <span>Fiat Wired</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PaymentSessionWindow({ token }: { token: string }) {
   const [user, setUser] = useState<DatabaseUserView | null>(null);
   const [booting, setBooting] = useState(true);
@@ -35,7 +67,7 @@ export function PaymentSessionWindow({ token }: { token: string }) {
   const [rail, setRail] = useState<PaymentRail>("web3_usdc");
   const [busy, setBusy] = useState(false);
   const [fiatBusy, setFiatBusy] = useState(false);
-  const [showMoonPayModal, setShowMoonPayModal] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const [error, setError] = useState("");
   const [fiatError, setFiatError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -120,7 +152,9 @@ export function PaymentSessionWindow({ token }: { token: string }) {
 
   async function executeBankWirePayout() {
     if (!session) return;
-    setFiatBusy(true); setFiatError("");
+    setFiatBusy(true);
+    setIsClearing(true);
+    setFiatError("");
     try {
       const response = await request<{ payout: { id: string; status: string; trackingRef?: string | null; circlePayoutId?: string | null } }>("/api/fiat/payouts", {
         method: "POST",
@@ -137,6 +171,7 @@ export function PaymentSessionWindow({ token }: { token: string }) {
       setFiatError(cause instanceof Error ? cause.message : "Unable to create bank payout");
     } finally {
       setFiatBusy(false);
+      setIsClearing(false);
     }
   }
 
@@ -159,6 +194,10 @@ export function PaymentSessionWindow({ token }: { token: string }) {
         {error && !session ? <article className="session-error"><CircleAlert size={24} /><h2>Session unavailable</h2><p>{error}</p><a href="/">Return to OffGrid</a></article> : !session ? <article className="session-loading"><LoaderCircle className="spin" /><span>VERIFYING INVITE</span></article> : (
           <article className="session-window">
             <div className="session-window-head"><div><span>PAYMENT SESSION</span><b>{session.id.slice(0, 8).toUpperCase()}</b></div><strong className={session.status}><i />{session.status}</strong></div>
+            
+            {/* Dynamic Animated Progress Pipeline */}
+            <SessionProgressBar status={session.status} isClearing={isClearing} />
+
             <div className="session-value"><small>AGREED AMOUNT</small><b>{Number(session.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}<em> USDC / USD</em></b>{session.memo && <p>{session.memo}</p>}</div>
             <div className="session-parties">
               <div><small>CREATOR</small><b>{session.creator?.displayName}</b><span>@{session.creator?.username}</span><em>{session.creatorIntent === "pay" ? "PAYS" : "RECEIVES"} · {railName(session.creatorRail)}</em></div>
@@ -195,7 +234,7 @@ export function PaymentSessionWindow({ token }: { token: string }) {
             {session.status === "ready" && (
               <div className="session-action ready">
                 <span className="section-tag">BOTH SIDES LOCKED</span>
-                <h2>{hasFiatLeg ? "Choose Fiat Payment Gateway" : session.actionRole === "payer" ? "Ready for your signature" : "Waiting for payer execution"}</h2>
+                <h2>{hasFiatLeg ? "Arc Crypto-to-Fiat Settlement" : session.actionRole === "payer" ? "Ready for your signature" : "Waiting for payer execution"}</h2>
                 
                 {session.receiverBankDetails && (
                   <div className="bank-details-card" style={{ padding: "12px", background: "rgba(199, 255, 61, 0.08)", border: "1px solid rgba(199, 255, 61, 0.25)", borderRadius: "8px", margin: "10px 0", textAlign: "left" }}>
@@ -209,16 +248,12 @@ export function PaymentSessionWindow({ token }: { token: string }) {
                 )}
                 {hasFiatLeg ? (
                   <>
-                    <p>{session.actionRole === "payer" ? "Both preferences are locked. Select how you want to settle this payment:" : "Both preferences are locked. Waiting for the payer to execute fiat payment via MoonPay or Circle Mint."}</p>
+                    <p>{session.actionRole === "payer" ? "Sign USDC from your wallet (Arc Testnet, Base, Solana, or Ethereum). Arc CCTP clears the transfer in ~0.48s and Circle Mint wires fiat directly to the receiver's bank account." : "Both preferences are locked. Waiting for the payer to sign USDC transfer onto Arc. Circle Mint will wire fiat directly to your bank account."}</p>
                     {session.actionRole === "payer" && (
                       <div className="fiat-action-row" style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", marginTop: "14px" }}>
-                        <button className="session-cta session-cta-primary" onClick={() => setShowMoonPayModal(true)}>
-                          <CreditCard size={16} />
-                          <span>Pay with MoonPay Widget (Card / Apple Pay)</span>
-                        </button>
-                        <button className="session-cta session-cta-secondary" onClick={executeBankWirePayout} disabled={fiatBusy}>
-                          {fiatBusy ? <LoaderCircle className="spin" size={16} /> : <Banknote size={16} />}
-                          <span>{fiatBusy ? "Submitting Circle Mint wire..." : "Pay with Circle Mint Bank Wire"}</span>
+                        <button className="session-cta session-cta-primary" onClick={executeBankWirePayout} disabled={fiatBusy}>
+                          {fiatBusy ? <LoaderCircle className="spin" size={16} /> : <Zap size={16} />}
+                          <span>{fiatBusy ? "Clearing on Arc & Wiring Fiat..." : "Sign USDC & Execute Bank Wire Payout ⚡"}</span>
                         </button>
                       </div>
                     )}
@@ -241,17 +276,6 @@ export function PaymentSessionWindow({ token }: { token: string }) {
           </article>
         )}
       </section>
-
-      {showMoonPayModal && (
-        <FiatOnRampModal
-          onClose={() => setShowMoonPayModal(false)}
-          walletAddress={user?.walletAddress ?? null}
-          onSuccess={() => {
-            setShowMoonPayModal(false);
-            setSession((curr) => curr ? { ...curr, status: "complete" } : curr);
-          }}
-        />
-      )}
     </main>
   );
 }

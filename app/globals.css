@@ -1648,6 +1648,88 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
   letter-spacing: .06em;
 }
 
+.session-progress-pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0 20px;
+  padding: 16px;
+  border: 1px solid rgba(199, 255, 61, 0.18);
+  border-radius: 12px;
+  background: rgba(6, 8, 6, 0.9);
+}
+
+.progress-pipeline-track {
+  height: 4px;
+  width: 100%;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-pipeline-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #95d613, #c7ff3d);
+  border-radius: 4px;
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 12px rgba(199, 255, 61, 0.6);
+}
+
+.progress-pipeline-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.pipeline-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  opacity: 0.45;
+  transition: all .24s ease;
+}
+
+.pipeline-step.active {
+  opacity: 1;
+}
+
+.pipeline-step.done .step-circle {
+  background: rgba(199, 255, 61, 0.2);
+  border-color: var(--acid);
+  color: var(--acid);
+}
+
+.step-circle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line-bright);
+  background: rgba(10, 13, 9, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 10px var(--mono);
+  font-weight: 700;
+  color: var(--muted);
+  transition: all .2s ease;
+}
+
+.pipeline-step.active .step-circle {
+  border-color: var(--acid);
+  color: var(--acid);
+  box-shadow: 0 0 10px rgba(199, 255, 61, 0.3);
+}
+
+.pipeline-step span {
+  font: 9px var(--mono);
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
 .session-status-badge.open { background: rgba(199, 255, 61, 0.15); color: var(--acid); border: 1px solid rgba(199, 255, 61, 0.35); }
 .session-status-badge.ready { background: rgba(99, 91, 255, 0.15); color: #8c85ff; border: 1px solid rgba(99, 91, 255, 0.35); }
 .session-status-badge.complete { background: rgba(0, 230, 153, 0.15); color: #00e699; border: 1px solid rgba(0, 230, 153, 0.35); }
