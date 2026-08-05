@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       currencyCode?: string;
     };
 
-    const apiKey = process.env.MOONPAY_PUBLISHABLE_KEY || "pk_test_1234567890";
+    const apiKey = process.env.MOONPAY_PUBLISHABLE_KEY || "pk_test_OWZro01Zdmvdj004AvidYR7HwYPtEtlr";
     const hasSecretKey = Boolean(process.env.MOONPAY_SECRET_KEY);
     const secretKey = process.env.MOONPAY_SECRET_KEY || "";
 
