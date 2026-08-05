@@ -2462,46 +2462,70 @@ export function OffGridDashboard() {
                               </span>
                             </div>
 
-                            {/* Decoupled Matrix Visual Flow */}
-                            <div className="matrix-visual-pipeline">
-                              {/* Side A Node */}
-                              <div className="matrix-node side-a">
-                                <div className="node-icon-header">
-                                  {sess.payerInputRail === "fiat_bank" ? <Banknote size={14} /> : <Wallet size={14} />}
-                                  <span className="column-label">PAYER INPUT</span>
+                            {/* Details Summary Grid Above Progress Bar */}
+                            <div className="session-summary-details-grid">
+                              <div className="summary-card">
+                                <div className="card-tag">
+                                  {sess.payerInputRail === "fiat_bank" ? <Banknote size={12} /> : <Wallet size={12} />}
+                                  PAYER INPUT
                                 </div>
-                                <b className="node-rail-title">
-                                  {sess.payerInputRail === "fiat_bank" ? "Bank Wire (Circle Mint)" : sess.payerInputRail === "web3_usdc" ? "Web3 USDC (Arc)" : "Pending Preference"}
+                                <b className="card-val">
+                                  {sess.payerInputRail === "fiat_bank" ? "Bank Wire (Circle Mint)" : sess.payerInputRail === "web3_usdc" ? "Web3 USDC (Arc)" : "Awaiting Choice"}
                                 </b>
-                                <span className={`rail-status-tag ${sess.payerInputRail ? "terms_locked" : "pending"}`}>
-                                  {sess.payerInputRail ? "Choice Locked" : "Awaiting Choice"}
-                                </span>
+                                <span className="card-status">{sess.payerInputRail ? "Choice Locked" : "Pending Selection"}</span>
                               </div>
 
-                              {/* Arc Animated Connector Engine */}
-                              <div className="matrix-clearing-engine">
-                                <div className="beam-line">
-                                  <div className="beam-pulse-particle" />
+                              <div className="summary-card">
+                                <div className="card-tag">
+                                  <Zap size={12} className="zap-pulse" />
+                                  ARC CLEARING
                                 </div>
-                                <div className="clearing-icon-pill">
-                                  <Zap size={14} className="zap-pulse" />
-                                  <span>Arc Escrow (~0.48s)</span>
-                                </div>
-                                <small className="engine-subtext">SessionEscrow Contract</small>
+                                <b className="card-val">~0.48s Sub-second Finality</b>
+                                <span className="card-status">SessionEscrow Contract</span>
                               </div>
 
-                              {/* Side B Node */}
-                              <div className="matrix-node side-b">
-                                <div className="node-icon-header">
-                                  {sess.receiverOutputRail === "fiat_bank" ? <Banknote size={14} /> : <Wallet size={14} />}
-                                  <span className="column-label">RECEIVER OUTPUT</span>
+                              <div className="summary-card">
+                                <div className="card-tag">
+                                  {sess.receiverOutputRail === "fiat_bank" ? <Banknote size={12} /> : <Wallet size={12} />}
+                                  RECEIVER OUTPUT
                                 </div>
-                                <b className="node-rail-title">
-                                  {sess.receiverOutputRail === "fiat_bank" ? "Bank Wire (SEPA/ACH)" : sess.receiverOutputRail === "web3_usdc" ? "Web3 USDC (Arc)" : "Pending Preference"}
+                                <b className="card-val">
+                                  {sess.receiverOutputRail === "fiat_bank" ? "Bank Wire (SEPA/ACH)" : sess.receiverOutputRail === "web3_usdc" ? "Web3 USDC (Arc)" : "Awaiting Choice"}
                                 </b>
-                                <span className={`rail-status-tag ${sess.receiverOutputRail ? "terms_locked" : "pending"}`}>
-                                  {sess.receiverOutputRail ? "Choice Locked" : "Awaiting Choice"}
-                                </span>
+                                <span className="card-status">{sess.receiverOutputRail ? "Choice Locked" : "Pending Selection"}</span>
+                              </div>
+                            </div>
+
+                            {/* Animated Progression Pipeline Bar */}
+                            <div className="session-animated-progression-bar">
+                              <div className="progression-track-line">
+                                <div
+                                  className="progression-fill-line"
+                                  style={{ width: sess.status === "open" ? "33%" : sess.status === "ready" ? "66%" : "100%" }}
+                                />
+                                <div className="progression-laser-particle" />
+                              </div>
+
+                              <div className="progression-step-nodes">
+                                <div className="progression-node done">
+                                  <div className="node-circle"><Check size={11} /></div>
+                                  <span>1. Terms Set</span>
+                                </div>
+
+                                <div className={`progression-node ${sess.status === "ready" || sess.status === "complete" ? "done" : "active"}`}>
+                                  <div className="node-circle">{sess.status === "ready" || sess.status === "complete" ? <Check size={11} /> : "2"}</div>
+                                  <span>2. Choices Locked</span>
+                                </div>
+
+                                <div className={`progression-node ${sess.status === "complete" ? "done" : sess.status === "ready" ? "active" : ""}`}>
+                                  <div className="node-circle">{sess.status === "complete" ? <Check size={11} /> : <Zap size={11} className="zap-pulse" />}</div>
+                                  <span>3. Arc Clearing (~0.48s)</span>
+                                </div>
+
+                                <div className={`progression-node ${sess.status === "complete" ? "done" : ""}`}>
+                                  <div className="node-circle">{sess.status === "complete" ? <Check size={11} /> : "4"}</div>
+                                  <span>4. Settled</span>
+                                </div>
                               </div>
                             </div>
 
