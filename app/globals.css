@@ -1622,13 +1622,16 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
 }
 
 .session-title-group h3 {
+  font-family: var(--mono);
   font-size: 24px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--ink);
   margin: 2px 0 0;
+  letter-spacing: -0.02em;
 }
 
 .session-title-group h3 span {
+  font-family: var(--mono);
   font-size: 13px;
   color: var(--muted);
   font-weight: 600;
