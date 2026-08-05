@@ -1,16 +1,27 @@
 "use client";
 
-import { ArrowRight, Banknote, Check, CircleAlert, Copy, ExternalLink, LoaderCircle, LockKeyhole, Radio, ShieldCheck, Wallet, Zap } from "lucide-react";
+import { CreditCard, ArrowRight, Banknote, Check, CircleAlert, Copy, ExternalLink, LoaderCircle, LockKeyhole, Radio, ShieldCheck, Wallet, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AuthScreen } from "@/components/offgrid-dashboard";
+import { FiatOnRampModal } from "@/components/fiat-onramp-modal";
 import type { DatabaseUserView, PaymentRail, PaymentSessionView } from "@/lib/payment-session-types";
 import { discoverBrowserWallets, ensureArcTestnet, requestWalletAccount } from "@/lib/arc/browser-wallet";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(path, { ...options, headers: { "content-type": "application/json", ...options?.headers } });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error ?? "Request failed");
+  const res = await fetch(path, {
+    ...options,
+    headers: { "content-type": "application/json", ...options?.headers },
+  });
+  let data: any = {};
+  try {
+    data = await res.json();
+  } catch {
+    // Empty
+  }
+  if (!res.ok) {
+    throw new Error(data?.error || `HTTP error ${res.status}`);
+  }
   return data as T;
 }
 
@@ -24,14 +35,11 @@ export function PaymentSessionWindow({ token }: { token: string }) {
   const [rail, setRail] = useState<PaymentRail>("web3_usdc");
   const [busy, setBusy] = useState(false);
   const [fiatBusy, setFiatBusy] = useState(false);
-  const [fundBusy, setFundBusy] = useState(false);
-  const [sandboxFunded, setSandboxFunded] = useState(false);
+  const [showMoonPayModal, setShowMoonPayModal] = useState(false);
   const [error, setError] = useState("");
   const [fiatError, setFiatError] = useState("");
-  const [fundError, setFundError] = useState("");
   const [copied, setCopied] = useState(false);
   const [fiatPayout, setFiatPayout] = useState<{ id: string; status: string; trackingRef?: string | null; circlePayoutId?: string | null } | null>(null);
-  const [fundNotice, setFundNotice] = useState<{ amount: string; trackingRef: string | null; status: string } | null>(null);
   const [fiatStatus, setFiatStatus] = useState<{ configured: boolean; checks: Array<{ key: string; label: string; configured: boolean }> } | null>(null);
 
   useEffect(() => { request<{ user: DatabaseUserView | null }>("/api/auth/me").then(({ user }) => setUser(user)).finally(() => setBooting(false)); }, []);
@@ -144,15 +152,19 @@ export function PaymentSessionWindow({ token }: { token: string }) {
             {session.status === "ready" && (
               <div className="session-action ready">
                 <span className="section-tag">BOTH SIDES LOCKED</span>
-                <h2>{hasFiatLeg ? "Ready for Circle Mint Wire Payout" : session.actionRole === "payer" ? "Ready for your signature" : "Waiting for payer execution"}</h2>
+                <h2>{hasFiatLeg ? "Choose Fiat Payment Gateway" : session.actionRole === "payer" ? "Ready for your signature" : "Waiting for payer execution"}</h2>
                 {hasFiatLeg ? (
                   <>
-                    <p>{session.actionRole === "payer" ? "Both preferences are locked. Click below to execute the real Circle Mint Sandbox wire transaction directly." : "Both preferences are locked. Waiting for the payer to execute bank wire transfer via Circle Mint API."}</p>
+                    <p>{session.actionRole === "payer" ? "Both preferences are locked. Select how you want to settle this payment:" : "Both preferences are locked. Waiting for the payer to execute fiat payment via MoonPay or Circle Mint."}</p>
                     {session.actionRole === "payer" && (
-                      <div className="fiat-action-row">
-                        <button className="session-cta session-cta-primary" onClick={executeBankWirePayout} disabled={fiatBusy}>
-                          {fiatBusy ? <LoaderCircle className="spin" size={15} /> : <Banknote size={15} />}
-                          <span>{fiatBusy ? "Submitting bank wire..." : "Proceed to Circle Mint Wire Payout"}</span>
+                      <div className="fiat-action-row" style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", marginTop: "14px" }}>
+                        <button className="session-cta session-cta-primary" onClick={() => setShowMoonPayModal(true)}>
+                          <CreditCard size={16} />
+                          <span>Pay with MoonPay Widget (Card / Apple Pay)</span>
+                        </button>
+                        <button className="session-cta session-cta-secondary" onClick={executeBankWirePayout} disabled={fiatBusy}>
+                          {fiatBusy ? <LoaderCircle className="spin" size={16} /> : <Banknote size={16} />}
+                          <span>{fiatBusy ? "Submitting Circle Mint wire..." : "Pay with Circle Mint Bank Wire"}</span>
                         </button>
                       </div>
                     )}
@@ -175,6 +187,17 @@ export function PaymentSessionWindow({ token }: { token: string }) {
           </article>
         )}
       </section>
+
+      {showMoonPayModal && (
+        <FiatOnRampModal
+          onClose={() => setShowMoonPayModal(false)}
+          walletAddress={user?.walletAddress ?? null}
+          onSuccess={() => {
+            setShowMoonPayModal(false);
+            setSession((curr) => curr ? { ...curr, status: "complete" } : curr);
+          }}
+        />
+      )}
     </main>
   );
 }
