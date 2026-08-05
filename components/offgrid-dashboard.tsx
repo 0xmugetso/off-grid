@@ -2156,12 +2156,12 @@ export function OffGridDashboard() {
             <div className="session-launch-glow" />
             <div className="session-launch-icon"><LockKeyhole size={24} /><i /></div>
             <div className="session-launch-copy"><span><Sparkles size={11} /> START HERE · PRIVATE PAYMENT</span><h2>Open a payment session.</h2><p>Set the direction and amount, share one secure link, then let both sides choose how money moves.</p><div className="session-launch-flow"><span><i>1</i>Set terms</span><b /><span><i>2</i>Share privately</span><b /><span><i>3</i>Settle together</span></div></div>
-            <div className="session-launch-actions">
+            <div className="session-launch-column">
               <button className="session-launch-button" onClick={() => { setCreatedSessionLink(""); setSessionError(""); setSessionLinkCopied(false); setShowSessionCreator(true); }}><span><Plus size={18} /></span><div><small>NEW SECURE FLOW</small><b>Create payment session</b></div><ArrowRight size={18} /></button>
-              <button type="button" className="live-sessions-trigger-btn" onClick={() => setShowLiveSessionsModal(true)}>
-                <Radio size={13} className="spin-slow" />
-                <span>Live Sessions ({paymentSessionsList.length})</span>
-                <ExternalLink size={13} />
+              <button type="button" className="live-sessions-text-link" onClick={() => setShowLiveSessionsModal(true)}>
+                <Radio size={12} className="spin-slow" />
+                <span>View active payment sessions ({paymentSessionsList.length})</span>
+                <ArrowRight size={12} />
               </button>
             </div>
           </section>}

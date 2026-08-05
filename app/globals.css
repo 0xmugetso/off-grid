@@ -1504,37 +1504,40 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
   font-family: var(--mono);
 }
 
-.session-launch-actions {
+.session-launch-column {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
 }
 
-.live-sessions-trigger-btn {
-  height: 42px;
-  padding: 0 14px;
-  border: 1px solid rgba(199, 255, 61, 0.25);
-  border-radius: 9px;
-  background: rgba(199, 255, 61, 0.06);
-  color: var(--acid);
+.live-sessions-text-link {
+  background: transparent;
+  border: 0;
+  padding: 4px 8px;
+  color: var(--muted);
+  font: 11px var(--mono);
+  font-weight: 500;
   display: flex;
   align-items: center;
   gap: 8px;
-  font: 11px var(--mono);
-  font-weight: 600;
   cursor: pointer;
-  transition: all .18s ease;
+  transition: all .16s ease;
+  border-radius: 4px;
 }
 
-.live-sessions-trigger-btn:hover {
-  background: rgba(199, 255, 61, 0.15);
-  border-color: var(--acid);
-  box-shadow: 0 0 15px rgba(199, 255, 61, 0.15);
+.live-sessions-text-link:hover {
+  color: var(--acid);
+  background: rgba(199, 255, 61, 0.06);
 }
 
 .live-sessions-modal {
-  width: min(640px, 94vw);
+  width: min(620px, 94vw);
   max-height: calc(100vh - 40px);
+  border: 1px solid rgba(199, 255, 61, 0.25);
+  border-radius: 16px;
+  background: #0b0e0a;
+  backdrop-filter: blur(24px);
 }
 
 .live-sessions-list {
