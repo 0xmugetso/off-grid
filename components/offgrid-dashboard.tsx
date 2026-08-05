@@ -2491,17 +2491,28 @@ export function OffGridDashboard() {
                                 <LockKeyhole size={13} />
                                 <span>{inviteUrl}</span>
                               </div>
-                              <button
-                                type="button"
-                                className="neon-button-sm"
-                                onClick={() => {
-                                  if (typeof window !== "undefined") {
-                                    navigator.clipboard.writeText(inviteUrl);
-                                  }
-                                }}
-                              >
-                                <Copy size={13} /> Copy Link
-                              </button>
+                              <div style={{ display: "flex", gap: "6px" }}>
+                                <a
+                                  href={`/session/${sess.inviteTokenHash}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="neon-button-sm"
+                                  style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "5px" }}
+                                >
+                                  <ExternalLink size={13} /> Open Session
+                                </a>
+                                <button
+                                  type="button"
+                                  className="neon-button-sm"
+                                  onClick={() => {
+                                    if (typeof window !== "undefined") {
+                                      navigator.clipboard.writeText(inviteUrl);
+                                    }
+                                  }}
+                                >
+                                  <Copy size={13} /> Copy Link
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );
