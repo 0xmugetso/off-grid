@@ -85,6 +85,9 @@ export async function POST(request: Request) {
       if (parseUsdc(session.amount) !== parseUsdc(amount)) throw new Error("Amount does not match the payment session");
       paymentSessionId = session.id;
       sessionReference = sessionReference || session.memo || `SESSION-${session.id.slice(0, 8)}`;
+      if (session.receiverBankDetails?.ibanOrAccountNumber) {
+        sessionReference = `${sessionReference}-${session.receiverBankDetails.ibanOrAccountNumber.slice(-6)}`;
+      }
       const existingPayout = await queryDatabase((database) => database.fiatPayouts.some((entry) => entry.paymentSessionId === session.id && entry.status !== "failed"));
       if (existingPayout) throw new Error("This payment session already has a bank payout in progress");
     }

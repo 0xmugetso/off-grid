@@ -28,7 +28,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
   const { token } = await params;
   if (!validToken(token)) return NextResponse.json({ error: "Payment session not found" }, { status: 404 });
   try {
-    const body = await request.json() as { action?: string; rail?: string };
+    const body = await request.json() as {
+      action?: string;
+      rail?: string;
+      receiverBankDetails?: {
+        accountHolderName?: string;
+        ibanOrAccountNumber?: string;
+        routingOrSwift?: string;
+        bankCountry?: string;
+      };
+    };
     const view = await mutateDatabase((database) => {
       const session = database.paymentSessions.find((entry) => entry.inviteTokenHash === hashInviteToken(token));
       if (!session) throw new Error("Payment session not found");
@@ -45,6 +54,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
         if (body.rail === "web3_usdc" && !current.walletAddress) throw new Error("Connect and bind your wallet before choosing Web3 USDC");
         session.counterpartyId = current.id;
         session.counterpartyRail = body.rail as PaymentRail;
+        if (body.rail === "fiat_bank" && body.receiverBankDetails) {
+          session.receiverBankDetails = {
+            accountHolderName: String(body.receiverBankDetails.accountHolderName ?? "").trim(),
+            ibanOrAccountNumber: String(body.receiverBankDetails.ibanOrAccountNumber ?? "").trim(),
+            routingOrSwift: String(body.receiverBankDetails.routingOrSwift ?? "").trim(),
+            bankCountry: String(body.receiverBankDetails.bankCountry ?? "US").trim(),
+          };
+        }
         session.status = "ready";
       } else {
         throw new Error("Unsupported session action");

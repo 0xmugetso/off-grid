@@ -88,6 +88,13 @@ export type PayerRailStatus = "pending_selection" | "funding" | "funded_on_arc" 
 export type ReceiverRailStatus = "pending_selection" | "destination_set" | "payout_dispatching" | "settled";
 export type ClearingStatus = "created" | "awaiting_payer" | "awaiting_receiver" | "clearing_on_arc" | "settled";
 
+export interface ReceiverBankDetails {
+  accountHolderName: string;
+  ibanOrAccountNumber: string;
+  routingOrSwift: string;
+  bankCountry: string;
+}
+
 export interface StoredPaymentSession {
   id: string;
   inviteTokenHash: string;
@@ -98,6 +105,7 @@ export interface StoredPaymentSession {
   counterpartyRail: PaymentRail | null;
   payerInputRail: PayerInputRail | null;
   receiverOutputRail: ReceiverOutputRail | null;
+  receiverBankDetails?: ReceiverBankDetails | null;
   payerRailStatus: PayerRailStatus;
   receiverRailStatus: ReceiverRailStatus;
   clearingStatus: ClearingStatus;

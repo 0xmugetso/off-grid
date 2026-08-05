@@ -13,6 +13,13 @@ export interface DatabaseUserView {
 
 export type PaymentParticipant = Pick<DatabaseUserView, "id" | "username" | "displayName" | "walletAddress" | "createdAt">;
 
+export interface ReceiverBankDetails {
+  accountHolderName: string;
+  ibanOrAccountNumber: string;
+  routingOrSwift: string;
+  bankCountry: string;
+}
+
 export interface PaymentSessionView {
   id: string;
   creator: PaymentParticipant | null;
@@ -30,6 +37,7 @@ export interface PaymentSessionView {
   inviteTokenHash?: string;
   payerInputRail?: string | null;
   receiverOutputRail?: string | null;
+  receiverBankDetails?: ReceiverBankDetails | null;
   payerRailStatus?: string;
   receiverRailStatus?: string;
   clearingStatus?: string;

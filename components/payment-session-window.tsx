@@ -52,6 +52,11 @@ export function PaymentSessionWindow({ token }: { token: string }) {
     request<{ configured: boolean; checks: Array<{ key: string; label: string; configured: boolean }> }>("/api/fiat/status").then(setFiatStatus).catch(() => setFiatStatus(null));
   }, [session]);
 
+  const [accountHolderName, setAccountHolderName] = useState("");
+  const [ibanOrAccountNumber, setIbanOrAccountNumber] = useState("");
+  const [routingOrSwift, setRoutingOrSwift] = useState("");
+  const [bankCountry, setBankCountry] = useState("US");
+
   async function bindWallet() {
     const wallets = await discoverBrowserWallets();
     const selected = wallets.find(({ info }) => info.rdns === "io.metamask" || info.name === "MetaMask") ?? wallets[0];
@@ -68,7 +73,23 @@ export function PaymentSessionWindow({ token }: { token: string }) {
     try {
       let current = user;
       if (rail === "web3_usdc" && !current?.walletAddress) current = await bindWallet();
-      const response = await request<{ session: PaymentSessionView }>(`/api/payment-sessions/${token}`, { method: "PATCH", body: JSON.stringify({ action: "respond", rail }) });
+      if (rail === "fiat_bank") {
+        if (!accountHolderName.trim()) throw new Error("Enter the bank account holder name");
+        if (!ibanOrAccountNumber.trim()) throw new Error("Enter IBAN or Account Number");
+      }
+      const response = await request<{ session: PaymentSessionView }>(`/api/payment-sessions/${token}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          action: "respond",
+          rail,
+          receiverBankDetails: rail === "fiat_bank" ? {
+            accountHolderName,
+            ibanOrAccountNumber,
+            routingOrSwift,
+            bankCountry,
+          } : null,
+        }),
+      });
       setSession(response.session);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to accept payment session");
@@ -147,12 +168,45 @@ export function PaymentSessionWindow({ token }: { token: string }) {
 
             {session.role === "creator" && session.status === "open" && <div className="session-action"><span className="section-tag">SHARE SECURELY</span><h2>Send this payment window.</h2><p>Only the first authenticated invitee can claim the counterparty position. After that, every other account is denied.</p><button className="neon-button" onClick={copyLink}><Copy size={15} />{copied ? "Payment link copied" : "Copy private payment link"}</button></div>}
 
-            {session.role === "invitee" && session.status === "open" && <div className="session-action"><span className="section-tag">YOUR PREFERENCE</span><h2>How do you want to {session.actionRole === "payer" ? "pay" : "receive"}?</h2><p>Your selection becomes part of the locked two-party payment terms.</p><div className="session-rail-options"><button className={rail === "web3_usdc" ? "active" : ""} onClick={() => setRail("web3_usdc")}><Wallet size={19} /><span><b>Web3 USDC</b><small>Arc, Gateway, or CCTP</small></span>{rail === "web3_usdc" && <Check size={15} />}</button><button className={rail === "fiat_bank" ? "active" : ""} onClick={() => setRail("fiat_bank")}><Banknote size={19} /><span><b>Bank / fiat</b><small>Circle Mint wire settlement</small></span>{rail === "fiat_bank" && <Check size={15} />}</button></div><button className="neon-button" disabled={busy} onClick={acceptInvite}>{busy ? <LoaderCircle className="spin" size={15} /> : <ShieldCheck size={15} />} Accept & lock my choice</button>{error && <p className="inline-error"><CircleAlert size={13} />{error}</p>}</div>}
+            {session.role === "invitee" && session.status === "open" && (
+              <div className="session-action">
+                <span className="section-tag">YOUR PREFERENCE</span>
+                <h2>How do you want to {session.actionRole === "payer" ? "pay" : "receive"}?</h2>
+                <p>Your selection becomes part of the locked two-party payment terms.</p>
+                <div className="session-rail-options">
+                  <button type="button" className={rail === "web3_usdc" ? "active" : ""} onClick={() => setRail("web3_usdc")}><Wallet size={19} /><span><b>Web3 USDC</b><small>Arc, Gateway, or CCTP</small></span>{rail === "web3_usdc" ? <Check size={15} /> : null}</button>
+                  <button type="button" className={rail === "fiat_bank" ? "active" : ""} onClick={() => setRail("fiat_bank")}><Banknote size={19} /><span><b>Bank / fiat</b><small>Circle Mint wire settlement</small></span>{rail === "fiat_bank" ? <Check size={15} /> : null}</button>
+                </div>
+
+                {rail === "fiat_bank" && session.actionRole === "receiver" && (
+                  <div className="receiver-bank-inputs" style={{ display: "flex", flexDirection: "column", gap: "8px", margin: "12px 0", textAlign: "left" }}>
+                    <small style={{ color: "var(--acid)", font: "9px var(--mono)", textTransform: "uppercase" }}>Wire Payout Destination Account</small>
+                    <input className="session-memo-input" value={accountHolderName} onChange={(e) => setAccountHolderName(e.target.value)} placeholder="Account Holder Name (e.g. John Doe)" />
+                    <input className="session-memo-input" value={ibanOrAccountNumber} onChange={(e) => setIbanOrAccountNumber(e.target.value)} placeholder="IBAN / Account Number (e.g. US1234567890)" />
+                    <input className="session-memo-input" value={routingOrSwift} onChange={(e) => setRoutingOrSwift(e.target.value)} placeholder="SWIFT / BIC / Routing Code (Optional)" />
+                  </div>
+                )}
+
+                <button className="neon-button" disabled={busy} onClick={acceptInvite}>{busy ? <LoaderCircle className="spin" size={15} /> : <ShieldCheck size={15} />} Accept & lock my choice</button>
+                {error && <p className="inline-error"><CircleAlert size={13} />{error}</p>}
+              </div>
+            )}
 
             {session.status === "ready" && (
               <div className="session-action ready">
                 <span className="section-tag">BOTH SIDES LOCKED</span>
                 <h2>{hasFiatLeg ? "Choose Fiat Payment Gateway" : session.actionRole === "payer" ? "Ready for your signature" : "Waiting for payer execution"}</h2>
+                
+                {session.receiverBankDetails && (
+                  <div className="bank-details-card" style={{ padding: "12px", background: "rgba(199, 255, 61, 0.08)", border: "1px solid rgba(199, 255, 61, 0.25)", borderRadius: "8px", margin: "10px 0", textAlign: "left" }}>
+                    <small style={{ color: "var(--acid)", font: "9px var(--mono)", letterSpacing: ".06em" }}>RECIPIENT BANK WIRE DETAILS</small>
+                    <b style={{ display: "block", color: "#fff", fontSize: "14px", marginTop: "2px" }}>{session.receiverBankDetails.accountHolderName}</b>
+                    <p style={{ color: "var(--muted)", fontSize: "11px", margin: "2px 0 0" }}>
+                      IBAN/Account: <code>{session.receiverBankDetails.ibanOrAccountNumber}</code>
+                      {session.receiverBankDetails.routingOrSwift ? ` · SWIFT: ${session.receiverBankDetails.routingOrSwift}` : ""}
+                    </p>
+                  </div>
+                )}
                 {hasFiatLeg ? (
                   <>
                     <p>{session.actionRole === "payer" ? "Both preferences are locked. Select how you want to settle this payment:" : "Both preferences are locked. Waiting for the payer to execute fiat payment via MoonPay or Circle Mint."}</p>
