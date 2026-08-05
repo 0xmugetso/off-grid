@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { AuthScreen } from "@/components/offgrid-dashboard";
 import type { DatabaseUserView, PaymentRail, PaymentSessionView } from "@/lib/payment-session-types";
 import { discoverBrowserWallets, ensureArcTestnet, requestWalletAccount } from "@/lib/arc/browser-wallet";
+import { ArcPayrollClient } from "@/lib/arc/app-kit-client";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -158,6 +159,21 @@ export function PaymentSessionWindow({ token }: { token: string }) {
     setIsClearing(true);
     setFiatError("");
     try {
+      // 1. Connect wallet and prompt USDC transfer on Arc Testnet (default)
+      const wallets = await discoverBrowserWallets();
+      if (!wallets.length) throw new Error("No EVM wallet detected. Install MetaMask, Rabby, or Coinbase Wallet.");
+      const wallet = wallets[0];
+      await requestWalletAccount(wallet.provider);
+      await ensureArcTestnet(wallet.provider);
+
+      const client = new ArcPayrollClient();
+      const adapter = await client.connectEvmWallet(wallet.provider);
+
+      // 2. Sign and send USDC to Session Escrow
+      const escrowRecipient = "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
+      await client.sendArcUsdc(adapter, escrowRecipient, session.amount);
+
+      // 3. Trigger Circle Mint Sandbox Wire Off-Ramp Payout
       const response = await request<{ payout: { id: string; status: string; trackingRef?: string | null; circlePayoutId?: string | null } }>("/api/fiat/payouts", {
         method: "POST",
         body: JSON.stringify({
@@ -170,7 +186,7 @@ export function PaymentSessionWindow({ token }: { token: string }) {
       setSession((current) => current ? { ...current, status: "complete" } : current);
       await request<{ payouts: unknown[] }>("/api/fiat/payouts").catch(() => undefined);
     } catch (cause) {
-      setFiatError(cause instanceof Error ? cause.message : "Unable to create bank payout");
+      setFiatError(cause instanceof Error ? cause.message : "Unable to execute bank wire payout");
     } finally {
       setFiatBusy(false);
       setIsClearing(false);
