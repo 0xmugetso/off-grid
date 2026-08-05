@@ -61,6 +61,38 @@ export function circleMintSandboxStatus() {
   };
 }
 
+export interface CircleMintBalancesResponse {
+  data?: {
+    available?: Array<{ amount?: string; currency?: string }>;
+    unallocated?: Array<{ amount?: string; currency?: string }>;
+  };
+}
+
+export async function fetchCircleMintBalances(): Promise<{ availableUsd: string; unallocatedUsd: string }> {
+  const apiKey = process.env.CIRCLE_MINT_API_KEY;
+  if (!apiKey) {
+    return { availableUsd: "0.00", unallocatedUsd: "0.00" };
+  }
+  try {
+    const response = await fetch(`${process.env.CIRCLE_MINT_BASE_URL ?? sandboxBaseUrl}/v1/businessAccount/balances`, {
+      method: "GET",
+      headers: { authorization: `Bearer ${apiKey}` },
+    });
+    if (!response.ok) {
+      return { availableUsd: "0.00", unallocatedUsd: "0.00" };
+    }
+    const data = (await response.json()) as CircleMintBalancesResponse;
+    const availableItem = data.data?.available?.find((item) => item.currency === "USD");
+    const unallocatedItem = data.data?.unallocated?.find((item) => item.currency === "USD");
+    return {
+      availableUsd: availableItem?.amount || "0.00",
+      unallocatedUsd: unallocatedItem?.amount || "0.00",
+    };
+  } catch {
+    return { availableUsd: "0.00", unallocatedUsd: "0.00" };
+  }
+}
+
 /**
  * Server-only Circle Mint redemption call. It is intentionally not exposed as
  * a public route until a confirmed Circle deposit and participant-owned bank

@@ -1231,6 +1231,7 @@ export function OffGridDashboard() {
   const [protocolEvents, setProtocolEvents] = useState<ProtocolEvent[]>([]);
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
   const [cctpOperations, setCctpOperations] = useState<CctpOperation[]>([]);
+  const [circleMintBalance, setCircleMintBalance] = useState<{ availableUsd: string; unallocatedUsd: string } | null>(null);
   const [cctpRecovering, setCctpRecovering] = useState(false);
   const [cctpRecoveryNote, setCctpRecoveryNote] = useState("");
   const [showSessionCreator, setShowSessionCreator] = useState(false);
@@ -1504,6 +1505,10 @@ export function OffGridDashboard() {
     try {
       const { payouts } = await api<{ payouts: FiatPayout[] }>("/api/fiat/payouts");
       setFiatPayouts(payouts);
+      const statusData = await api<{ realCircleBalance?: { availableUsd: string; unallocatedUsd: string } }>("/api/fiat/status");
+      if (statusData.realCircleBalance) {
+        setCircleMintBalance(statusData.realCircleBalance);
+      }
     } catch {
       // Fiat sandbox refresh is best-effort; a read failure should not break the dashboard.
     }
@@ -2151,7 +2156,7 @@ export function OffGridDashboard() {
                 <div className="balance-intro"><span className="section-tag">REAL TESTNET BALANCES</span><h2>Your money, live.</h2><p>Read directly from Arc and Circle Gateway. No demo numbers.</p></div>
                 <article className="real-balance primary"><div><span className="balance-icon"><ChainLogo chain="Arc_Testnet" size={25}/></span><small>ARC WALLET</small><button onClick={() => loadBalances()} aria-label="Refresh balances"><RefreshCw size={13} /></button></div><b>{arcBalance === null ? "—" : displayMoney(arcBalance)} <em>USDC</em></b><p className={balanceError ? "balance-read-error" : ""} title={balanceError || undefined}>{balanceError ? "Arc RPC unavailable · retry" : shortAddress(displayWalletAddress)}</p></article>
                 <article className="real-balance"><div><span className="balance-icon gateway"><Network size={16} /></span><small>UNIFIED BALANCE</small><button onClick={() => loadBalances()} aria-label="Refresh balances"><RefreshCw size={13} /></button></div><b>{unifiedBalance === null ? "—" : displayMoney(unifiedBalance)} <em>USDC</em></b><p className={gatewayError ? "balance-read-error" : ""} title={gatewayError || undefined}>{gatewayError || (pendingBalance && Number(pendingBalance) > 0 ? `${displayMoney(pendingBalance)} USDC pending` : "Circle Gateway · confirmed")}</p><button className="deposit-link" onClick={() => { setDepositError(""); setShowFunding(true); }}><Plus size={12} /> Deposit</button></article>
-                <article className="real-balance fiat"><div><span className="balance-icon fiat"><Banknote size={16} /></span><small>SANDBOX FIAT</small><button onClick={() => { void refreshCurrentUser(); }} aria-label="Refresh fiat balance"><RefreshCw size={13} /></button></div><b>{fiatBalance === null ? "—" : displayMoney(fiatBalance)} <em>USD</em></b><p>{Number(fiatPending) > 0 ? `${displayMoney(fiatPending)} USD pending` : "Local sandbox ledger · spendable in transfer tab"}</p><button className="deposit-link" onClick={() => { void fundSandboxFiat(); }}><Plus size={12} /> Fund fiat balance</button></article>
+                <article className="real-balance fiat"><div><span className="balance-icon fiat"><Banknote size={16} /></span><small>CIRCLE MINT & MOONPAY FIAT</small><button onClick={() => { void refreshFiatPayouts(); }} aria-label="Refresh fiat balance"><RefreshCw size={13} /></button></div><b>{circleMintBalance ? displayMoney(circleMintBalance.availableUsd) : (fiatBalance === null ? "—" : displayMoney(fiatBalance))} <em>USD</em></b><p>{circleMintBalance ? `Circle Mint Sandbox API · ${displayMoney(circleMintBalance.unallocatedUsd)} USD unallocated` : (Number(fiatPending) > 0 ? `${displayMoney(fiatPending)} USD pending` : "Local sandbox ledger · spendable in transfer tab")}</p><button className="deposit-link" onClick={() => { void fundSandboxFiat(); }}><Plus size={12} /> Fund fiat balance</button></article>
               </section>
 
               {depositNotice && <section className={`gateway-status ${depositNotice.state}`}>

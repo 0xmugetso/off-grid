@@ -29,6 +29,8 @@ export async function POST(request: Request) {
 
     const token = createInviteToken();
     const now = new Date();
+
+    const isPayer = body.intent === "pay";
     const session: StoredPaymentSession = {
       id: randomUUID(),
       inviteTokenHash: hashInviteToken(token),
@@ -37,6 +39,17 @@ export async function POST(request: Request) {
       creatorIntent: body.intent,
       creatorRail: body.rail as PaymentRail,
       counterpartyRail: null,
+      payerInputRail: isPayer ? "card_moonpay" : null,
+      receiverOutputRail: !isPayer ? "fiat_bank_ach" : null,
+      payerRailStatus: isPayer ? "pending_selection" : "pending_selection",
+      receiverRailStatus: !isPayer ? "destination_set" : "pending_selection",
+      clearingStatus: "created",
+      arcEscrowTxHash: null,
+      auditProof: {
+        sessionId: randomUUID(),
+        createdAt: now.toISOString(),
+        network: "Arc Testnet (~0.48s finality)",
+      },
       amount: formatUsdc(parsedAmount),
       currency: "USD",
       memo: String(body.memo ?? "").trim().slice(0, 180),
