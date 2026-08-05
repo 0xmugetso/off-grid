@@ -14,6 +14,7 @@ import {
   CircleAlert,
   CircleCheck,
   Copy,
+  CreditCard,
   Download,
   ExternalLink,
   FileCheck,
@@ -53,6 +54,7 @@ import { connectSolanaWallet as requestSolanaAccount, discoverSolanaWallets, get
 import type { PaymentRail, PaymentSessionView } from "@/lib/payment-session-types";
 import { MassPaymentView, type MassFunding, type MassRunResult, type MassTeamMember } from "@/components/mass-payment-view";
 import { ChainLogo, ChainName, ChainSelect } from "@/components/chain-logo";
+import { FiatOnRampModal } from "@/components/fiat-onramp-modal";
 import { isSubmittedCctpOperation } from "@/lib/cctp-operations";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ReceiptCodeRain } from "@/components/receipt-code-rain";
@@ -1232,6 +1234,7 @@ export function OffGridDashboard() {
   const [cctpRecovering, setCctpRecovering] = useState(false);
   const [cctpRecoveryNote, setCctpRecoveryNote] = useState("");
   const [showSessionCreator, setShowSessionCreator] = useState(false);
+  const [showOnRamp, setShowOnRamp] = useState(false);
   const [sessionIntent, setSessionIntent] = useState<"pay" | "receive">("pay");
   const [sessionRail, setSessionRail] = useState<PaymentRail>("web3_usdc");
   const [sessionAmount, setSessionAmount] = useState("");
@@ -2080,6 +2083,7 @@ export function OffGridDashboard() {
         <div className="header-actions">
           {displayWalletAddress && !walletOnArc && <button className="arc-switch-button" onClick={switchToArc} disabled={walletBusy}>{walletBusy ? <LoaderCircle className="spin" size={12} /> : <Network size={12} />} Switch to Arc</button>}
           
+          <button className="faucet-button onramp-header-btn" onClick={() => setShowOnRamp(true)}><CreditCard size={15} /> Buy USDC (On-Ramp)</button>
           <a className="faucet-button" href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><Fuel size={15} /> Get test USDC <ExternalLink size={12} /></a>
 
           {displayWalletAddress ? (
@@ -2355,6 +2359,8 @@ export function OffGridDashboard() {
       {showSessionCreator && <div className="overlay"><article className="session-create-modal"><button className="modal-x" onClick={() => setShowSessionCreator(false)}><X size={18} /></button><span className="section-tag">PRIVATE PAYMENT SESSION</span>{createdSessionLink ? <><h2>Your payment window is live.</h2><p>Send this capability link to exactly one person. The first authenticated account to accept becomes the counterparty.</p><div className="created-session-link"><LockKeyhole size={15} /><span>{createdSessionLink}</span></div><button className="neon-button" onClick={copyCreatedSession}><Copy size={15} />{sessionLinkCopied ? "Link copied" : "Copy secure link"}</button><a className="open-session-link" href={createdSessionLink}>Open payment window <ExternalLink size={12} /></a></> : <><h2>Who moves the money?</h2><p>Set immutable starting terms. The other participant chooses their own rail after opening the link.</p><label>Your role<div className="intent-options"><button className={sessionIntent === "pay" ? "active" : ""} onClick={() => setSessionIntent("pay")}><ArrowUpRight size={15} /><span><b>I want to pay</b><small>The invitee receives</small></span>{sessionIntent === "pay" && <Check size={14} />}</button><button className={sessionIntent === "receive" ? "active" : ""} onClick={() => setSessionIntent("receive")}><ArrowDownToLine size={15} /><span><b>I want to receive</b><small>The invitee pays</small></span>{sessionIntent === "receive" && <Check size={14} />}</button></div></label><label>Your preferred rail<div className="intent-options"><button className={sessionRail === "web3_usdc" ? "active" : ""} onClick={() => setSessionRail("web3_usdc")}><Wallet size={15} /><span><b>Web3 USDC</b><small>Arc · Gateway · CCTP</small></span>{sessionRail === "web3_usdc" && <Check size={14} />}</button><button className={sessionRail === "fiat_bank" ? "active" : ""} onClick={() => setSessionRail("fiat_bank")}><Banknote size={15} /><span><b>Bank / fiat</b><small>Sandbox setup required</small></span>{sessionRail === "fiat_bank" && <Check size={14} />}</button></div></label><label>Amount<div className="fund-amount"><input value={sessionAmount} onChange={(event) => setSessionAmount(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" /><span>USDC / USD</span></div></label><label>Memo <em>OPTIONAL</em><input className="session-memo-input" value={sessionMemo} onChange={(event) => setSessionMemo(event.target.value)} maxLength={180} placeholder="August payroll, design retainer…" /></label>{sessionError && <p className="inline-error"><CircleAlert size={13} />{sessionError}</p>}<button className="neon-button" onClick={createPaymentSession} disabled={sessionBusy}>{sessionBusy ? <LoaderCircle className="spin" size={15} /> : <LockKeyhole size={15} />} Create immutable session</button></>}</article></div>}
 
       {showFunding && <div className="overlay"><article className="funding-modal"><button className="modal-x" onClick={() => setShowFunding(false)}><X size={18} /></button><span className="section-tag">CIRCLE GATEWAY</span><h2>Fund unified balance</h2><p>Deposit USDC from an EVM testnet or Solana Devnet. App Kit handles authorization and the Gateway deposit.</p><div className="modal-chain-field"><span>Source network</span><ChainSelect value={depositChain} chains={SOURCE_CHAINS} onChange={(chain) => { setDepositChain(chain); setDepositError(""); }} /></div>{depositChain === "Solana_Devnet" && <div className={`solana-deposit-wallet ${solanaAddress ? "connected" : ""}`}><ChainLogo chain="Solana_Devnet" size={25}/><div><small>{solanaAddress ? `${solanaWalletName.toUpperCase()} · SOURCE WALLET` : "SOLANA SIGNER REQUIRED"}</small><b>{solanaAddress ? `${solanaUsdcBalance === null ? "—" : displayMoney(solanaUsdcBalance)} USDC` : "Phantom · Solflare · Backpack"}</b>{solanaAddress && <em>{shortAddress(solanaAddress, 6)}</em>}</div><button onClick={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={13}/> : solanaAddress ? <RefreshCw size={13}/> : <Wallet size={13}/>} {solanaAddress ? "Refresh" : "Connect"}</button></div>}<label>Amount<div className="fund-amount"><input value={depositAmount} onChange={(event) => { setDepositAmount(event.target.value.replace(/[^0-9.]/g, "")); setDepositError(""); }} inputMode="decimal" /><span>USDC</span></div></label><div className="gateway-diagram"><ChainName chain={depositChain} size={20}/><i><ArrowRight size={16} /></i><span>Gateway</span><i><ArrowRight size={16} /></i><span>Unified</span></div><button className="neon-button" onClick={depositToGateway} disabled={depositBusy || !walletAddress || !(Number(depositAmount) > 0) || (depositChain === "Solana_Devnet" && !solanaAddress)}>{depositBusy ? <LoaderCircle className="spin" size={17} /> : <ArrowDownToLine size={17} />} {depositBusy ? "Confirm in wallet…" : "Review deposit in wallet"}</button>{depositError && <p className="inline-error"><CircleAlert size={13} />{depositError}</p>}{solanaError && <p className="inline-error"><CircleAlert size={13} />{solanaError}</p>}<small><ShieldCheck size={12} /> Testnet transaction. App Kit switches to the source chain; OffGrid keeps reading Arc independently.</small></article></div>}
+
+      {showOnRamp && <FiatOnRampModal onClose={() => setShowOnRamp(false)} walletAddress={displayWalletAddress} onSuccess={() => { void loadBalances(); void refreshCurrentUser(); }} />}
 
       {invoice && <Invoice invoice={invoice} user={user} onClose={resetPayment} />}
     </main>
