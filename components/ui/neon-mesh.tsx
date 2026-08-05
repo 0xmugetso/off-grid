@@ -77,17 +77,25 @@ export function NeonMesh({
     let constraints: Constraint3D[] = [];
 
     const handleResize = () => {
-      const targetEl = container.parentElement || container;
-      const rect = targetEl.getBoundingClientRect();
+      const parent = container.parentElement;
+      if (!parent) return;
+
+      const newWidth = Math.min(Math.max(parent.clientWidth || container.clientWidth || window.innerWidth, 300), 3840);
+      const newHeight = Math.min(Math.max(parent.clientHeight || container.clientHeight || window.innerHeight, 300), 3840);
+
+      if (Math.abs(width - newWidth) < 4 && Math.abs(height - newHeight) < 4) {
+        return;
+      }
+
+      width = newWidth;
+      height = newHeight;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      width = rect.width || targetEl.clientWidth || window.innerWidth;
-      height = Math.max(rect.height, targetEl.scrollHeight, targetEl.offsetHeight, 600);
 
       canvas.width = width * dpr;
       canvas.height = height * dpr;
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
-      ctx.scale(dpr, dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       initMesh();
     };
 
@@ -343,32 +351,33 @@ export function NeonMesh({
   return (
     <div
       ref={containerRef}
-      className={`absolute inset-0 w-full h-full min-h-full overflow-hidden pointer-events-none z-0 ${className}`}
-      style={{ opacity }}
+      className={`neon-mesh-container ${className}`}
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+        pointerEvents: "none",
+        zIndex: 0,
+        opacity,
+      }}
     >
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 block w-full h-full pointer-events-none"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none",
+          display: "block",
+        }}
       />
-      {(title || subtitle || description) && (
-        <div className="relative z-10 flex h-full flex-col items-center justify-center text-center px-4 mix-blend-difference text-white pointer-events-none">
-          {subtitle && (
-            <span className="font-mono text-xs tracking-widest uppercase mb-3 text-[#c7ff3d]">
-              {subtitle}
-            </span>
-          )}
-          {title && (
-            <h1 className="font-mono text-6xl md:text-9xl font-black tracking-tighter uppercase leading-none">
-              {title}
-            </h1>
-          )}
-          {description && (
-            <p className="mt-4 font-mono text-xs md:text-sm max-w-lg opacity-80">
-              {description}
-            </p>
-          )}
-        </div>
-      )}
     </div>
   );
 }
