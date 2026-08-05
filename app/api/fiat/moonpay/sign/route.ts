@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       walletAddress,
       baseCurrencyCode: "usd",
       baseCurrencyAmount,
-      colorCode: "%23c7ff3d",
+      colorCode: "#c7ff3d",
       email: `${user.username || "sandbox"}@offgrid.finance`,
       externalCustomerId: `offgrid-${user.id || "demo"}`,
     });
