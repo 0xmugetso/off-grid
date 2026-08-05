@@ -54,6 +54,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
         if (body.rail === "web3_usdc" && !current.walletAddress) throw new Error("Connect and bind your wallet before choosing Web3 USDC");
         session.counterpartyId = current.id;
         session.counterpartyRail = body.rail as PaymentRail;
+        if (session.creatorIntent === "pay") {
+          session.receiverOutputRail = body.rail;
+          session.receiverRailStatus = "terms_locked";
+        } else {
+          session.payerInputRail = body.rail;
+          session.payerRailStatus = "terms_locked";
+        }
         if (body.rail === "fiat_bank" && body.receiverBankDetails) {
           session.receiverBankDetails = {
             accountHolderName: String(body.receiverBankDetails.accountHolderName ?? "").trim(),

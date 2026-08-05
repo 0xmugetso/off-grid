@@ -82,10 +82,10 @@ export interface StoredCctpOperation {
 }
 
 export type PaymentRail = "web3_usdc" | "fiat_bank";
-export type PayerInputRail = "card_moonpay" | "card_stripe" | "crypto_base" | "crypto_solana" | "crypto_arc";
-export type ReceiverOutputRail = "fiat_bank_ach" | "fiat_bank_sepa" | "yield_usyc" | "crypto_wallet";
-export type PayerRailStatus = "pending_selection" | "funding" | "funded_on_arc" | "failed";
-export type ReceiverRailStatus = "pending_selection" | "destination_set" | "payout_dispatching" | "settled";
+export type PayerInputRail = "web3_usdc" | "fiat_bank" | "card_moonpay" | "card_stripe" | "crypto_base" | "crypto_solana" | "crypto_arc";
+export type ReceiverOutputRail = "web3_usdc" | "fiat_bank" | "fiat_bank_ach" | "fiat_bank_sepa" | "yield_usyc" | "crypto_wallet";
+export type PayerRailStatus = "pending_selection" | "terms_locked" | "funding" | "funded_on_arc" | "failed";
+export type ReceiverRailStatus = "pending_selection" | "terms_locked" | "destination_set" | "payout_dispatching" | "settled";
 export type ClearingStatus = "created" | "awaiting_payer" | "awaiting_receiver" | "clearing_on_arc" | "settled";
 
 export interface ReceiverBankDetails {

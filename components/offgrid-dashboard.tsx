@@ -2471,10 +2471,10 @@ export function OffGridDashboard() {
                                   <span className="column-label">PAYER INPUT</span>
                                 </div>
                                 <b className="node-rail-title">
-                                  {sess.payerInputRail === "fiat_bank" ? "Bank Wire (Circle Mint)" : sess.payerInputRail === "web3_usdc" ? "Web3 USDC (Arc)" : "Awaiting Selection"}
+                                  {sess.payerInputRail === "fiat_bank" ? "Bank Wire (Circle Mint)" : sess.payerInputRail === "web3_usdc" ? "Web3 USDC (Arc)" : "Pending Preference"}
                                 </b>
-                                <span className={`rail-status-tag ${sess.payerRailStatus || "pending"}`}>
-                                  {(sess.payerRailStatus || "terms locked").replace("_", " ")}
+                                <span className={`rail-status-tag ${sess.payerInputRail ? "terms_locked" : "pending"}`}>
+                                  {sess.payerInputRail ? "Choice Locked" : "Awaiting Choice"}
                                 </span>
                               </div>
 
@@ -2497,10 +2497,10 @@ export function OffGridDashboard() {
                                   <span className="column-label">RECEIVER OUTPUT</span>
                                 </div>
                                 <b className="node-rail-title">
-                                  {sess.receiverOutputRail === "fiat_bank" ? "Bank Wire (SEPA/ACH)" : sess.receiverOutputRail === "web3_usdc" ? "Web3 USDC" : "Awaiting Selection"}
+                                  {sess.receiverOutputRail === "fiat_bank" ? "Bank Wire (SEPA/ACH)" : sess.receiverOutputRail === "web3_usdc" ? "Web3 USDC (Arc)" : "Pending Preference"}
                                 </b>
-                                <span className={`rail-status-tag ${sess.receiverRailStatus || "pending"}`}>
-                                  {(sess.receiverRailStatus || "awaiting selection").replace("_", " ")}
+                                <span className={`rail-status-tag ${sess.receiverOutputRail ? "terms_locked" : "pending"}`}>
+                                  {sess.receiverOutputRail ? "Choice Locked" : "Awaiting Choice"}
                                 </span>
                               </div>
                             </div>
