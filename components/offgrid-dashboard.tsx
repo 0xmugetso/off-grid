@@ -2392,64 +2392,74 @@ export function OffGridDashboard() {
               <X size={18} />
             </button>
 
-            <div className="onramp-simple-header">
-              <span className="section-tag">DECOUPLED MATRIX · LIVE SESSIONS</span>
-              <h2>Active Payment Sessions ({paymentSessionsList.length})</h2>
-              <p>Arc acts as an invisible clearing engine between Side A (Payer Input) and Side B (Receiver Output).</p>
+            <div className="sessions-modal-head">
+              <span className="section-tag">DECOUPLED CLEARING MATRIX</span>
+              <h2>Live Payment Sessions <em>({paymentSessionsList.length})</em></h2>
+              <p>Arc acts as an invisible clearing engine sitting between two completely independent user preferences.</p>
             </div>
 
             <div className="live-sessions-list">
               {paymentSessionsList.length === 0 ? (
                 <div className="empty-sessions-box">
-                  <Radio size={24} />
-                  <p>No payment sessions active yet. Click "Create payment session" to open a new private window.</p>
+                  <Radio size={28} className="spin-slow" />
+                  <b>No Active Payment Sessions</b>
+                  <p>Click "Create payment session" to generate a private capability link.</p>
                 </div>
               ) : (
                 paymentSessionsList.map((sess) => {
                   const inviteUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/?session=${sess.inviteTokenHash}`;
                   return (
-                    <div className="live-session-item-card" key={sess.id}>
-                      <div className="session-item-head">
-                        <div>
-                          <span className="session-tag">SESSION #{sess.id.slice(0, 8)}</span>
-                          <b>${sess.amount} USD</b>
-                          <p>{sess.memo || "Private settlement"}</p>
+                    <div className="live-session-card" key={sess.id}>
+                      <div className="session-card-header">
+                        <div className="session-title-group">
+                          <small>SESSION #{sess.id.slice(0, 8)}</small>
+                          <h3>${sess.amount} <span>USD</span></h3>
+                          {sess.memo && <p>{sess.memo}</p>}
                         </div>
-                        <span className={`status-pill ${sess.status}`}>{sess.status.toUpperCase()}</span>
+                        <span className={`session-status-badge ${sess.status}`}>
+                          {sess.status.toUpperCase()}
+                        </span>
                       </div>
 
-                      {/* Decoupled Matrix Status Flow */}
-                      <div className="decoupled-matrix-flow">
-                        <div className="matrix-step side-a">
-                          <small>SIDE A (PAYER)</small>
+                      {/* Decoupled Matrix Visual Flow */}
+                      <div className="matrix-visual-pipeline">
+                        <div className="matrix-column side-a">
+                          <span className="column-label">SIDE A · PAYER INPUT</span>
                           <b>{sess.payerInputRail ? sess.payerInputRail.replace("_", " ").toUpperCase() : "Awaiting Selection"}</b>
-                          <span className="step-tag">{sess.payerRailStatus}</span>
+                          <small className={`rail-status-tag ${sess.payerRailStatus || "pending"}`}>{(sess.payerRailStatus || "pending").replace("_", " ")}</small>
                         </div>
 
-                        <div className="matrix-arrow">
-                          <Zap size={14} />
-                          <small>Arc Clearing (~0.48s)</small>
+                        <div className="matrix-column clearing">
+                          <div className="clearing-icon-pill">
+                            <Zap size={14} />
+                            <span>Arc (~0.48s)</span>
+                          </div>
+                          <small>SessionEscrow</small>
                         </div>
 
-                        <div className="matrix-step side-b">
-                          <small>SIDE B (RECEIVER)</small>
+                        <div className="matrix-column side-b">
+                          <span className="column-label">SIDE B · RECEIVER OUTPUT</span>
                           <b>{sess.receiverOutputRail ? sess.receiverOutputRail.replace("_", " ").toUpperCase() : "Awaiting Selection"}</b>
-                          <span className="step-tag">{sess.receiverRailStatus}</span>
+                          <small className={`rail-status-tag ${sess.receiverRailStatus || "pending"}`}>{(sess.receiverRailStatus || "pending").replace("_", " ")}</small>
                         </div>
                       </div>
 
-                      <div className="session-item-footer">
-                        <code>{inviteUrl}</code>
+                      {/* Shareable Link Toolbar */}
+                      <div className="session-card-share-bar">
+                        <div className="link-text-box">
+                          <LockKeyhole size={13} />
+                          <span>{inviteUrl}</span>
+                        </div>
                         <button
                           type="button"
-                          className="copy-link-btn"
+                          className="neon-button-sm"
                           onClick={() => {
                             if (typeof window !== "undefined") {
                               navigator.clipboard.writeText(inviteUrl);
                             }
                           }}
                         >
-                          <Copy size={12} /> Copy Link
+                          <Copy size={13} /> Copy Link
                         </button>
                       </div>
                     </div>
