@@ -1762,62 +1762,134 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
 
 .matrix-visual-pipeline {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr 180px 1fr;
   align-items: center;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 10px;
-  background: rgba(6, 8, 6, 0.9);
+  gap: 16px;
+  padding: 18px 22px;
+  border: 1px solid rgba(199, 255, 61, 0.2);
+  border-radius: 14px;
+  background: radial-gradient(circle at 50% 50%, rgba(199, 255, 61, 0.04), transparent 80%), rgba(8, 11, 8, 0.95);
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
 }
 
-.matrix-column {
+.matrix-node {
   display: flex;
   flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(16, 22, 16, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 2;
+}
+
+.matrix-node.side-a {
+  border-left: 3px solid var(--acid);
+}
+
+.matrix-node.side-b {
+  border-right: 3px solid #8c85ff;
+}
+
+.node-icon-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--acid);
+}
+
+.matrix-node.side-b .node-icon-header {
+  color: #8c85ff;
+}
+
+.node-rail-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.matrix-clearing-engine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
   gap: 4px;
 }
 
-.matrix-column.clearing {
-  align-items: center;
+.beam-line {
+  position: absolute;
+  top: 50%;
+  left: -40px;
+  right: -40px;
+  height: 2px;
+  background: rgba(199, 255, 61, 0.15);
+  z-index: 1;
+  transform: translateY(-50%);
 }
 
-.column-label {
-  color: var(--muted);
-  font: 8px var(--mono);
-  font-weight: 700;
-  letter-spacing: .08em;
+.beam-pulse-particle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40px;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, #c7ff3d, transparent);
+  animation: pulseBeam 2s infinite linear;
+  box-shadow: 0 0 10px #c7ff3d;
 }
 
-.matrix-column b {
-  font-size: 12px;
-  color: var(--ink);
+@keyframes pulseBeam {
+  0% { left: 0%; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
 }
-
-.rail-status-tag {
-  font: 9px var(--mono);
-  text-transform: uppercase;
-}
-
-.rail-status-tag.pending_selection { color: var(--muted); }
-.rail-status-tag.funding, .rail-status-tag.destination_set { color: #8c85ff; }
-.rail-status-tag.funded_on_arc, .rail-status-tag.settled { color: var(--acid); }
 
 .clearing-icon-pill {
-  padding: 4px 10px;
+  position: relative;
+  z-index: 3;
+  padding: 6px 14px;
   border-radius: 20px;
-  background: rgba(199, 255, 61, 0.12);
-  border: 1px solid rgba(199, 255, 61, 0.3);
+  background: #0d120a;
+  border: 1px solid rgba(199, 255, 61, 0.5);
   color: var(--acid);
   display: flex;
   align-items: center;
   gap: 6px;
-  font: 10px var(--mono);
+  font: 11px var(--mono);
   font-weight: 700;
+  box-shadow: 0 0 16px rgba(199, 255, 61, 0.25);
+  animation: arcPillGlow 3s ease-in-out infinite;
 }
 
-.matrix-column.clearing small {
+@keyframes arcPillGlow {
+  0%, 100% { box-shadow: 0 0 12px rgba(199, 255, 61, 0.2); }
+  50% { box-shadow: 0 0 24px rgba(199, 255, 61, 0.5); border-color: #c7ff3d; }
+}
+
+.zap-pulse {
+  animation: zapRotate 2s ease-in-out infinite;
+}
+
+@keyframes zapRotate {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); color: #fff; }
+}
+
+.engine-subtext {
   color: var(--muted);
   font: 8px var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
   margin-top: 2px;
 }
 

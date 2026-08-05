@@ -2464,24 +2464,44 @@ export function OffGridDashboard() {
 
                             {/* Decoupled Matrix Visual Flow */}
                             <div className="matrix-visual-pipeline">
-                              <div className="matrix-column side-a">
-                                <span className="column-label">SIDE A · PAYER INPUT</span>
-                                <b>{sess.payerInputRail ? sess.payerInputRail.replace("_", " ").toUpperCase() : "Awaiting Selection"}</b>
-                                <small className={`rail-status-tag ${sess.payerRailStatus || "pending"}`}>{(sess.payerRailStatus || "pending").replace("_", " ")}</small>
-                              </div>
-
-                              <div className="matrix-column clearing">
-                                <div className="clearing-icon-pill">
-                                  <Zap size={14} />
-                                  <span>Arc (~0.48s)</span>
+                              {/* Side A Node */}
+                              <div className="matrix-node side-a">
+                                <div className="node-icon-header">
+                                  {sess.payerInputRail === "fiat_bank" ? <Banknote size={14} /> : <Wallet size={14} />}
+                                  <span className="column-label">PAYER INPUT</span>
                                 </div>
-                                <small>SessionEscrow</small>
+                                <b className="node-rail-title">
+                                  {sess.payerInputRail === "fiat_bank" ? "Bank Wire (Circle Mint)" : sess.payerInputRail === "web3_usdc" ? "Web3 USDC (Arc)" : "Awaiting Selection"}
+                                </b>
+                                <span className={`rail-status-tag ${sess.payerRailStatus || "pending"}`}>
+                                  {(sess.payerRailStatus || "terms locked").replace("_", " ")}
+                                </span>
                               </div>
 
-                              <div className="matrix-column side-b">
-                                <span className="column-label">SIDE B · RECEIVER OUTPUT</span>
-                                <b>{sess.receiverOutputRail ? sess.receiverOutputRail.replace("_", " ").toUpperCase() : "Awaiting Selection"}</b>
-                                <small className={`rail-status-tag ${sess.receiverRailStatus || "pending"}`}>{(sess.receiverRailStatus || "pending").replace("_", " ")}</small>
+                              {/* Arc Animated Connector Engine */}
+                              <div className="matrix-clearing-engine">
+                                <div className="beam-line">
+                                  <div className="beam-pulse-particle" />
+                                </div>
+                                <div className="clearing-icon-pill">
+                                  <Zap size={14} className="zap-pulse" />
+                                  <span>Arc Escrow (~0.48s)</span>
+                                </div>
+                                <small className="engine-subtext">SessionEscrow Contract</small>
+                              </div>
+
+                              {/* Side B Node */}
+                              <div className="matrix-node side-b">
+                                <div className="node-icon-header">
+                                  {sess.receiverOutputRail === "fiat_bank" ? <Banknote size={14} /> : <Wallet size={14} />}
+                                  <span className="column-label">RECEIVER OUTPUT</span>
+                                </div>
+                                <b className="node-rail-title">
+                                  {sess.receiverOutputRail === "fiat_bank" ? "Bank Wire (SEPA/ACH)" : sess.receiverOutputRail === "web3_usdc" ? "Web3 USDC" : "Awaiting Selection"}
+                                </b>
+                                <span className={`rail-status-tag ${sess.receiverRailStatus || "pending"}`}>
+                                  {(sess.receiverRailStatus || "awaiting selection").replace("_", " ")}
+                                </span>
                               </div>
                             </div>
 
