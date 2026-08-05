@@ -2375,6 +2375,11 @@ export function OffGridDashboard() {
               <button className="user-logout-btn" onClick={() => { setShowUserModal(false); void logout(); }}>
                 <LogOut size={14} /> Sign out of account
               </button>
+
+              <div className="user-modal-version-footer" style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ font: "9px var(--mono)", color: "var(--muted)", letterSpacing: ".06em" }}>OFFGRID PROTOCOL RELEASE</span>
+                <span style={{ font: "10px var(--mono)", color: "var(--acid)", fontWeight: 700 }}>v0.2.0-ARC · BUILD 1563A4F</span>
+              </div>
             </div>
           </div>
         </div>
