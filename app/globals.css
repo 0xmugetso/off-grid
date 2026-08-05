@@ -1532,26 +1532,26 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
 }
 
 .live-sessions-modal {
-  width: min(720px, 94vw);
-  max-height: calc(100vh - 80px);
+  width: min(840px, 94vw);
+  max-height: calc(100vh - 60px);
   padding: 32px;
   border: 1px solid rgba(199, 255, 61, 0.28);
   border-radius: 20px;
-  background: linear-gradient(165deg, #0e120b, #070906 70%);
+  background: linear-gradient(165deg, #0c1109, #050704 70%);
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
-  box-shadow: 0 40px 140px rgba(0, 0, 0, 0.9), 0 0 90px rgba(199, 255, 61, 0.08);
+  box-shadow: 0 40px 140px rgba(0, 0, 0, 0.95), 0 0 90px rgba(199, 255, 61, 0.08);
 }
 
 .sessions-modal-head {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .sessions-modal-head h2 {
   font-size: 22px;
   font-weight: 800;
   color: var(--ink);
-  margin: 6px 0 4px;
+  margin: 4px 0;
 }
 
 .sessions-modal-head h2 em {
@@ -1566,17 +1566,39 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
   line-height: 1.5;
 }
 
+.completed-sessions-tab-btn {
+  background: rgba(199, 255, 61, 0.1);
+  border: 1px solid rgba(199, 255, 61, 0.35);
+  color: var(--acid);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font: 11px var(--mono);
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.completed-sessions-tab-btn:hover {
+  background: rgba(199, 255, 61, 0.2);
+  box-shadow: 0 0 16px rgba(199, 255, 61, 0.25);
+  transform: translateY(-1px);
+}
+
 .live-sessions-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  max-height: 540px;
+  gap: 18px;
+  max-height: 520px;
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 6px;
 }
 
 .empty-sessions-box {
-  padding: 48px 24px;
+  padding: 56px 24px;
   text-align: center;
   color: var(--muted);
   display: flex;
@@ -1590,22 +1612,23 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
 
 .empty-sessions-box b {
   color: var(--ink);
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .live-session-card {
-  padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 22px;
+  border: 1px solid rgba(199, 255, 61, 0.15);
   border-radius: 14px;
-  background: rgba(14, 18, 12, 0.85);
+  background: rgba(12, 16, 12, 0.9);
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  transition: border-color .18s ease;
+  gap: 18px;
+  transition: all .2s ease;
 }
 
 .live-session-card:hover {
-  border-color: rgba(199, 255, 61, 0.3);
+  border-color: rgba(199, 255, 61, 0.35);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
 }
 
 .session-card-header {
@@ -1623,7 +1646,7 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
 
 .session-title-group h3 {
   font-family: var(--mono);
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 700;
   color: var(--ink);
   margin: 2px 0 0;

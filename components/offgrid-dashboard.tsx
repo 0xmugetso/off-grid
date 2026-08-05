@@ -2491,19 +2491,19 @@ export function OffGridDashboard() {
                                 <LockKeyhole size={13} />
                                 <span>{inviteUrl}</span>
                               </div>
-                              <div style={{ display: "flex", gap: "6px" }}>
+                              <div style={{ display: "flex", gap: "8px" }}>
                                 <a
                                   href={`/session/${sess.inviteTokenHash}`}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="neon-button-sm"
-                                  style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "5px" }}
+                                  className="neon-button-sm primary-cta"
+                                  style={{ textDecoration: "none" }}
                                 >
                                   <ExternalLink size={13} /> Open Session
                                 </a>
                                 <button
                                   type="button"
-                                  className="neon-button-sm"
+                                  className="neon-button-sm secondary-ghost"
                                   onClick={() => {
                                     if (typeof window !== "undefined") {
                                       navigator.clipboard.writeText(inviteUrl);
