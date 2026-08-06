@@ -1571,26 +1571,83 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
   line-height: 1.5;
 }
 
-.completed-sessions-tab-btn {
-  background: rgba(199, 255, 61, 0.1);
-  border: 1px solid rgba(199, 255, 61, 0.35);
-  color: var(--acid);
+.sessions-modal-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.session-filter-tab-btn {
   padding: 8px 16px;
   border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(14, 18, 14, 0.6);
+  color: var(--muted);
   font: 11px var(--mono);
   font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 6px;
-  white-space: nowrap;
   transition: all 0.2s ease;
 }
 
-.completed-sessions-tab-btn:hover {
-  background: rgba(199, 255, 61, 0.2);
-  box-shadow: 0 0 16px rgba(199, 255, 61, 0.25);
-  transform: translateY(-1px);
+.session-filter-tab-btn:hover {
+  background: rgba(199, 255, 61, 0.08);
+  color: var(--acid);
+  border-color: rgba(199, 255, 61, 0.25);
+}
+
+.session-filter-tab-btn.active {
+  background: rgba(199, 255, 61, 0.15);
+  color: var(--acid);
+  border-color: rgba(199, 255, 61, 0.4);
+  box-shadow: 0 0 16px rgba(199, 255, 61, 0.2);
+}
+
+.session-card-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(199, 255, 61, 0.08);
+  border: 1px solid rgba(199, 255, 61, 0.25);
+  color: var(--acid);
+  font: 11px var(--mono);
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.session-card-timer.expired {
+  background: rgba(255, 85, 85, 0.1);
+  border-color: rgba(255, 85, 85, 0.3);
+  color: #ff5555;
+}
+
+.archive-session-btn {
+  background: rgba(255, 85, 85, 0.1);
+  border: 1px solid rgba(255, 85, 85, 0.25);
+  color: #ff6666;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.archive-session-btn:hover {
+  background: rgba(255, 85, 85, 0.25);
+  color: #fff;
+  border-color: #ff5555;
+  box-shadow: 0 0 12px rgba(255, 85, 85, 0.3);
+  transform: scale(1.05);
 }
 
 .live-sessions-list {

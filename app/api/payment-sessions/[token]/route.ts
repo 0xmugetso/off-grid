@@ -44,9 +44,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
       if (new Date(session.expiresAt).getTime() <= Date.now()) throw new Error("This payment invite has expired");
       if (session.status === "complete") throw new Error("This payment is already complete");
 
-      if (body.action === "cancel") {
-        if (current.id !== session.creatorId) throw new Error("Only the creator can cancel this session");
-        session.status = "cancelled";
+      if (body.action === "archive" || body.action === "cancel") {
+        if (current.id !== session.creatorId && current.id !== session.counterpartyId) {
+          throw new Error("Only participants can archive this session");
+        }
+        session.status = "archived";
       } else if (body.action === "respond") {
         if (current.id === session.creatorId) throw new Error("Share this invite with the other participant");
         if (session.counterpartyId && session.counterpartyId !== current.id) throw new Error("This invite has already been claimed");

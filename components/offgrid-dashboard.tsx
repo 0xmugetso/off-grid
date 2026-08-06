@@ -13,6 +13,7 @@ import {
   ChevronDown,
   CircleAlert,
   CircleCheck,
+  Clock,
   Copy,
   CreditCard,
   Download,
@@ -37,6 +38,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Unlock,
   User,
   UserRound,
@@ -1248,7 +1250,7 @@ export function OffGridDashboard() {
   const [sessionLinkCopied, setSessionLinkCopied] = useState(false);
   const [activeSession, setActiveSession] = useState<PaymentSessionView | null>(null);
   const [activeSessionToken, setActiveSessionToken] = useState("");
-  const [sessionModalTab, setSessionModalTab] = useState<"active" | "completed">("active");
+  const [sessionModalTab, setSessionModalTab] = useState<"open" | "ready" | "completed" | "archived">("open");
   const providerRef = useRef<BrowserWallet["provider"] | null>(null);
   const adapterRef = useRef<BrowserViemAdapter | null>(null);
   const solanaAdapterRef = useRef<BrowserSolanaAdapter | null>(null);
@@ -1352,6 +1354,19 @@ export function OffGridDashboard() {
     try {
       const { sessions } = await api<{ sessions: PaymentSessionView[] }>("/api/payment-sessions");
       setPaymentSessionsList(sessions);
+    } catch {
+      // Best effort
+    }
+  }
+
+  async function archiveSession(tokenHash?: string) {
+    if (!tokenHash) return;
+    try {
+      const { session } = await api<{ session: PaymentSessionView }>(`/api/payment-sessions/${tokenHash}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "archive" }),
+      });
+      setPaymentSessionsList((curr) => curr.map((s) => s.inviteTokenHash === tokenHash || s.id === session.id ? session : s));
     } catch {
       // Best effort
     }
@@ -2372,13 +2387,18 @@ export function OffGridDashboard() {
                 </button>
               </div>
 
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "14px 0", padding: "10px 12px", background: "rgba(255, 255, 255, 0.04)", borderRadius: "8px" }}>
+                <span style={{ font: "11px var(--mono)", color: "var(--muted)", fontWeight: 600 }}>INTERFACE THEME</span>
+                <ThemeToggle />
+              </div>
+
               <button className="user-logout-btn" onClick={() => { setShowUserModal(false); void logout(); }}>
                 <LogOut size={14} /> Sign out of account
               </button>
 
               <div className="user-modal-version-footer" style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ font: "9px var(--mono)", color: "var(--muted)", letterSpacing: ".06em" }}>OFFGRID PROTOCOL RELEASE</span>
-                <span style={{ font: "10px var(--mono)", color: "var(--acid)", fontWeight: 700 }}>v0.2.0-ARC · BUILD 1563A4F</span>
+                <span style={{ font: "10px var(--mono)", color: "var(--acid)", fontWeight: 700 }}>v0.3.0-ARC · BUILD 1564B82</span>
               </div>
             </div>
           </div>
@@ -2399,43 +2419,57 @@ export function OffGridDashboard() {
             </button>
 
             {(() => {
-              const activeSessions = paymentSessionsList.filter((s) => s.status !== "complete" && s.status !== "cancelled");
+              const openSessions = paymentSessionsList.filter((s) => s.status === "open");
+              const readySessions = paymentSessionsList.filter((s) => s.status === "ready");
               const completedSessions = paymentSessionsList.filter((s) => s.status === "complete");
-              const displayedSessions = sessionModalTab === "active" ? activeSessions : completedSessions;
+              const archivedSessions = paymentSessionsList.filter((s) => s.status === "archived" || s.status === "cancelled" || s.status === "expired");
+
+              const displayedSessions =
+                sessionModalTab === "open"
+                  ? openSessions
+                  : sessionModalTab === "ready"
+                  ? readySessions
+                  : sessionModalTab === "completed"
+                  ? completedSessions
+                  : archivedSessions;
 
               return (
                 <>
-                  <div className="sessions-modal-top-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%", paddingRight: "40px", marginBottom: "16px" }}>
-                    <div className="sessions-modal-head" style={{ margin: 0 }}>
-                      <span className="section-tag">DECOUPLED CLEARING MATRIX</span>
-                      <h2 style={{ fontSize: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
-                        {sessionModalTab === "active" ? "Active Payment Sessions" : "Completed Payment Sessions"}
-                        <em style={{ color: "var(--acid)", fontSize: "14px", fontStyle: "normal", font: "var(--mono)" }}>({displayedSessions.length})</em>
-                      </h2>
-                      <p style={{ margin: "4px 0 0" }}>Arc acts as an invisible clearing engine sitting between two completely independent user preferences.</p>
-                    </div>
+                  <div className="sessions-modal-head" style={{ marginBottom: "14px" }}>
+                    <span className="section-tag">DECOUPLED CLEARING MATRIX</span>
+                    <h2>Active Payment Sessions</h2>
+                    <p>Arc acts as an invisible clearing engine sitting between two completely independent user preferences.</p>
+                  </div>
 
+                  {/* Horizontal Filter Tabs Aligned Above Session Cards */}
+                  <div className="sessions-modal-filter-bar">
                     <button
                       type="button"
-                      className="completed-sessions-tab-btn"
-                      onClick={() => setSessionModalTab((curr) => curr === "active" ? "completed" : "active")}
-                      style={{
-                        background: "rgba(199, 255, 61, 0.1)",
-                        border: "1px solid rgba(199, 255, 61, 0.35)",
-                        color: "var(--acid)",
-                        padding: "6px 14px",
-                        borderRadius: "8px",
-                        font: "11px var(--mono)",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        whiteSpace: "nowrap",
-                        transition: "all 0.2s ease"
-                      }}
+                      className={`session-filter-tab-btn ${sessionModalTab === "open" ? "active" : ""}`}
+                      onClick={() => setSessionModalTab("open")}
                     >
-                      {sessionModalTab === "active" ? `Completed Sessions (${completedSessions.length}) →` : `← Active Sessions (${activeSessions.length})`}
+                      Open ({openSessions.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`session-filter-tab-btn ${sessionModalTab === "ready" ? "active" : ""}`}
+                      onClick={() => setSessionModalTab("ready")}
+                    >
+                      Ready ({readySessions.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`session-filter-tab-btn ${sessionModalTab === "completed" ? "active" : ""}`}
+                      onClick={() => setSessionModalTab("completed")}
+                    >
+                      Completed ({completedSessions.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`session-filter-tab-btn ${sessionModalTab === "archived" ? "active" : ""}`}
+                      onClick={() => setSessionModalTab("archived")}
+                    >
+                      Archived ({archivedSessions.length})
                     </button>
                   </div>
 
@@ -2443,23 +2477,47 @@ export function OffGridDashboard() {
                     {displayedSessions.length === 0 ? (
                       <div className="empty-sessions-box">
                         <Radio size={28} className="spin-slow" />
-                        <b>{sessionModalTab === "active" ? "No Active Payment Sessions" : "No Completed Payment Sessions"}</b>
-                        <p>{sessionModalTab === "active" ? "Click 'Create payment session' to generate a private capability link." : "Completed payment sessions will appear here once finalized."}</p>
+                        <b>No {sessionModalTab.toUpperCase()} Sessions Found</b>
+                        <p>Payment sessions in this stage will appear here automatically.</p>
                       </div>
                     ) : (
                       displayedSessions.map((sess) => {
                         const inviteUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/?session=${sess.inviteTokenHash}`;
+                        const expiresAtTime = new Date(sess.expiresAt).getTime();
+                        const secondsLeft = Math.max(0, Math.floor((expiresAtTime - Date.now()) / 1000));
+                        const minutesLeft = Math.floor(secondsLeft / 60);
+                        const secsLeft = secondsLeft % 60;
+                        const timerText = secondsLeft > 0 ? `${minutesLeft}m ${secsLeft < 10 ? "0" : ""}${secsLeft}s remaining` : "Session Expired";
+
                         return (
                           <div className="live-session-card" key={sess.id}>
                             <div className="session-card-header">
                               <div className="session-title-group">
-                                <small>SESSION #{sess.id.slice(0, 8)}</small>
-                                <h3>${sess.amount} <span>USD</span></h3>
+                                <small style={{ fontFamily: "var(--mono)" }}>SESSION #{sess.id.slice(0, 8)}</small>
+                                <h3 style={{ fontFamily: "var(--mono)" }}>${sess.amount} <span style={{ fontFamily: "var(--mono)" }}>USD</span></h3>
                                 {sess.memo && <p>{sess.memo}</p>}
                               </div>
-                              <span className={`session-status-badge ${sess.status}`}>
-                                {sess.status.toUpperCase()}
-                              </span>
+                              
+                              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                {(sess.status === "open" || sess.status === "ready") && (
+                                  <span className={`session-card-timer ${secondsLeft <= 0 ? "expired" : ""}`}>
+                                    <Clock size={12} /> {timerText}
+                                  </span>
+                                )}
+                                <span className={`session-status-badge ${sess.status}`}>
+                                  {sess.status.toUpperCase()}
+                                </span>
+                                {(sess.status === "open" || sess.status === "ready") && (
+                                  <button
+                                    type="button"
+                                    className="archive-session-btn"
+                                    title="Archive session"
+                                    onClick={() => archiveSession(sess.inviteTokenHash)}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                              </div>
                             </div>
 
                             {/* Details Summary Grid Above Progress Bar */}

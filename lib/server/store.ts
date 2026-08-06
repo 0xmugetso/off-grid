@@ -114,7 +114,7 @@ export interface StoredPaymentSession {
   amount: string;
   currency: "USD";
   memo: string;
-  status: "open" | "ready" | "complete" | "cancelled";
+  status: "open" | "ready" | "complete" | "cancelled" | "archived" | "expired";
   invoiceId: string | null;
   createdAt: string;
   updatedAt: string;

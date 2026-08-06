@@ -252,21 +252,36 @@ export function PaymentSessionWindow({ token }: { token: string }) {
             {session.status === "ready" && (
               <div className="session-action ready">
                 <span className="section-tag">BOTH SIDES LOCKED</span>
-                <h2>{hasFiatLeg ? "Arc Crypto-to-Fiat Settlement" : session.actionRole === "payer" ? "Ready for your signature" : "Waiting for payer execution"}</h2>
+                <h2>
+                  {session.payerRail === "web3_usdc" && session.receiverRail === "fiat_bank"
+                    ? "Arc Crypto-to-Fiat Settlement"
+                    : session.payerRail === "fiat_bank" && session.receiverRail === "web3_usdc"
+                    ? "Arc Fiat-to-Crypto Settlement"
+                    : session.actionRole === "payer"
+                    ? "Ready for your signature"
+                    : "Waiting for payer execution"}
+                </h2>
                 
                 {session.receiverBankDetails && (
-                  <div className="bank-details-card" style={{ padding: "12px", background: "rgba(199, 255, 61, 0.08)", border: "1px solid rgba(199, 255, 61, 0.25)", borderRadius: "8px", margin: "10px 0", textAlign: "left" }}>
-                    <small style={{ color: "var(--acid)", font: "9px var(--mono)", letterSpacing: ".06em" }}>RECIPIENT BANK WIRE DETAILS</small>
+                  <div className="bank-details-card" style={{ padding: "12px 16px", background: "rgba(199, 255, 61, 0.08)", border: "1px solid rgba(199, 255, 61, 0.25)", borderRadius: "10px", margin: "12px 0", textAlign: "left" }}>
+                    <small style={{ color: "var(--acid)", font: "9px var(--mono)", letterSpacing: ".06em" }}>RECIPIENT BANK WIRE DETAILS (CIRCLE MINT DEPOSIT)</small>
                     <b style={{ display: "block", color: "#fff", fontSize: "14px", marginTop: "2px" }}>{session.receiverBankDetails.accountHolderName}</b>
                     <p style={{ color: "var(--muted)", fontSize: "11px", margin: "2px 0 0" }}>
                       IBAN/Account: <code>{session.receiverBankDetails.ibanOrAccountNumber}</code>
                       {session.receiverBankDetails.routingOrSwift ? ` · SWIFT: ${session.receiverBankDetails.routingOrSwift}` : ""}
+                      {session.receiverBankDetails.bankCountry ? ` · Country: ${session.receiverBankDetails.bankCountry}` : ""}
                     </p>
                   </div>
                 )}
-                {hasFiatLeg ? (
+
+                {/* Case A: Crypto-to-Fiat */}
+                {session.payerRail === "web3_usdc" && session.receiverRail === "fiat_bank" ? (
                   <>
-                    <p>{session.actionRole === "payer" ? "Sign USDC from your wallet (Arc Testnet, Base, Solana, or Ethereum). Arc CCTP clears the transfer in ~0.48s and Circle Mint wires fiat directly to the receiver's bank account." : "Both preferences are locked. Waiting for the payer to sign USDC transfer onto Arc. Circle Mint will wire fiat directly to your bank account."}</p>
+                    <p>
+                      {session.actionRole === "payer"
+                        ? "Payer signs USDC from Web3 wallet onto Arc SessionEscrow contract (0x742d35Cc6634C0532925a3b844Bc454e4438f44e). Arc CCTP clears in ~0.48s and Circle Mint burns USDC to wire local fiat directly to receiver's IBAN account."
+                        : "Waiting for the payer to sign USDC transfer onto Arc. Circle Mint will wire fiat directly to your bank account."}
+                    </p>
                     {session.actionRole === "payer" && (
                       <div className="fiat-action-row" style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", marginTop: "14px" }}>
                         <button className="session-cta session-cta-primary" onClick={executeBankWirePayout} disabled={fiatBusy}>
@@ -277,7 +292,26 @@ export function PaymentSessionWindow({ token }: { token: string }) {
                     )}
                     {fiatError && <p className="inline-error"><CircleAlert size={13} />{fiatError}</p>}
                   </>
+                ) : session.payerRail === "fiat_bank" && session.receiverRail === "web3_usdc" ? (
+                  /* Case B: Fiat-to-Crypto */
+                  <>
+                    <p>
+                      {session.actionRole === "payer"
+                        ? "Payer sends fiat wire/card deposit to Circle Mint Sandbox. Circle Mint mints USDC on Arc Testnet, clearing in ~0.48s directly into the receiver's Web3 wallet address."
+                        : "Waiting for the payer to complete bank wire deposit. USDC will be minted on Arc Testnet directly to your Web3 wallet."}
+                    </p>
+                    {session.actionRole === "payer" && (
+                      <div className="fiat-action-row" style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", marginTop: "14px" }}>
+                        <button className="session-cta session-cta-primary" onClick={createSandboxBankPayout} disabled={fiatBusy}>
+                          {fiatBusy ? <LoaderCircle className="spin" size={16} /> : <Banknote size={16} />}
+                          <span>{fiatBusy ? "Processing Fiat Deposit & Minting USDC..." : "Confirm Fiat Payment Sent 🏦"}</span>
+                        </button>
+                      </div>
+                    )}
+                    {fiatError && <p className="inline-error"><CircleAlert size={13} />{fiatError}</p>}
+                  </>
                 ) : session.actionRole === "payer" ? (
+                  /* Case C: Web3 to Web3 */
                   <>
                     <p>The recipient and amount are locked. Proceed to execution console.</p>
                     <a className="neon-button" href={`/?session=${encodeURIComponent(token)}`}><Zap size={15} /> Execute payment <ArrowRight size={14} /></a>

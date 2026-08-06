@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       invoiceId: null,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
-      expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
     };
     const view = await mutateDatabase((database) => {
       database.paymentSessions.push(session);
