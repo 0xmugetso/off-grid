@@ -8,6 +8,9 @@ dist/
 .env
 .env.*
 !.env.example
+recovery/
+recovery_file_*.dat
+/register-entity-secret.ts
 out/
 .data/
 cache/

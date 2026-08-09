@@ -27,8 +27,18 @@ Set these as encrypted Vercel environment variables:
 Create the dedicated Arc Testnet agent wallet once:
 
 ```bash
+npm run circle:register-entity-secret
 npm run circle:create-escrow-agent
 ```
+
+Run both commands with your local `.env.local` loaded:
+
+```bash
+node --env-file=.env.local ./scripts/register-circle-entity-secret.mjs
+node --env-file=.env.local ./scripts/create-circle-escrow-agent.mjs
+```
+
+The first command registers a newly generated entity secret and writes it to the ignored `.env.local`, then downloads the Circle recovery file into the ignored `recovery/` directory. Never commit either.
 
 Configure Circle transaction notifications to POST to:
 
