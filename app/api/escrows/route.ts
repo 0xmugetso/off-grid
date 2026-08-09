@@ -95,7 +95,10 @@ async function reconcileEscrow(id: string) {
         walletId: item.depositorCircleWalletId,
         contractAddress: item.contractAddress,
         signature: "pay(address,uint256,address)",
-        parameters: [item.beneficiaryCircleWalletAddress, parseUsdc(item.amount).toString(), item.depositorCircleWalletAddress],
+        // Keep the official Circle SCA pay step, but return any recipient
+        // refund to the creator's connected wallet (the wallet that funded
+        // the session), not to the temporary depositor SCA.
+        parameters: [item.beneficiaryCircleWalletAddress, parseUsdc(item.amount).toString(), item.clientAddress],
       });
       return mutateDatabase((database) => {
         const target = database.escrows.find((entry) => entry.id === id);
