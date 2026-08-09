@@ -63,6 +63,13 @@ function clients() {
  * an HTML gateway page when a key, entity secret, or wallet id is invalid. */
 function circleError(error: unknown, operation: string) {
   if (error instanceof Error && error.message && !error.message.includes("<!DOCTYPE")) {
+    const candidate = error as Error & { response?: { data?: unknown }; cause?: { response?: { data?: unknown } } };
+    const payload = candidate.response?.data ?? candidate.cause?.response?.data;
+    if (payload && typeof payload === "object") {
+      const details = payload as { message?: string; error?: string; code?: string; errors?: Array<{ message?: string }> };
+      const detail = details.message || details.error || details.errors?.map((entry) => entry.message).filter(Boolean).join("; ");
+      if (detail) return new Error(`${operation}: ${detail} (${error.message})`);
+    }
     return new Error(`${operation}: ${error.message}`);
   }
   const record = error as { response?: { data?: { message?: string; error?: string } }; message?: string } | null;
@@ -116,7 +123,8 @@ export async function deployRefundProtocol(name: string) {
     const { contracts, config } = clients();
     const response = await contracts.deployContract({
       idempotencyKey: randomUUID(),
-      name: `OffGrid · ${name}`.slice(0, 50),
+      // Smart Contract Platform only accepts alphanumeric contract names.
+      name: `OffGridEscrow${name}`.replace(/[^a-zA-Z0-9]/g, "").slice(0, 50) || "OffGridEscrow",
       description: "Circle RefundProtocol escrow deployed by OffGrid on Arc Testnet",
       walletId: config.agentWalletId,
       blockchain: ESCROW_BLOCKCHAIN,
