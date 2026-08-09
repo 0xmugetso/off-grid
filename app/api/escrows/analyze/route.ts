@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     const supported = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/png", "image/jpeg", "image/webp"];
     if (!supported.includes(file.type)) throw new Error("Supported agreement formats are PDF, DOCX, PNG, JPG, and WEBP");
     const bytes = Buffer.from(await file.arrayBuffer());
-    const terms = await analyzeEscrowDocument({ bytes, mimeType: file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ? "application/pdf" : file.type });
+    const terms = await analyzeEscrowDocument({ bytes, mimeType: file.type });
     return NextResponse.json({ terms, fileName: file.name.slice(0, 120), fileHash: createHash("sha256").update(bytes).digest("hex") });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to analyze agreement" }, { status: 400 });

@@ -81,7 +81,7 @@ export async function analyzeEscrowDocument(input: { bytes: Buffer; mimeType: st
   if (!config.configured) throw new Error(`${config.missing[0]} is not configured`);
   const prompt = `Extract a payment agreement into JSON. Identify the title, category, total USDC amount, what the payment is for, a concise summary, objective acceptance criteria, due date, and every deliverable/task. Never invent missing values; use an empty string or 0. Return only the requested JSON schema.`;
   if (config.provider === "gemini") {
-    const inputType = input.mimeType === "application/pdf" ? "document" : "image";
+    const inputType = input.mimeType.startsWith("image/") ? "image" : "document";
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! }, body: JSON.stringify({ model: config.model, input: [{ type: "text", text: prompt }, { type: inputType, data: input.bytes.toString("base64"), mime_type: input.mimeType }], response_format: { type: "text", mime_type: "application/json", schema: termsSchema } }) });
     const payload = await response.json() as { output_text?: string; steps?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }>; error?: { message?: string } };
     if (!response.ok) throw new Error(payload.error?.message || `Gemini analysis failed (${response.status})`);
