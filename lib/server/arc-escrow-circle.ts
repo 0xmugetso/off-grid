@@ -31,9 +31,10 @@ function requiredConfig() {
 
 export function circleEscrowConfiguration() {
   const config = requiredConfig();
+  const entitySecretFormatValid = /^[a-fA-F0-9]{64}$/.test(config.entitySecret);
   return {
-    configured: config.missing.length === 0,
-    missing: config.missing,
+    configured: config.missing.length === 0 && entitySecretFormatValid,
+    missing: entitySecretFormatValid ? config.missing : [...config.missing, "CIRCLE_ENTITY_SECRET (64-char registered hex secret)"],
     blockchain: ESCROW_BLOCKCHAIN,
     usdcAddress: ARC.contracts.usdc,
     contractSource: artifact.source,
