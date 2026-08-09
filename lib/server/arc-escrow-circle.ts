@@ -91,21 +91,32 @@ export async function ensureCircleEscrowWallet(userId: string) {
   }
 
   const { wallets } = clients();
-  const walletSetResponse = await wallets.createWalletSet({
-    idempotencyKey: randomUUID(),
-    name: `OffGrid Escrow · ${existing.username}`.slice(0, 50),
-  });
+  const safeName = `OffGridEscrow${existing.username}`.replace(/[^a-zA-Z0-9]/g, "").slice(0, 50) || "OffGridEscrow";
+  let walletSetResponse;
+  try {
+    walletSetResponse = await wallets.createWalletSet({
+      idempotencyKey: randomUUID(),
+      name: safeName,
+    });
+  } catch (error) {
+    throw circleError(error, "Escrow wallet-set creation failed");
+  }
   const walletSetId = walletSetResponse.data?.walletSet?.id;
   if (!walletSetId) throw new Error("Circle did not return an escrow wallet set");
 
-  const walletResponse = await wallets.createWallets({
-    idempotencyKey: randomUUID(),
-    accountType: "SCA",
-    blockchains: [ESCROW_BLOCKCHAIN],
-    count: 1,
-    walletSetId,
-    metadata: [{ name: `OffGrid Escrow · ${existing.username}`, refId: existing.id }],
-  });
+  let walletResponse;
+  try {
+    walletResponse = await wallets.createWallets({
+      idempotencyKey: randomUUID(),
+      accountType: "SCA",
+      blockchains: [ESCROW_BLOCKCHAIN],
+      count: 1,
+      walletSetId,
+      metadata: [{ name: safeName, refId: existing.id }],
+    });
+  } catch (error) {
+    throw circleError(error, "Escrow SCA wallet creation failed");
+  }
   const wallet = walletResponse.data?.wallets?.[0];
   if (!wallet?.id || !wallet.address) throw new Error("Circle did not return an Arc escrow wallet");
 
