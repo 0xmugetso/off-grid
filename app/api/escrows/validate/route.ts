@@ -1,29 +1,15 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
 import { getCurrentUser } from "@/lib/server/auth";
 import { executeEscrowContract } from "@/lib/server/arc-escrow-circle";
+import { validateEscrowImage } from "@/lib/server/escrow-ai";
 import { mutateDatabase, queryDatabase } from "@/lib/server/store";
-
-type ValidationResult = {
-  valid: boolean;
-  confidence: "HIGH" | "MEDIUM" | "LOW";
-  reasons: string[];
-};
-
-function configurationError() {
-  if (!process.env.OPENAI_API_KEY?.trim()) return "OPENAI_API_KEY is not configured";
-  return "";
-}
 
 export async function POST(request: Request) {
   const current = await getCurrentUser();
   if (!current) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   let activeEscrowId = "";
   try {
-    const missing = configurationError();
-    if (missing) return NextResponse.json({ error: missing }, { status: 503 });
-
     const form = await request.formData();
     const escrowId = String(form.get("escrowId") || "");
     activeEscrowId = escrowId;
@@ -60,27 +46,7 @@ confidence must be HIGH, MEDIUM, or LOW. reasons must explain every unmet or unc
 Agreement criteria:
 ${item.specs}`;
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_ESCROW_MODEL?.trim() || "gpt-4o",
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [{
-        role: "user",
-        content: [
-          { type: "text", text: prompt },
-          { type: "image_url", image_url: { url: `data:${file.type};base64,${bytes.toString("base64")}` } },
-        ],
-      }],
-    });
-    const content = response.choices[0]?.message.content;
-    if (!content) throw new Error("AI validation returned no result");
-    const parsed = JSON.parse(content) as Partial<ValidationResult>;
-    const result: ValidationResult = {
-      valid: parsed.valid === true,
-      confidence: parsed.confidence === "HIGH" || parsed.confidence === "MEDIUM" || parsed.confidence === "LOW" ? parsed.confidence : "LOW",
-      reasons: Array.isArray(parsed.reasons) ? parsed.reasons.map(String).slice(0, 12) : [],
-    };
+    const result = await validateEscrowImage({ prompt, bytes, mimeType: file.type });
     const accepted = result.valid && result.confidence === "HIGH";
 
     if (!accepted) {

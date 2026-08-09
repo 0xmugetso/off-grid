@@ -735,6 +735,7 @@ interface EscrowConfiguration {
   blockchain: string;
   usdcAddress: string;
   contractSource: string;
+  ai: { provider: "gemini" | "openai"; configured: boolean; missing: string[]; model: string };
 }
 
 function CreateEscrowModal({
@@ -1273,7 +1274,7 @@ function EscrowView({ walletAddress, arcBalance, onConnect, onRefresh }: { walle
 
     <div className="escrow-stats-grid"><article className="escrow-stat-card"><small><Lock size={13}/> ACTIVE COMMITMENTS</small><b>{displayMoney(tvl)} <em>USDC</em></b><p>Locked in deployed RefundProtocol contracts</p></article><article className="escrow-stat-card"><small><Scale size={13}/> RELEASED ONCHAIN</small><b>{displayMoney(settled)} <em>USDC</em></b><p>AI-approved Arc withdrawals</p></article><article className="escrow-stat-card"><small><Bot size={13}/> HIGH CONFIDENCE</small><b>{escrows.filter((item) => item.validationResult?.confidence === "HIGH").length} <em>VALIDATIONS</em></b><p>Image evidence matched to agreement rules</p></article><article className="escrow-stat-card"><small><Zap size={13}/> ARC WALLET</small><b>{arcBalance === null ? "—" : displayMoney(arcBalance)} <em>USDC</em></b><p>Your connected wallet balance; escrow uses Circle SCAs</p></article></div>
 
-    {configuration && !configuration.configured && <div className="escrow-setup-banner"><ShieldAlert size={18}/><div><b>Live Circle execution needs server credentials</b><p>Add {configuration.missing.join(", ")} to Vercel. OPENAI_API_KEY is also required for evidence validation.</p></div></div>}
+      {configuration && (!configuration.configured || !configuration.ai.configured) && <div className="escrow-setup-banner"><ShieldAlert size={18}/><div><b>Live escrow setup is incomplete</b><p>Add {configuration.missing.join(", ")}{!configuration.ai.configured ? ` and ${configuration.ai.missing.join(", ")}` : ""} to Vercel. AI validator: {configuration.ai.provider} · {configuration.ai.model}.</p></div></div>}
     {actionError && <div className="escrow-action-error"><CircleAlert size={15}/><span><b>Escrow action stopped</b>{actionError}</span><button onClick={() => setActionError("")}><X size={13}/></button></div>}
 
     <div className="escrow-list-panel"><div className="ledger-toolbar"><div><b>RefundProtocol agreements</b><small>{escrows.length} participant agreement{escrows.length === 1 ? "" : "s"} · live Circle transaction status</small></div></div>

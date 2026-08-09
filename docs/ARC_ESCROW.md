@@ -20,8 +20,9 @@ Set these as encrypted Vercel environment variables:
 - `CIRCLE_ENTITY_SECRET`
 - `CIRCLE_ESCROW_AGENT_WALLET_ID`
 - `CIRCLE_ESCROW_AGENT_ADDRESS`
-- `OPENAI_API_KEY`
-- optionally `OPENAI_ESCROW_MODEL` (defaults to `gpt-4o`)
+- `GEMINI_API_KEY` (recommended for testnet; Google AI Studio provides limited free quota)
+- optionally `GEMINI_ESCROW_MODEL` (defaults to `gemini-3.6-flash`)
+- optionally `ESCROW_AI_PROVIDER=openai` plus `OPENAI_API_KEY` if you want the OpenAI path
 
 Create the dedicated Arc Testnet agent wallet once:
 
@@ -36,3 +37,5 @@ https://YOUR_DOMAIN/api/webhooks/circle
 ```
 
 The endpoint verifies `x-circle-signature` against Circle's public key before recording any transaction state. Never expose the API key, entity secret, agent wallet ID, or OpenAI key through `NEXT_PUBLIC_*` variables.
+
+Google AI Studio creates a Gemini key from its API keys page. Free-tier availability and quotas vary by account and region; the app keeps the AI provider configurable and will show a setup error instead of auto-releasing funds when the provider is unavailable.

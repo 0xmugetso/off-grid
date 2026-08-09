@@ -6,6 +6,7 @@ import { initiateSmartContractPlatformClient, type Blockchain } from "@circle-fi
 import artifact from "@/lib/generated/refund-protocol-artifact.json";
 import { ARC } from "@/lib/arc/config";
 import { mutateDatabase, queryDatabase, type StoredUser } from "@/lib/server/store";
+import { escrowAiConfiguration } from "@/lib/server/escrow-ai";
 
 const ESCROW_BLOCKCHAIN = "ARC-TESTNET" as Blockchain;
 
@@ -36,6 +37,7 @@ export function circleEscrowConfiguration() {
     blockchain: ESCROW_BLOCKCHAIN,
     usdcAddress: ARC.contracts.usdc,
     contractSource: artifact.source,
+    ai: escrowAiConfiguration(),
   };
 }
 
