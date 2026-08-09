@@ -63,11 +63,13 @@ function clients() {
  * an HTML gateway page when a key, entity secret, or wallet id is invalid. */
 function circleError(error: unknown, operation: string) {
   if (error instanceof Error && error.message && !error.message.includes("<!DOCTYPE")) {
-    const candidate = error as Error & { response?: { data?: unknown }; cause?: { response?: { data?: unknown } } };
-    const payload = candidate.response?.data ?? candidate.cause?.response?.data;
+    const candidate = error as Error & { response?: { data?: unknown; status?: number }; cause?: unknown; toJSON?: () => unknown };
+    const nested = candidate.cause as { response?: { data?: unknown; status?: number } } | undefined;
+    const serialized = typeof candidate.toJSON === "function" ? candidate.toJSON() as { response?: { data?: unknown; status?: number } } : undefined;
+    const payload = candidate.response?.data ?? nested?.response?.data ?? serialized?.response?.data;
     if (payload && typeof payload === "object") {
-      const details = payload as { message?: string; error?: string; code?: string; errors?: Array<{ message?: string }> };
-      const detail = details.message || details.error || details.errors?.map((entry) => entry.message).filter(Boolean).join("; ");
+      const details = payload as { message?: string; error?: string; code?: string; errors?: Array<{ message?: string }>; data?: { message?: string } };
+      const detail = details.message || details.error || details.data?.message || details.errors?.map((entry) => entry.message).filter(Boolean).join("; ");
       if (detail) return new Error(`${operation}: ${detail} (${error.message})`);
     }
     return new Error(`${operation}: ${error.message}`);
@@ -131,6 +133,17 @@ export async function deployRefundProtocol(name: string) {
       apiKey: config.apiKey,
       entitySecret: config.entitySecret,
     });
+    const walletResponse = await wallets.getWallet({ id: config.agentWalletId });
+    const agentWallet = walletResponse.data?.wallet;
+    if (!agentWallet?.address) {
+      throw new Error("CIRCLE_ESCROW_AGENT_WALLET_ID was not found in the configured Circle account");
+    }
+    if (agentWallet.address.toLowerCase() !== config.agentAddress.toLowerCase()) {
+      throw new Error("CIRCLE_ESCROW_AGENT_ADDRESS does not match the configured Circle agent wallet ID");
+    }
+    if (agentWallet.blockchain && agentWallet.blockchain !== ESCROW_BLOCKCHAIN) {
+      throw new Error(`The configured Circle agent wallet is ${agentWallet.blockchain}, but escrow requires ${ESCROW_BLOCKCHAIN}`);
+    }
     const balance = await wallets.getWalletTokenBalance({
       id: config.agentWalletId,
       tokenAddresses: [ARC.contracts.usdc],
