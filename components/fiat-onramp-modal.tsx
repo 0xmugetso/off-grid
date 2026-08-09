@@ -24,8 +24,7 @@ export function FiatOnRampModal({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
 
-  const effectiveAddress =
-    walletAddress || "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
+  const effectiveAddress = walletAddress || "";
 
   useEffect(() => {
     let unmounted = false;
@@ -34,6 +33,10 @@ export function FiatOnRampModal({
       try {
         setLoading(true);
         setError("");
+        if (!effectiveAddress) {
+          setError("Connect an EVM wallet before opening a fiat on-ramp");
+          return;
+        }
 
         if (provider === "moonpay") {
           const res = await fetch("/api/fiat/moonpay/sign", {

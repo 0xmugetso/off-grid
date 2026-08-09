@@ -140,6 +140,7 @@ export interface StoredEscrow {
   aiVerificationLogs: string[];
   depositTxHash?: string;
   releaseTxHash?: string;
+  refundTxHash?: string;
   createdAt: string;
   updatedAt: string;
 }

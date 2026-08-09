@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/server/auth";
 import { parseUsdc, formatUsdc } from "@/lib/money";
 import { createCircleMintSandboxMockWirePayment } from "@/lib/server/circle-mint";
-import { mutateDatabase, publicUser } from "@/lib/server/store";
 
 export async function POST(request: Request) {
   const current = await getCurrentUser();
@@ -18,19 +17,13 @@ export async function POST(request: Request) {
       amount,
       memo: String(body.memo ?? "").trim(),
     });
-    const updatedUser = await mutateDatabase((database) => {
-      const target = database.users.find((entry) => entry.id === current.id);
-      if (!target) throw new Error("Account not found");
-      target.sandboxFiatBalance = formatUsdc(parseUsdc(target.sandboxFiatBalance) + parseUsdc(amount));
-      return publicUser(target);
-    });
     return NextResponse.json({
       funding: {
         amount,
         trackingRef: payout.data?.trackingRef ?? null,
         status: payout.data?.status ?? "pending",
       },
-      user: updatedUser,
+      note: "Circle Mint sandbox wire accepted. OffGrid does not credit a local fiat ledger; refresh Circle Mint status for the business balance.",
     }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to fund sandbox balance" }, { status: 400 });

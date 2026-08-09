@@ -85,6 +85,10 @@ sequenceDiagram
 
 Fiat payout cannot be truthfully live without a licensed off-ramp, credentials, supported jurisdictions, KYC/KYB, sanctions screening, and webhook reconciliation. The product exposes the boundary as unavailable rather than creating simulated delivery records. The existing signed webhook route is the integration seam for a configured provider.
 
+### Escrow boundary
+
+The current AI Escrow screen is a participant-scoped proof record, not a custody contract. Funding, release, and refund actions require the real Arc transaction hash supplied by the participant; OffGrid never invents hashes, holds USDC, or submits a release. Replace this adapter with an audited deployed escrow contract before describing a balance as locked or enabling automatic settlement.
+
 ## Production migration
 
 - The Vercel testnet deployment uses hosted Postgres for durable account, invoice, session, and CCTP state. Before handling real payroll volume, replace the JSON-shaped row with normalized PostgreSQL tables and a double-entry ledger.

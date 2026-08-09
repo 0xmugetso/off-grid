@@ -2,7 +2,7 @@ export const ARC = {
   name: "Arc Testnet",
   appKitId: "Arc_Testnet",
   chainId: 5_042_002,
-  rpcUrl: process.env.NEXT_PUBLIC_ARC_RPC_URL ?? "https://rpc.testnet.arc.network",
+  rpcUrl: process.env.NEXT_PUBLIC_ARC_RPC_URL ?? "https://rpc.testnet.arc.io",
   explorerUrl: "https://testnet.arcscan.app",
   cctpDomain: 26,
   finalityMs: 480,

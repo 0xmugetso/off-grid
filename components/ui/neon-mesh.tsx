@@ -59,9 +59,15 @@ export function NeonMesh({
     const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) return;
 
-    let animationFrameId: number;
+    let animationFrameId = 0;
     let width = 0;
     let height = 0;
+    let running = true;
+    let previousFrame = 0;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    // A 24 fps canvas keeps the ambient mesh fluid while cutting the physics
+    // and stroke workload by 20% compared with a full 30 fps loop.
+    const frameInterval = 1000 / 24;
 
     const mouse = {
       x: -1000,
@@ -99,7 +105,11 @@ export function NeonMesh({
       initMesh();
     };
 
+    let lastPointerUpdate = 0;
     const handleWindowMouseMove = (e: MouseEvent) => {
+      const now = performance.now();
+      if (now - lastPointerUpdate < 40) return;
+      lastPointerUpdate = now;
       const rect = container.getBoundingClientRect();
       const rawX = e.clientX - rect.left;
       const rawY = e.clientY - rect.top;
@@ -124,7 +134,9 @@ export function NeonMesh({
       points = [];
       constraints = [];
 
-      const spacing = 46;
+      // Bound the physics work on large/tall dashboards while preserving a
+      // visually dense mesh on normal displays.
+      const spacing = Math.max(62, Math.sqrt((width * height) / 850));
       const cols = Math.ceil((width * 1.15) / spacing) + 1;
       const rows = Math.ceil((height * 1.15) / spacing) + 1;
 
@@ -197,8 +209,18 @@ export function NeonMesh({
 
     let time = 0;
 
-    const render = () => {
-      time += 0.025;
+    const render = (timestamp: number) => {
+      if (!running || document.hidden) {
+        animationFrameId = 0;
+        return;
+      }
+      if (!reducedMotion.matches && timestamp - previousFrame < frameInterval) {
+        animationFrameId = requestAnimationFrame(render);
+        return;
+      }
+      const elapsed = previousFrame ? Math.min((timestamp - previousFrame) / 1000, 0.08) : 0.033;
+      previousFrame = timestamp;
+      time += elapsed * 0.75;
 
       mouse.angleX += (mouse.targetAngleX - mouse.angleX) * 0.05;
       mouse.angleY += (mouse.targetAngleY - mouse.angleY) * 0.05;
@@ -272,7 +294,7 @@ export function NeonMesh({
         }
       }
 
-      for (let iter = 0; iter < 4; iter++) {
+      for (let iter = 0; iter < 2; iter++) {
         for (let i = 0; i < constraints.length; i++) {
           const c = constraints[i];
           const dx = c.p2.x - c.p1.x;
@@ -334,13 +356,35 @@ export function NeonMesh({
         }
       }
 
-      animationFrameId = requestAnimationFrame(render);
+      if (!reducedMotion.matches) animationFrameId = requestAnimationFrame(render);
     };
 
-    animationFrameId = requestAnimationFrame(render);
+    const start = () => {
+      running = true;
+      previousFrame = 0;
+      if (!animationFrameId) animationFrameId = requestAnimationFrame(render);
+    };
+    const stop = () => {
+      running = false;
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      animationFrameId = 0;
+    };
+    const visibilityObserver = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) start();
+      else stop();
+    }, { threshold: 0.01 });
+    visibilityObserver.observe(container);
+    const handleVisibility = () => { if (document.hidden) stop(); else start(); };
+    const handleMotionChange = () => start();
+    document.addEventListener("visibilitychange", handleVisibility);
+    reducedMotion.addEventListener("change", handleMotionChange);
+    start();
 
     return () => {
-      cancelAnimationFrame(animationFrameId);
+      stop();
+      visibilityObserver.disconnect();
+      document.removeEventListener("visibilitychange", handleVisibility);
+      reducedMotion.removeEventListener("change", handleMotionChange);
       resizeObserver.disconnect();
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("mousemove", handleWindowMouseMove);

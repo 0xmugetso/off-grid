@@ -53,13 +53,15 @@ const BASE_SEPOLIA_CHAIN_ID = 84_532;
 const ARBITRUM_SEPOLIA_CHAIN_ID = 421_614;
 const ETHEREUM_SEPOLIA_CHAIN_ID = 11_155_111;
 
-const ARC_TESTNET_PUBLIC_FALLBACK = "https://rpc.testnet.arc.network";
+const ARC_TESTNET_PUBLIC_FALLBACK = "https://rpc.testnet.arc.io";
+const ARC_TESTNET_SECONDARY_FALLBACK = "https://rpc.testnet.arc.network";
 
 function publicTransportFor(chain: Chain) {
   if (chain.id === ARC.chainId) {
     const urls = Array.from(new Set([
       process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim(),
       ARC_TESTNET_PUBLIC_FALLBACK,
+      ARC_TESTNET_SECONDARY_FALLBACK,
       chain.rpcUrls.default.http[0],
     ].filter((url): url is string => Boolean(url))));
     return fallback(

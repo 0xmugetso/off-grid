@@ -4,18 +4,8 @@ import { isAddress } from "viem";
 import { getCurrentUser } from "@/lib/server/auth";
 import { hashInviteToken, paymentParties } from "@/lib/payment-session-security";
 import { mutateDatabase, queryDatabase, type StoredInvoice } from "@/lib/server/store";
-import { formatUsdc, parseUsdc } from "@/lib/money";
+import { parseUsdc } from "@/lib/money";
 import { isTransactionHash } from "@/lib/transaction-hash";
-
-function addUsdc(balance: string, delta: bigint) {
-  return formatUsdc(parseUsdc(balance) + delta);
-}
-
-function subtractUsdc(balance: string, delta: bigint) {
-  const current = parseUsdc(balance);
-  if (current < delta) throw new Error("Insufficient sandbox fiat balance");
-  return formatUsdc(current - delta);
-}
 
 export async function GET() {
   const current = await getCurrentUser();
@@ -40,10 +30,10 @@ export async function POST(request: Request) {
     if (!body.recipientAddress || !isAddress(body.recipientAddress)) throw new Error("Invalid recipient address");
     if (!body.amount) throw new Error("Amount is required");
     const recipientAddress = body.recipientAddress;
-    const amountRaw = parseUsdc(body.amount);
-    const isFiat = body.fundingMethod === "fiat_bank";
-    const txHash = isFiat ? String(body.txHash ?? `fiat-${randomUUID()}`) : String(body.txHash ?? "");
-    if (!isFiat && (!body.txHash || !/^0x[a-fA-F0-9]{64}$/.test(body.txHash) || !isTransactionHash(body.txHash))) throw new Error("Invalid Arc transaction hash");
+    parseUsdc(body.amount);
+    if (body.fundingMethod === "fiat_bank") throw new Error("Direct fiat ledger transfers are disabled. Use a configured Circle Mint payment session.");
+    const txHash = String(body.txHash ?? "");
+    if (!body.txHash || !/^0x[a-fA-F0-9]{64}$/.test(body.txHash) || !isTransactionHash(body.txHash)) throw new Error("Invalid Arc transaction hash");
 
     const invoice: StoredInvoice = {
       id: randomUUID(),
@@ -55,7 +45,7 @@ export async function POST(request: Request) {
       token: "USDC",
       fundingMethod: body.fundingMethod,
       sourceChain: body.sourceChain ? String(body.sourceChain).slice(0, 40) : undefined,
-      protocol: isFiat ? "fiat" : body.fundingMethod === "cctp_bridge" ? "cctp" : body.fundingMethod === "unified_balance" ? "gateway" : "send",
+      protocol: body.fundingMethod === "cctp_bridge" ? "cctp" : body.fundingMethod === "unified_balance" ? "gateway" : "send",
       bridgeSteps: body.fundingMethod === "cctp_bridge" && Array.isArray(body.bridgeSteps)
         ? body.bridgeSteps.slice(0, 8).map((step) => ({
           name: String(step.name ?? "step").slice(0, 40),
@@ -65,7 +55,7 @@ export async function POST(request: Request) {
         : undefined,
       paymentSessionId: undefined,
       txHash,
-      explorerUrl: isFiat ? "" : `https://testnet.arcscan.app/tx/${txHash}`,
+      explorerUrl: `https://testnet.arcscan.app/tx/${txHash}`,
       status: "confirmed",
       memo: String(body.memo ?? "").slice(0, 180),
       createdAt: new Date().toISOString(),
@@ -83,9 +73,6 @@ export async function POST(request: Request) {
       }
       const senderUser = database.users.find((entry) => entry.id === current.id);
       if (!senderUser) throw new Error("Account not found");
-      let fiatSender = senderUser;
-      let fiatRecipient = recipientUser;
-
       if (body.paymentSessionToken) {
         const session = database.paymentSessions.find((entry) => entry.inviteTokenHash === hashInviteToken(body.paymentSessionToken!));
         if (!session) throw new Error("Payment session not found");
@@ -93,14 +80,7 @@ export async function POST(request: Request) {
         if (database.cctpOperations.some((operation) => operation.paymentSessionId === session.id && operation.status !== "failed")) throw new Error("This payment session already has a CCTP transfer in progress");
         const parties = paymentParties(session);
         if (parties.payerId !== current.id) throw new Error("Only the payer can execute this session");
-        if (body.fundingMethod === "fiat_bank") {
-          if (parties.payerRail !== "fiat_bank" && parties.receiverRail !== "fiat_bank") throw new Error("This payment session does not include a fiat rail");
-          const payer = database.users.find((user) => user.id === parties.payerId);
-          const receiver = database.users.find((user) => user.id === parties.receiverId);
-          if (!payer || !receiver) throw new Error("Payment session participants are missing");
-          fiatSender = payer;
-          fiatRecipient = receiver;
-        } else if (parties.payerRail !== "web3_usdc" || parties.receiverRail !== "web3_usdc") {
+        if (parties.payerRail !== "web3_usdc" || parties.receiverRail !== "web3_usdc") {
           throw new Error("A fiat provider is required for this rail combination");
         } else {
           const receiver = database.users.find((user) => user.id === parties.receiverId);
@@ -113,12 +93,6 @@ export async function POST(request: Request) {
         session.updatedAt = new Date().toISOString();
       }
 
-      if (body.fundingMethod === "fiat_bank") {
-        if (!fiatRecipient) throw new Error("Fiat sandbox transfers require a registered recipient");
-        if (parseUsdc(fiatSender.sandboxFiatBalance) < amountRaw) throw new Error("Insufficient sandbox fiat balance");
-        fiatSender.sandboxFiatBalance = subtractUsdc(fiatSender.sandboxFiatBalance, amountRaw);
-        fiatRecipient.sandboxFiatBalance = addUsdc(fiatRecipient.sandboxFiatBalance, amountRaw);
-      }
       database.invoices.push(invoice);
     });
     return NextResponse.json({ invoice }, { status: 201 });

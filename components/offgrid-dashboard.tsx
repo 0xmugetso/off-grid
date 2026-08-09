@@ -942,6 +942,7 @@ function EscrowView({
   const [activeEscrow, setActiveEscrow] = useState<EscrowItem | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [deliverableInput, setDeliverableInput] = useState("");
+  const [proofTxHash, setProofTxHash] = useState("");
 
   const loadEscrows = async () => {
     try {
@@ -963,11 +964,12 @@ function EscrowView({
     try {
       const data = await api<{ escrow: EscrowItem }>("/api/escrows", {
         method: "PATCH",
-        body: JSON.stringify({ id: item.id, action, deliverableProof: deliverableInput })
+        body: JSON.stringify({ id: item.id, action, txHash: proofTxHash.trim() || undefined, deliverableProof: deliverableInput })
       });
       setEscrows((prev) => prev.map((e) => (e.id === data.escrow.id ? data.escrow : e)));
       if (activeEscrow?.id === data.escrow.id) setActiveEscrow(data.escrow);
       setDeliverableInput("");
+      setProofTxHash("");
     } catch (err) {
       alert(err instanceof Error ? err.message : "Escrow action failed");
     } finally {
@@ -995,24 +997,24 @@ function EscrowView({
 
       <div className="escrow-stats-grid">
         <article className="escrow-stat-card">
-          <small><Lock size={13}/> ESCROW TVL</small>
+          <small><Lock size={13}/> ACTIVE COMMITMENTS</small>
           <b>{displayMoney(tvl)} <em>USDC</em></b>
-          <p>Locked in active verification vaults</p>
+          <p>Declared in participant-owned session records</p>
         </article>
         <article className="escrow-stat-card">
-          <small><Scale size={13}/> TOTAL SETTLED</small>
+          <small><Scale size={13}/> PROOF RECORDED</small>
           <b>{displayMoney(totalSettled)} <em>USDC</em></b>
-          <p>Released after AI Arbiter green check</p>
+          <p>Release evidence recorded; OffGrid never holds funds</p>
         </article>
         <article className="escrow-stat-card">
-          <small><Bot size={13}/> AI VALIDATION RATE</small>
-          <b>100% <em>ACCURACY</em></b>
-          <p>Deterministic test runner + open-source LLM</p>
+          <small><Bot size={13}/> AUTOMATED RULES</small>
+          <b>RULES <em>READY</em></b>
+          <p>Deterministic checks run before any release proof is accepted</p>
         </article>
         <article className="escrow-stat-card">
-          <small><Zap size={13}/> ARC BLOCK TIME</small>
+          <small><Zap size={13}/> ARC FINALITY</small>
           <b>&lt; 1.0s <em>FINALITY</em></b>
-          <p>Instant release upon validation</p>
+          <p>Network characteristic; no release is submitted by OffGrid</p>
         </article>
       </div>
 
@@ -1028,7 +1030,7 @@ function EscrowView({
           <div className="escrow-empty-state">
             <div className="escrow-empty-icon"><Scale size={28} /></div>
             <h3>No Escrow Contracts Yet</h3>
-            <p>Create your first AI-validated escrow for digital goods, code repositories, or freelance tasks with instant Arc USDC settlement.</p>
+            <p>Create your first proof escrow for digital goods, code repositories, or freelance tasks with Arc transaction evidence.</p>
             <button className="neon-button" onClick={() => setShowCreateModal(true)}>
               <Plus size={15} /> Create AI Escrow Contract
             </button>
@@ -1073,9 +1075,12 @@ function EscrowView({
                 </div>
 
                 {item.status === "created" && (
-                  <button className="neon-button escrow-action-full" disabled={actionBusy} onClick={() => void handleAction(item, "fund")}>
-                    <Lock size={14}/> Fund Escrow ({item.amount} USDC)
-                  </button>
+                  <div className="escrow-proof-action">
+                    <input value={proofTxHash} onChange={(event) => setProofTxHash(event.target.value)} placeholder="Paste the confirmed Arc funding tx hash" spellCheck={false} />
+                    <button className="neon-button escrow-action-full" disabled={actionBusy || !proofTxHash.trim()} onClick={() => void handleAction(item, "fund")}>
+                      <Lock size={14}/> Record confirmed funding
+                    </button>
+                  </div>
                 )}
 
                 {item.status === "funded" && (
@@ -1092,14 +1097,17 @@ function EscrowView({
                 )}
 
                 {item.status === "submitted" && (
-                  <button className="neon-button escrow-action-full" disabled={actionBusy} onClick={() => void handleAction(item, "verify")}>
-                    <Bot size={15}/> Run AI Verification & Release
-                  </button>
+                  <div className="escrow-proof-action">
+                    <input value={proofTxHash} onChange={(event) => setProofTxHash(event.target.value)} placeholder="Paste the confirmed Arc release tx hash" spellCheck={false} />
+                    <button className="neon-button escrow-action-full" disabled={actionBusy || !proofTxHash.trim()} onClick={() => void handleAction(item, "verify")}>
+                      <Bot size={15}/> Record verified release
+                    </button>
+                  </div>
                 )}
 
                 {item.status === "validated" && (
                   <div className="escrow-success-banner">
-                    <CheckCircle2 size={15}/> Validated & Released on Arc Testnet
+                    <CheckCircle2 size={15}/> Release proof recorded on Arc Testnet
                   </div>
                 )}
               </div>
@@ -1187,14 +1195,6 @@ export function OffGridDashboard() {
     setSolanaError("");
   }
 
-  async function fundSandboxFiat() {
-    try {
-      const { user: updatedUser } = await api<{ user: User }>("/api/fiat/deposit", { method: "POST", body: JSON.stringify({ amount: "1000" }) });
-      setUser(updatedUser);
-    } catch (err) {
-      setWalletError(err instanceof Error ? err.message : "Fiat deposit failed");
-    }
-  }
   const [gatewayError, setGatewayError] = useState("");
   const [gatewayStale, setGatewayStale] = useState(false);
   const [walletBusy, setWalletBusy] = useState(false);
@@ -1263,6 +1263,9 @@ export function OffGridDashboard() {
   const knownCctpInvoicesRef = useRef(new Set<string>());
   const autoReconnectAttemptedRef = useRef(false);
   const walletMenuRef = useRef<HTMLDivElement>(null);
+  const hasLiveSession = paymentSessionsList.some((session) => session.status === "open" || session.status === "ready");
+  const hasPendingCctp = cctpOperations.some((operation) => operation.status !== "confirmed" && operation.status !== "failed");
+  const hasPendingFiat = fiatPayouts.some((payout) => payout.status === "submitted" || payout.status === "pending");
 
   function persistWalletProfile(wallet: BrowserWallet, address: string) {
     try {
@@ -1374,20 +1377,30 @@ export function OffGridDashboard() {
 
   useEffect(() => {
     if (!user) return;
-    void refreshFiatPayouts();
-    void refreshPaymentSessions();
-    const interval = window.setInterval(() => {
+    const sync = () => {
+      if (document.hidden) return;
       void refreshFiatPayouts();
       void refreshPaymentSessions();
-    }, 15_000);
-    return () => window.clearInterval(interval);
-  }, [user]);
+    };
+    sync();
+    const interval = window.setInterval(sync, hasLiveSession || hasPendingFiat ? 15_000 : 45_000);
+    document.addEventListener("visibilitychange", sync);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", sync);
+    };
+  }, [user, hasLiveSession, hasPendingFiat]);
   useEffect(() => {
     if (!user) return;
-    void refreshCctpOperations();
-    const interval = window.setInterval(() => void refreshCctpOperations(), 8_000);
-    return () => window.clearInterval(interval);
-  }, [user]);
+    const sync = () => { if (!document.hidden) void refreshCctpOperations(); };
+    sync();
+    const interval = hasPendingCctp ? window.setInterval(sync, 12_000) : null;
+    document.addEventListener("visibilitychange", sync);
+    return () => {
+      if (interval) window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", sync);
+    };
+  }, [user, hasPendingCctp]);
   useEffect(() => {
     if (!user) return;
     const token = new URLSearchParams(window.location.search).get("session");
@@ -1411,8 +1424,7 @@ export function OffGridDashboard() {
   const recipientAddress = recipient?.walletAddress ?? (isAddress(recipientQuery.trim()) ? recipientQuery.trim() : "");
   const requiresSolanaWallet = fundingMethod === "cctp_bridge" && bridgeSourceChain === "Solana_Devnet";
   const displayWalletAddress = walletAddress || user?.walletAddress || "";
-  const fiatBalance = user?.sandboxFiatBalance ?? null;
-  const fiatPending = user?.sandboxFiatPending ?? "0";
+  const fiatBalance = null;
   const canReview = fundingMethod === "fiat_bank"
     ? Boolean(recipientAddress && Number(amount) > 0 && fiatBalance !== null && Number(amount) <= Number(fiatBalance))
     : Boolean(displayWalletAddress && chainReady && recipientAddress && Number(amount) > 0 && (!requiresSolanaWallet || solanaAddress));
@@ -2060,7 +2072,6 @@ export function OffGridDashboard() {
           await new Promise((resolve) => window.setTimeout(resolve, 900));
           const recovered = await client.retryGatewayMint(adapter, recipientAddress, amount, retry);
           await saveGatewayPaymentResult(recovered);
-          await saveGatewayPaymentResult(recovered);
         } catch (retryError) {
           setPaymentError(retryError instanceof Error ? `Arc mint still needs recovery: ${retryError.message}` : "Arc mint still needs recovery. Retry the saved mint; the source will not be charged again.");
           setStep("review");
@@ -2217,7 +2228,7 @@ export function OffGridDashboard() {
 
                     <label className="field-label"><span>02</span> HOW MUCH?</label>
                     <div className="amount-field"><i>$</i><input value={amount} readOnly={Boolean(activeSession)} onChange={(event) => { setAmount(event.target.value.replace(/[^0-9.]/g, "")); setPaymentEstimate(null); setGatewayMintRetry(null); setStep("amount"); }} placeholder="0.00" inputMode="decimal" /><b>USDC</b></div>
-                    <div className="available-line"><span>{fundingMethod === "cctp_bridge" ? <><b>Source-chain USDC</b> · validated by App Kit</> : fundingMethod === "fiat_bank" ? <><b>Sandbox fiat balance</b> · local ledger</> : available === null ? <><b>Balance not loaded</b> · App Kit will validate</> : <>Available: <b>{displayMoney(available)} USDC</b></>}</span>{fundingMethod !== "cctp_bridge" && <button onClick={() => { if (available) setAmount(available); setGatewayMintRetry(null); setPaymentEstimate(null); }}>MAX</button>}</div>
+                    <div className="available-line"><span>{fundingMethod === "cctp_bridge" ? <><b>Source-chain USDC</b> · validated by App Kit</> : fundingMethod === "fiat_bank" ? <><b>Circle Mint balance</b> · provider credentials required</> : available === null ? <><b>Balance not loaded</b> · App Kit will validate</> : <>Available: <b>{displayMoney(available)} USDC</b></>}</span>{fundingMethod !== "cctp_bridge" && <button onClick={() => { if (available) setAmount(available); setGatewayMintRetry(null); setPaymentEstimate(null); }}>MAX</button>}</div>
 
                     <label className="field-label"><span>03</span> FUND FROM</label>
                     <div className="funding-options">
@@ -2317,7 +2328,7 @@ export function OffGridDashboard() {
               </div>
               <div className="modal-stat-chip">
                 <small><Banknote size={13}/> FIAT</small>
-                <b>${displayMoney(user.sandboxFiatBalance || "0")} <em>USD</em></b>
+                <b>{circleMintBalance ? `$${displayMoney(circleMintBalance.availableUsd)}` : "—"} <em>USD</em></b>
               </div>
             </div>
 
@@ -2365,13 +2376,13 @@ export function OffGridDashboard() {
 
             <div className="user-control-actions">
               <div className="user-actions-row">
-                <button className="user-action-card fund" onClick={() => { void fundSandboxFiat(); }}>
-                  <div className="action-card-icon"><Plus size={16} /></div>
+                <div className="user-action-card fund" role="status">
+                  <div className="action-card-icon"><Banknote size={16} /></div>
                   <div className="action-card-text">
-                    <b>Fund Fiat</b>
-                    <small>+$1,000 USD credit</small>
+                    <b>Circle Mint balance</b>
+                    <small>{circleMintBalance ? `$${displayMoney(circleMintBalance.availableUsd)} available` : "Provider status unavailable"}</small>
                   </div>
-                </button>
+                </div>
 
                 <button className="user-action-card share" onClick={() => {
                   const inviteUrl = `${window.location.origin}/?invite=${user.id}`;

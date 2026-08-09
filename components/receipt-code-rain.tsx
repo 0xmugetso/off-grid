@@ -40,11 +40,13 @@ export function ReceiptCodeRain({ modal = false }: { modal?: boolean }) {
     let stopped = false;
     let paintedOnce = false;
     let dark = document.documentElement.dataset.theme !== "light";
-    const frameInterval = 1000 / 20;
+    // The rain remains continuous at 14 fps; modal content stays responsive
+    // even on laptops where canvas compositing is expensive.
+    const frameInterval = 1000 / 14;
 
     function buildStreams(width: number, height: number) {
       const preferredSpacing = width < 640 ? 18 : 22;
-      const count = Math.min(88, Math.ceil(width / preferredSpacing) + 2);
+      const count = Math.min(64, Math.ceil(width / preferredSpacing) + 2);
       const spacing = width / Math.max(1, count - 1);
       const fontSize = width < 640 ? 8.5 : 10;
       streams = Array.from({ length: count }, (_, index) => {

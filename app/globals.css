@@ -1114,6 +1114,9 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
 .escrow-detail-btn:hover { color: var(--acid); }
 
 .escrow-action-full { width: 100%; margin-top: 8px; }
+.escrow-proof-action { display: grid; gap: 8px; margin-top: 8px; }
+.escrow-proof-action input { width: 100%; height: 38px; border: 1px solid var(--line); border-radius: 6px; background: #060806; padding: 0 10px; color: var(--ink); font: 11px var(--mono); outline: 0; }
+.escrow-proof-action input:focus { border-color: var(--acid); box-shadow: 0 0 0 3px rgba(199, 255, 61, .08); }
 .escrow-inline-submit { display: flex; gap: 8px; margin-top: 8px; }
 .escrow-inline-submit input { flex: 1; min-width: 0; height: 38px; border: 1px solid var(--line); border-radius: 6px; background: #060806; padding: 0 10px; color: var(--ink); font-size: 11px; outline: 0; }
 .escrow-inline-submit button { height: 38px; padding: 0 14px; font-size: 11px; white-space: nowrap; }
@@ -3319,5 +3322,15 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
   margin-top: 3px;
 }
 
-
+/* Keep the visual language intact while respecting the user's motion
+   preference and avoiding expensive perpetual compositor work. Canvas
+   animations already self-throttle; this covers CSS-only effects. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .001ms !important;
+  }
+}
 

@@ -15,11 +15,16 @@ export async function POST(request: Request) {
       currencyCode?: string;
     };
 
-    const apiKey = process.env.MOONPAY_PUBLISHABLE_KEY || "pk_test_OWZro01Zdmvdj004AvidYR7HwYPtEtlr";
-    const hasSecretKey = Boolean(process.env.MOONPAY_SECRET_KEY);
-    const secretKey = process.env.MOONPAY_SECRET_KEY || "";
+    const apiKey = process.env.MOONPAY_PUBLISHABLE_KEY?.trim();
+    const secretKey = process.env.MOONPAY_SECRET_KEY?.trim();
+    if (!apiKey || !secretKey) {
+      return NextResponse.json({ error: "MoonPay sandbox is not configured for this environment" }, { status: 503 });
+    }
 
-    const walletAddress = body.walletAddress || user.walletAddress || "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
+    const walletAddress = body.walletAddress || user.walletAddress;
+    if (!walletAddress || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      throw new Error("Connect a valid EVM wallet before opening MoonPay");
+    }
     const baseCurrencyAmount = body.fiatAmount || "100";
     const currencyCode = body.currencyCode || "usdc";
 
@@ -38,16 +43,11 @@ export async function POST(request: Request) {
     const queryString = queryParams.toString();
     const urlToSign = `${baseUrl}?${queryString}`;
 
-    let signature = "";
-    let signedUrl = urlToSign;
-
-    if (hasSecretKey && secretKey) {
-      signature = crypto
-        .createHmac("sha256", secretKey)
-        .update(`?${queryString}`)
-        .digest("base64");
-      signedUrl = `${urlToSign}&signature=${encodeURIComponent(signature)}`;
-    }
+    const signature = crypto
+      .createHmac("sha256", secretKey)
+      .update(`?${queryString}`)
+      .digest("base64");
+    const signedUrl = `${urlToSign}&signature=${encodeURIComponent(signature)}`;
 
     return NextResponse.json({
       success: true,

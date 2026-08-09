@@ -62,7 +62,7 @@ export async function verifySiweMessage(params: {
   storedNonce?: string;
 }) {
   const { address, message, signature, storedNonce } = params;
-  if (!address || (!isAddress(address) && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address))) {
+  if (!address || !isAddress(address)) {
     throw new Error("Invalid wallet address");
   }
   if (!message || !signature) {
@@ -89,8 +89,10 @@ export async function verifySiweMessage(params: {
     return checksummed;
   }
 
-  // Solana / non-EVM address fallback
-  return address;
+  // Solana wallets are supported for payments, but this endpoint is SIWE
+  // (EIP-4361) authentication. Never create an authenticated session for a
+  // non-EVM address without a dedicated, verified Solana auth flow.
+  throw new Error("OffGrid sign-in currently requires an EVM wallet; connect Solana after signing in");
 }
 
 export async function authenticateOrRegisterSiweUser(input: {

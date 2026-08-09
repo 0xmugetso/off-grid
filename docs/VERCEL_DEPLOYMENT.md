@@ -19,10 +19,14 @@ Add these variables to the environments you want to test:
 | `SOLANA_DEVNET_RPC_URL` | Recommended | Dedicated Solana Devnet RPC for the authenticated proxy. |
 | `NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL` | Recommended | Dedicated Base Sepolia RPC to avoid public RPC rate limits. |
 | `NEXT_PUBLIC_ARC_RPC_URL` | Optional | Defaults to Arc Testnet RPC. |
+| `NEXT_PUBLIC_ARC_SETTLEMENT_ADDRESS` | Required for crypto-to-fiat sessions | Audited Arc settlement contract only; leave empty to keep that rail disabled. |
 | `CIRCLE_MINT_BASE_URL` | Optional | Keep the sandbox URL while testing fiat flows. |
 | `CIRCLE_MINT_API_KEY` | Optional | Server-only Circle Mint sandbox credential. |
 | `CIRCLE_MINT_BANK_ACCOUNT_ID` | Optional | Sandbox linked bank account. |
 | `PAYOUT_WEBHOOK_SECRET` | Optional | Secret used by `/api/payouts/webhook`. |
+| `STRIPE_SECRET_KEY` | Optional | Server-only Stripe Crypto On-Ramp key. |
+| `STRIPE_ONRAMP_PUBLISHABLE_KEY` | Optional | Stripe client key returned to the on-ramp UI. |
+| `MOONPAY_PUBLISHABLE_KEY` / `MOONPAY_SECRET_KEY` | Optional | MoonPay sandbox credentials; both are required together. |
 
 Do not add Circle, Stripe, database, or webhook secrets to `NEXT_PUBLIC_*` variables.
 

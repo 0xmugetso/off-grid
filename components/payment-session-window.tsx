@@ -169,8 +169,12 @@ export function PaymentSessionWindow({ token }: { token: string }) {
       const client = new ArcPayrollClient();
       const adapter = await client.connectEvmWallet(wallet.provider);
 
-      // 2. Sign and send USDC to Session Escrow
-      const escrowRecipient = "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
+      // 2. Sign and send USDC to the explicitly configured settlement address.
+      // Never fall back to a demo address: a missing deployment must stop before signing.
+      const escrowRecipient = process.env.NEXT_PUBLIC_ARC_SETTLEMENT_ADDRESS;
+      if (!escrowRecipient || !/^0x[a-fA-F0-9]{40}$/.test(escrowRecipient)) {
+        throw new Error("Crypto-to-fiat settlement is not configured: set NEXT_PUBLIC_ARC_SETTLEMENT_ADDRESS to the audited Arc settlement contract");
+      }
       await client.sendArcUsdc(adapter, escrowRecipient, session.amount);
 
       // 3. Trigger Circle Mint Sandbox Wire Off-Ramp Payout
@@ -279,7 +283,7 @@ export function PaymentSessionWindow({ token }: { token: string }) {
                   <>
                     <p>
                       {session.actionRole === "payer"
-                        ? "Payer signs USDC from Web3 wallet onto Arc SessionEscrow contract (0x742d35Cc6634C0532925a3b844Bc454e4438f44e). Arc CCTP clears in ~0.48s and Circle Mint burns USDC to wire local fiat directly to receiver's IBAN account."
+                        ? "Payer signs USDC from a Web3 wallet to the configured Arc settlement contract. Circle Mint can wire fiat only after the provider and compliance workflow are configured."
                         : "Waiting for the payer to sign USDC transfer onto Arc. Circle Mint will wire fiat directly to your bank account."}
                     </p>
                     {session.actionRole === "payer" && (
