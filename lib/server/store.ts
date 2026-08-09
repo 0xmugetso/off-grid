@@ -155,6 +155,15 @@ export interface StoredEscrow {
   providerUserId?: string;
   amount: string;
   specs: string;
+  terms?: {
+    summary?: string;
+    paymentFor?: string;
+    criteria?: string;
+    dueDate?: string;
+    tasks: Array<{ description: string; dueDate?: string; responsibleParty?: string; additionalDetails?: string }>;
+  };
+  contractFileName?: string;
+  contractFileHash?: string;
   status: EscrowStatus;
   deliverableUrl?: string;
   deliverableProof?: string;

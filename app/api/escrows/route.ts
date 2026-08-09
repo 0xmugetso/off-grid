@@ -184,6 +184,9 @@ export async function POST(request: Request) {
       providerName: provider.displayName || `@${provider.username}`,
       amount: body.amount,
       specs: body.specs.trim().slice(0, 2000),
+      terms: body.terms,
+      contractFileName: body.contractFileName,
+      contractFileHash: body.contractFileHash,
       status: "initiated",
       paymentId: 0,
       aiVerificationLogs: [

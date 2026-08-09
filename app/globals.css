@@ -1281,6 +1281,19 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
   animation: enter 0.25s ease-out;
 }
 
+.escrow-recipient-results { display: grid; gap: 8px; max-height: 190px; overflow: auto; }
+.escrow-recipient-option { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px; background: #0a0d09; color: var(--ink); text-align: left; cursor: pointer; transition: border-color .18s ease, background .18s ease; }
+.escrow-recipient-option:hover, .escrow-recipient-option:focus-visible { border-color: var(--acid); background: rgba(199,255,61,.06); }
+.escrow-recipient-option span { display: grid; gap: 3px; flex: 1; }
+.escrow-recipient-option small { color: var(--muted); font: 10px var(--mono); }
+.escrow-review-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.escrow-review-summary span { display: grid; gap: 5px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255,255,255,.02); }
+.escrow-review-summary small { color: var(--faint); font: 9px var(--mono); letter-spacing: .08em; }
+.escrow-review-summary b { color: var(--ink); font-size: 12px; font-weight: 500; }
+.escrow-task-strip { display: grid; gap: 4px; margin: 12px 0; padding: 10px 12px; border-left: 2px solid var(--acid); background: rgba(199,255,61,.035); }
+.escrow-task-strip small { color: var(--acid); font: 9px var(--mono); letter-spacing: .08em; }
+.escrow-task-strip span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+
 .wizard-label {
   display: flex;
   flex-direction: column;
