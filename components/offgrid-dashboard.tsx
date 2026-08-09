@@ -324,7 +324,12 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers);
   if (!(options?.body instanceof FormData)) headers.set("content-type", "application/json");
   const response = await fetch(path, { ...options, headers });
-  const data = await response.json();
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json")
+    ? await response.json().catch(() => ({} as { error?: string }))
+    : { error: response.ok
+      ? "The server returned an unexpected response. Please retry."
+      : `Server returned ${response.status} ${response.statusText || "an error page"}. Check the deployment logs.` };
   if (!response.ok) throw new Error(data.error ?? "Request failed");
   return data as T;
 }
@@ -1264,7 +1269,10 @@ function EscrowView({ walletAddress, arcBalance, onConnect, onRefresh }: { walle
     body.set("file", file);
     try {
       const response = await fetch("/api/escrows/validate", { method: "POST", body });
-      const data = await response.json() as { escrow?: EscrowItem; error?: string; reasons?: string[] };
+      const contentType = response.headers.get("content-type") || "";
+      const data = (contentType.includes("application/json")
+        ? await response.json().catch(() => ({}))
+        : { error: `Server returned ${response.status} ${response.statusText || "an error page"}. Check the deployment logs.` }) as { escrow?: EscrowItem; error?: string; reasons?: string[] };
       if (!response.ok || !data.escrow) throw new Error([data.error, ...(data.reasons || [])].filter(Boolean).join(" · ") || "Validation failed");
       updateEscrow(data.escrow);
       setEvidenceFiles((current) => ({ ...current, [item.id]: undefined }));

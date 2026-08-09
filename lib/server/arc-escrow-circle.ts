@@ -59,6 +59,17 @@ function clients() {
   };
 }
 
+/** Convert SDK/proxy failures into an actionable message. Circle can return
+ * an HTML gateway page when a key, entity secret, or wallet id is invalid. */
+function circleError(error: unknown, operation: string) {
+  if (error instanceof Error && error.message && !error.message.includes("<!DOCTYPE")) {
+    return new Error(`${operation}: ${error.message}`);
+  }
+  const record = error as { response?: { data?: { message?: string; error?: string } }; message?: string } | null;
+  const detail = record?.response?.data?.message || record?.response?.data?.error || record?.message;
+  return new Error(`${operation}: ${detail || "Circle returned an invalid response. Verify CIRCLE_API_KEY, CIRCLE_ENTITY_SECRET, and the escrow agent wallet settings."}`);
+}
+
 export async function ensureCircleEscrowWallet(userId: string) {
   const existing = await queryDatabase((database) => database.users.find((user) => user.id === userId) ?? null);
   if (!existing) throw new Error("Escrow participant account not found");
@@ -101,25 +112,26 @@ export async function ensureCircleEscrowWallet(userId: string) {
 }
 
 export async function deployRefundProtocol(name: string) {
-  const { contracts, config } = clients();
-  const response = await contracts.deployContract({
-    idempotencyKey: randomUUID(),
-    name: `OffGrid · ${name}`.slice(0, 50),
-    description: "Circle RefundProtocol escrow deployed by OffGrid on Arc Testnet",
-    walletId: config.agentWalletId,
-    blockchain: ESCROW_BLOCKCHAIN,
-    fee: { type: "level", config: { feeLevel: "MEDIUM" } },
-    constructorParameters: [config.agentAddress, ARC.contracts.usdc, "EscrowProtocol", "1.0"],
-    abiJson: JSON.stringify(artifact.abi),
-    bytecode: artifact.bytecode,
-  });
-  if (!response.data?.contractId || !response.data.transactionId) {
-    throw new Error("Circle did not return the RefundProtocol deployment identifiers");
+  try {
+    const { contracts, config } = clients();
+    const response = await contracts.deployContract({
+      idempotencyKey: randomUUID(),
+      name: `OffGrid · ${name}`.slice(0, 50),
+      description: "Circle RefundProtocol escrow deployed by OffGrid on Arc Testnet",
+      walletId: config.agentWalletId,
+      blockchain: ESCROW_BLOCKCHAIN,
+      fee: { type: "level", config: { feeLevel: "MEDIUM" } },
+      constructorParameters: [config.agentAddress, ARC.contracts.usdc, "EscrowProtocol", "1.0"],
+      abiJson: JSON.stringify(artifact.abi),
+      bytecode: artifact.bytecode,
+    });
+    if (!response.data?.contractId || !response.data.transactionId) {
+      throw new Error("Circle did not return the RefundProtocol deployment identifiers");
+    }
+    return { contractId: response.data.contractId, transactionId: response.data.transactionId };
+  } catch (error) {
+    throw circleError(error, "RefundProtocol deployment failed");
   }
-  return {
-    contractId: response.data.contractId,
-    transactionId: response.data.transactionId,
-  };
 }
 
 export async function executeEscrowContract(input: {
