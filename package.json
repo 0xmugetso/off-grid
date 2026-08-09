@@ -16,8 +16,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "circle:create-wire-account": "node scripts/create-circle-mint-wire-account.mjs",
-    "circle:register-entity-secret": "node scripts/register-circle-entity-secret.mjs",
-    "circle:create-escrow-agent": "node scripts/create-circle-escrow-agent.mjs",
+    "circle:register-entity-secret": "node --env-file=.env.local scripts/register-circle-entity-secret.mjs",
+    "circle:create-escrow-agent": "node --env-file=.env.local scripts/create-circle-escrow-agent.mjs",
     "escrow:compile": "node scripts/compile-refund-protocol.mjs"
   },
   "dependencies": {
