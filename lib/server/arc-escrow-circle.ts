@@ -121,6 +121,24 @@ export async function ensureCircleEscrowWallet(userId: string) {
 export async function deployRefundProtocol(name: string) {
   try {
     const { contracts, config } = clients();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(config.agentAddress)) {
+      throw new Error("CIRCLE_ESCROW_AGENT_ADDRESS is not a valid EVM address");
+    }
+    // Circle deploys from the dedicated agent SCA, not the user's browser
+    // wallet. A zero balance is otherwise reported by the API as a generic
+    // HTTP 400 because Arc uses USDC as its gas token.
+    const wallets = initiateDeveloperControlledWalletsClient({
+      apiKey: config.apiKey,
+      entitySecret: config.entitySecret,
+    });
+    const balance = await wallets.getWalletTokenBalance({
+      id: config.agentWalletId,
+      tokenAddresses: [ARC.contracts.usdc],
+    });
+    const amount = balance.data?.tokenBalances?.find((entry) => entry.token?.tokenAddress?.toLowerCase() === ARC.contracts.usdc.toLowerCase())?.amount || "0";
+    if (Number(amount) <= 0) {
+      throw new Error("The Circle escrow agent wallet has no Arc Testnet USDC. Fund the configured agent SCA from faucet.circle.com, then retry.");
+    }
     const response = await contracts.deployContract({
       idempotencyKey: randomUUID(),
       // Smart Contract Platform only accepts alphanumeric contract names.
