@@ -1319,6 +1319,15 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
   outline: none;
   transition: border-color 0.15s ease;
 }
+.wizard-input[type="file"] { height: auto; min-height: 72px; padding: 15px; border-style: dashed; color: var(--muted); cursor: pointer; }
+.wizard-input[type="file"]::file-selector-button { margin-right: 12px; padding: 8px 12px; border: 1px solid rgba(199,255,61,.34); border-radius: 6px; background: rgba(199,255,61,.1); color: var(--acid); font: 10px var(--mono); cursor: pointer; }
+.wizard-input[type="file"]::file-selector-button:hover { background: rgba(199,255,61,.18); }
+.escrow-wizard-modal .wizard-info-box { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 10px; align-items: start; }
+.escrow-wizard-modal .wizard-info-box p { margin: 4px 0 0; line-height: 1.45; }
+.escrow-upload-guide { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.escrow-upload-guide span { display: grid; gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.02); }
+.escrow-upload-guide b { color: var(--ink); font-size: 11px; }
+.escrow-upload-guide small { color: var(--muted); font-size: 10px; line-height: 1.35; }
 
 .wizard-input:focus, .wizard-select:focus, .wizard-textarea:focus {
   border-color: var(--acid);
