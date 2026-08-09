@@ -28,9 +28,23 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 function Logo() { return <span className="og-logo"><i /><i /><i /></span>; }
 function railName(rail: PaymentRail | null) { return rail === "web3_usdc" ? "Web3 USDC" : rail === "fiat_bank" ? "Bank / fiat" : "Not selected"; }
 
-function SessionProgressBar({ status, isClearing }: { status: string; isClearing: boolean }) {
+function SessionProgressBar({ session, isClearing }: { session: PaymentSessionView; isClearing: boolean }) {
+  const { status } = session;
   const step = status === "open" ? 1 : status === "ready" && !isClearing ? 2 : isClearing ? 3 : status === "complete" ? 4 : 1;
   const progressPercent = step === 1 ? 25 : step === 2 ? 50 : step === 3 ? 75 : 100;
+  const payer = session.payerRail;
+  const receiver = session.receiverRail;
+  const choiceLabel = receiver === "fiat_bank"
+    ? "Bank destination set"
+    : receiver === "web3_usdc"
+      ? "Wallet destination set"
+      : session.actionRole === "receiver" ? "Choose receiving rail" : "Counterparty choice";
+  const clearingLabel = payer === "fiat_bank" && receiver === "web3_usdc"
+    ? "Minting USDC on Arc"
+    : payer === "web3_usdc" && receiver === "fiat_bank"
+      ? "Routing fiat payout"
+      : "Arc USDC transfer";
+  const finalLabel = receiver === "fiat_bank" ? "Fiat payout sent" : "USDC received";
 
   return (
     <div className="session-progress-pipeline">
@@ -46,17 +60,17 @@ function SessionProgressBar({ status, isClearing }: { status: string; isClearing
 
         <div className={`pipeline-step ${step >= 2 ? "active" : ""} ${step > 2 ? "done" : ""}`}>
           <div className="step-circle">{step > 2 ? <Check size={11} /> : "2"}</div>
-          <span>IBAN Locked</span>
+          <span>{choiceLabel}</span>
         </div>
 
         <div className={`pipeline-step ${step >= 3 ? "active" : ""} ${step > 3 ? "done" : ""}`}>
           <div className="step-circle">{step > 3 ? <Check size={11} /> : isClearing ? <LoaderCircle className="spin" size={11} /> : "3"}</div>
-          <span>Arc Clearing (~0.48s)</span>
+          <span>{clearingLabel}</span>
         </div>
 
         <div className={`pipeline-step ${step >= 4 ? "active" : ""} ${step > 4 ? "done" : ""}`}>
           <div className="step-circle">{step >= 4 ? <Check size={11} /> : "4"}</div>
-          <span>Fiat Wired</span>
+          <span>{finalLabel}</span>
         </div>
       </div>
     </div>
@@ -218,7 +232,7 @@ export function PaymentSessionWindow({ token }: { token: string }) {
             <div className="session-window-head"><div><span>PAYMENT SESSION</span><b>{session.id.slice(0, 8).toUpperCase()}</b></div><strong className={session.status}><i />{session.status}</strong></div>
             
             {/* Dynamic Animated Progress Pipeline */}
-            <SessionProgressBar status={session.status} isClearing={isClearing} />
+            <SessionProgressBar session={session} isClearing={isClearing} />
 
             <div className="session-value"><small>AGREED AMOUNT</small><b>{Number(session.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}<em> USDC / USD</em></b>{session.memo && <p>{session.memo}</p>}</div>
             <div className="session-parties">
