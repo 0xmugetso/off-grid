@@ -65,6 +65,7 @@ html.theme-transitioning .theme-toggle,html.theme-transitioning .theme-toggle *,
 @keyframes premium-enter { from { opacity: 0; transform: translateY(8px) scale(.996); filter: blur(2px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
 @keyframes soft-reveal { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes pulse { 50% { opacity: .35; } }
+@keyframes statusPulse { 50% { opacity: .45; transform: scale(.82); } }
 
 .boot-screen { min-height: 100vh; display: grid; place-content: center; justify-items: center; gap: 18px; background: radial-gradient(circle, #171d0e, var(--bg) 42%); animation: premium-enter .38s cubic-bezier(.22,.75,.25,1) both; }
 .boot-screen .og-logo { transform: scale(1.5); animation: boot-breathe 1.8s ease-in-out infinite; }
@@ -1098,6 +1099,10 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
 .escrow-status-pill.funded i { background: #e0a82e; box-shadow: 0 0 8px rgba(224,168,46,.4); }
 .escrow-status-pill.submitted i { background: var(--cyan); box-shadow: 0 0 8px rgba(85,231,209,.4); }
 .escrow-status-pill.validated i { background: var(--acid); box-shadow: 0 0 8px rgba(199,255,61,.4); }
+.escrow-status-pill.open i, .escrow-status-pill.locked i { background: var(--cyan); box-shadow: 0 0 8px rgba(85,231,209,.4); }
+.escrow-status-pill.deploying i, .escrow-status-pill.approving i, .escrow-status-pill.locking i, .escrow-status-pill.validating i, .escrow-status-pill.releasing i, .escrow-status-pill.refunding i { background: #e0a82e; box-shadow: 0 0 8px rgba(224,168,46,.45); animation: statusPulse 1.3s ease-in-out infinite; }
+.escrow-status-pill.closed i, .escrow-status-pill.refunded i { background: var(--acid); box-shadow: 0 0 8px rgba(199,255,61,.45); }
+.escrow-status-pill.failed i { background: var(--red); box-shadow: 0 0 8px color-mix(in srgb, var(--red) 45%, transparent); }
 
 .escrow-item-card h3 { margin: 0; font-size: 16px; letter-spacing: -.02em; color: var(--ink); }
 .escrow-specs-text { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; background: #060806; padding: 10px; border-radius: 8px; border: 1px solid var(--line); font-family: var(--mono); }
@@ -1122,6 +1127,49 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
 .escrow-inline-submit button { height: 38px; padding: 0 14px; font-size: 11px; white-space: nowrap; }
 
 .escrow-success-banner { padding: 10px; border-radius: 6px; border: 1px solid rgba(199,255,61,.22); background: rgba(199,255,61,.03); color: var(--acid); font: 11px var(--mono); display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 8px; }
+.escrow-setup-banner, .escrow-action-error { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 10px; border: 1px solid rgba(224,168,46,.3); background: rgba(224,168,46,.065); color: #e8bd5a; }
+.escrow-setup-banner div, .escrow-action-error span { display: grid; gap: 3px; flex: 1; }
+.escrow-setup-banner b, .escrow-action-error b { font-size: 12px; color: var(--ink); }
+.escrow-setup-banner p, .escrow-action-error span { margin: 0; font-size: 11px; line-height: 1.5; }
+.escrow-action-error { border-color: color-mix(in srgb, var(--red) 36%, transparent); background: color-mix(in srgb, var(--red) 7%, transparent); color: var(--red); }
+.escrow-action-error button { border: 0; background: transparent; color: inherit; cursor: pointer; }
+.escrow-flow-line { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; position: relative; padding-top: 3px; }
+.escrow-flow-line::before { content: ""; position: absolute; height: 1px; left: 8%; right: 8%; top: 11px; background: var(--line); }
+.escrow-flow-line span { position: relative; display: grid; place-items: center; gap: 5px; color: var(--faint); z-index: 1; }
+.escrow-flow-line span i { width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line-bright); background: var(--panel); font: 8px var(--mono); font-style: normal; }
+.escrow-flow-line span small { font: 7px var(--mono); text-align: center; white-space: nowrap; }
+.escrow-flow-line span.active { color: var(--acid); }
+.escrow-flow-line span.active i { border-color: rgba(199,255,61,.5); background: rgba(199,255,61,.1); box-shadow: 0 0 12px rgba(199,255,61,.1); }
+.escrow-card-error { display: flex; align-items: flex-start; gap: 7px; margin: 0; padding: 9px; border: 1px solid color-mix(in srgb, var(--red) 27%, transparent); border-radius: 7px; background: color-mix(in srgb, var(--red) 6%, transparent); color: var(--red); font: 10px/1.45 var(--mono); }
+.escrow-circle-wallet { display: grid; gap: 7px; padding: 11px; border: 1px solid rgba(85,231,209,.2); border-radius: 8px; background: rgba(85,231,209,.035); }
+.escrow-circle-wallet > small { color: var(--cyan); font: 8px var(--mono); letter-spacing: .08em; }
+.escrow-circle-wallet code, .escrow-protocol-details code { color: var(--ink); font: 9px var(--mono); word-break: break-all; }
+.escrow-circle-wallet p { color: var(--muted); font-size: 10px; margin: 0; }
+.escrow-circle-wallet > a { color: var(--acid); font: 10px var(--mono); display: inline-flex; gap: 4px; align-items: center; width: max-content; }
+.escrow-waiting-banner, .escrow-pending-banner { min-height: 42px; display: flex; align-items: center; gap: 9px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); background: var(--panel-2); font: 10px var(--mono); }
+.escrow-pending-banner { border-color: rgba(224,168,46,.22); color: #e0a82e; }
+.escrow-pending-banner span { display: grid; gap: 2px; flex: 1; }
+.escrow-pending-banner span b { color: var(--ink); font-size: 10px; }
+.escrow-pending-banner span small { color: var(--muted); font-size: 8px; }
+.escrow-pending-banner button { display: grid; place-items: center; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.escrow-evidence-action { display: grid; gap: 9px; padding: 10px; border: 1px solid rgba(199,255,61,.2); border-radius: 8px; background: rgba(199,255,61,.025); }
+.escrow-evidence-action > label { display: flex; align-items: center; gap: 9px; min-height: 45px; padding: 8px 10px; border: 1px dashed var(--line-bright); border-radius: 7px; cursor: pointer; color: var(--acid); }
+.escrow-evidence-action label span { display: grid; gap: 2px; min-width: 0; }
+.escrow-evidence-action label b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-size: 10px; }
+.escrow-evidence-action label small { color: var(--faint); font: 8px var(--mono); }
+.escrow-evidence-action input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.escrow-evidence-action > div { display: grid; grid-template-columns: 1fr auto; gap: 7px; }
+.escrow-refund-button { border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--muted); padding: 0 12px; font: 9px var(--mono); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+.escrow-refund-button:hover { color: var(--ink); border-color: var(--line-bright); }
+.escrow-protocol-details { display: grid; gap: 7px; margin-top: 14px; }
+.escrow-protocol-details span { display: grid; grid-template-columns: 155px 1fr; gap: 12px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); }
+.escrow-protocol-details small { color: var(--faint); font: 8px var(--mono); }
+.escrow-validation-result { margin-top: 14px; padding: 12px; border-radius: 8px; border: 1px solid rgba(199,255,61,.24); background: rgba(199,255,61,.035); display: grid; gap: 4px; }
+.escrow-validation-result.invalid { border-color: color-mix(in srgb, var(--red) 28%, transparent); background: color-mix(in srgb, var(--red) 5%, transparent); }
+.escrow-validation-result small { color: var(--acid); font: 8px var(--mono); }
+.escrow-validation-result b { color: var(--ink); font-size: 12px; }
+.escrow-validation-result p { margin: 0; font-size: 10px; color: var(--muted); }
+.escrow-validation-result code { margin-top: 3px; color: var(--faint); font: 8px var(--mono); word-break: break-all; }
 
 .escrow-audit-logs { margin-top: 16px; display: grid; gap: 8px; background: #060806; padding: 12px; border-radius: 8px; border: 1px solid var(--line); }
 .audit-log-line { display: flex; align-items: center; gap: 8px; color: var(--muted); font: 11px var(--mono); }
@@ -3333,4 +3381,3 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
     transition-duration: .001ms !important;
   }
 }
-

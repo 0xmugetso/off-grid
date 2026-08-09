@@ -63,7 +63,7 @@ npm run build
 - Arc and Gateway paths are live testnet calls authorized by the connected wallet.
 - The EVM adapter declares Base Sepolia, Arbitrum Sepolia, Ethereum Sepolia, and Arc Testnet. Solana Devnet uses Circle's separate browser-wallet adapter, as required by the official App Kit flow.
 - Bank/fiat payout is disabled until licensed provider credentials and compliance workflows are configured. The UI does not fake a completed bank payout.
-- AI Escrow is currently a participant-scoped proof record. It requires real Arc transaction hashes and does not custody funds or submit releases until an audited escrow contract is deployed.
+- AI Escrow mirrors Circle's official Arc sample: Circle SCAs deploy `RefundProtocol`, approve and lock real Arc Testnet USDC, validate beneficiary image evidence, then submit an onchain withdrawal or recipient-authorized refund. See [docs/ARC_ESCROW.md](docs/ARC_ESCROW.md).
 - The local JSON store is suitable for local product testing, not multi-instance production. Replace it with PostgreSQL, encrypted payout profiles, KMS-managed secrets, idempotent jobs, and a double-entry ledger before deployment.
 - `contracts/PayrollRouter.sol` remains an unaudited prototype and is not used for custody.
 

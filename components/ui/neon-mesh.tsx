@@ -65,9 +65,10 @@ export function NeonMesh({
     let running = true;
     let previousFrame = 0;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    // A 24 fps canvas keeps the ambient mesh fluid while cutting the physics
-    // and stroke workload by 20% compared with a full 30 fps loop.
-    const frameInterval = 1000 / 24;
+    // Draw on every display refresh. Expensive constraint solving is decoupled
+    // below so motion stays silky without making the CPU solve the cloth twice
+    // for every painted frame.
+    const frameInterval = 1000 / 60;
 
     const mouse = {
       x: -1000,
@@ -95,7 +96,7 @@ export function NeonMesh({
 
       width = newWidth;
       height = newHeight;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.35);
 
       canvas.width = width * dpr;
       canvas.height = height * dpr;
@@ -136,7 +137,7 @@ export function NeonMesh({
 
       // Bound the physics work on large/tall dashboards while preserving a
       // visually dense mesh on normal displays.
-      const spacing = Math.max(62, Math.sqrt((width * height) / 850));
+      const spacing = Math.max(72, Math.sqrt((width * height) / 620));
       const cols = Math.ceil((width * 1.15) / spacing) + 1;
       const rows = Math.ceil((height * 1.15) / spacing) + 1;
 
@@ -218,7 +219,7 @@ export function NeonMesh({
         animationFrameId = requestAnimationFrame(render);
         return;
       }
-      const elapsed = previousFrame ? Math.min((timestamp - previousFrame) / 1000, 0.08) : 0.033;
+      const elapsed = previousFrame ? Math.min((timestamp - previousFrame) / 1000, 0.05) : 1 / 60;
       previousFrame = timestamp;
       time += elapsed * 0.75;
 
@@ -282,9 +283,10 @@ export function NeonMesh({
         if (!p.pinned) {
           const dx = p.projX - mouse.x;
           const dy = p.projY - mouse.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+          const distanceSquared = dx * dx + dy * dy;
 
-          if (dist < mouse.radius && dist > 0) {
+          if (distanceSquared < mouse.radius * mouse.radius && distanceSquared > 0) {
+            const dist = Math.sqrt(distanceSquared);
             const force = (1 - dist / mouse.radius) * 22;
             const angle = Math.atan2(dy, dx);
             p.x += (Math.cos(angle) * force) / p.projScale;
@@ -294,7 +296,9 @@ export function NeonMesh({
         }
       }
 
-      for (let iter = 0; iter < 2; iter++) {
+      // One solver pass is enough at 60 Hz and is substantially cheaper than
+      // the old two-pass, low-frame-rate loop.
+      for (let iter = 0; iter < 1; iter++) {
         for (let i = 0; i < constraints.length; i++) {
           const c = constraints[i];
           const dx = c.p2.x - c.p1.x;
@@ -316,6 +320,8 @@ export function NeonMesh({
         }
       }
 
+      const coldPath = new Path2D();
+      const hotConstraints: Constraint3D[] = [];
       for (let i = 0; i < constraints.length; i++) {
         const c = constraints[i];
         const midX = (c.p1.projX + c.p2.projX) / 2;
@@ -323,32 +329,29 @@ export function NeonMesh({
 
         const dx = mouse.x - midX;
         const dy = mouse.y - midY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        const isHot = dist < mouse.radius;
-        const avgScale = (c.p1.projScale + c.p2.projScale) / 2;
-
-        ctx.strokeStyle = isHot
-          ? neonAcid
-          : `rgba(${baseMeshColor}, ${Math.min(
-              1,
-              Math.max(0.08, (isDarkMode ? 0.22 : 0.35) * avgScale)
-            )})`;
-        ctx.lineWidth = isHot ? 1.8 * avgScale : 0.7 * avgScale;
-
-        ctx.beginPath();
-        ctx.moveTo(c.p1.projX, c.p1.projY);
-        ctx.lineTo(c.p2.projX, c.p2.projY);
-        ctx.stroke();
+        if (dx * dx + dy * dy < mouse.radius * mouse.radius) hotConstraints.push(c);
+        else {
+          coldPath.moveTo(c.p1.projX, c.p1.projY);
+          coldPath.lineTo(c.p2.projX, c.p2.projY);
+        }
       }
+      ctx.strokeStyle = `rgba(${baseMeshColor}, ${isDarkMode ? 0.2 : 0.3})`;
+      ctx.lineWidth = .75;
+      ctx.stroke(coldPath);
+      ctx.strokeStyle = neonAcid;
+      ctx.lineWidth = 1.45;
+      const hotPath = new Path2D();
+      for (const c of hotConstraints) {
+        hotPath.moveTo(c.p1.projX, c.p1.projY);
+        hotPath.lineTo(c.p2.projX, c.p2.projY);
+      }
+      ctx.stroke(hotPath);
 
       for (let i = 0; i < points.length; i++) {
         const p = points[i];
         const dx = mouse.x - p.projX;
         const dy = mouse.y - p.projY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist < 110) {
+        if (dx * dx + dy * dy < 12100) {
           ctx.fillStyle = neonAcid;
           ctx.beginPath();
           ctx.arc(p.projX, p.projY, 2.2 * p.projScale, 0, Math.PI * 2);

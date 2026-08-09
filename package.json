@@ -5,30 +5,41 @@
   "engines": {
     "node": ">=22.14.0"
   },
+  "overrides": {
+    "nanoid": "3.3.17"
+  },
   "scripts": {
+    "prebuild": "npm run escrow:compile",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "circle:create-wire-account": "node scripts/create-circle-mint-wire-account.mjs"
+    "circle:create-wire-account": "node scripts/create-circle-mint-wire-account.mjs",
+    "circle:create-escrow-agent": "node scripts/create-circle-escrow-agent.mjs",
+    "escrow:compile": "node scripts/compile-refund-protocol.mjs"
   },
   "dependencies": {
-    "@circle-fin/adapter-solana": "^1.6.4",
+    "@circle-fin/adapter-solana": "1.6.4",
     "@circle-fin/adapter-viem-v2": "1.14.1",
     "@circle-fin/app-kit": "1.11.0",
+    "@circle-fin/developer-controlled-wallets": "^4.7.0",
+    "@circle-fin/smart-contract-platform": "^4.3.0",
     "@neondatabase/serverless": "^1.1.0",
     "@solana/web3.js": "^1.98.4",
     "lucide-react": "1.28.0",
-    "next": "16.2.12",
+    "next": "^16.3.0",
+    "openai": "^6.49.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "viem": "2.55.10"
   },
   "devDependencies": {
+    "@openzeppelin/contracts": "^5.6.1",
     "@types/node": "26.1.2",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
+    "solc": "^0.8.36",
     "typescript": "6.0.3",
     "vitest": "4.1.10"
   }

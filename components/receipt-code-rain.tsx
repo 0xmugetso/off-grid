@@ -40,17 +40,17 @@ export function ReceiptCodeRain({ modal = false }: { modal?: boolean }) {
     let stopped = false;
     let paintedOnce = false;
     let dark = document.documentElement.dataset.theme !== "light";
-    // The rain remains continuous at 14 fps; modal content stays responsive
-    // even on laptops where canvas compositing is expensive.
-    const frameInterval = 1000 / 14;
+    // Keep motion synchronized with the display; the smaller 1x backing store
+    // and shorter streams below make this cheaper than the old 14 fps canvas.
+    const frameInterval = 1000 / 60;
 
     function buildStreams(width: number, height: number) {
-      const preferredSpacing = width < 640 ? 18 : 22;
-      const count = Math.min(64, Math.ceil(width / preferredSpacing) + 2);
+      const preferredSpacing = width < 640 ? 20 : 26;
+      const count = Math.min(52, Math.ceil(width / preferredSpacing) + 2);
       const spacing = width / Math.max(1, count - 1);
       const fontSize = width < 640 ? 8.5 : 10;
       streams = Array.from({ length: count }, (_, index) => {
-        const length = 11 + Math.floor(Math.random() * 12);
+        const length = 8 + Math.floor(Math.random() * 7);
         return {
           x: index * spacing + (Math.random() - .5) * 2.5,
           y: -height * .6 + Math.random() * height * 1.7,
@@ -66,7 +66,7 @@ export function ReceiptCodeRain({ modal = false }: { modal?: boolean }) {
     }
 
     function resize() {
-      const ratio = Math.min(window.devicePixelRatio || 1, 1.25);
+      const ratio = 1;
       const width = window.innerWidth;
       const height = window.innerHeight;
       surface.width = Math.floor(width * ratio);

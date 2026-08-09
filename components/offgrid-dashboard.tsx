@@ -706,14 +706,35 @@ interface EscrowItem {
   providerName: string;
   amount: string;
   specs: string;
-  status: "created" | "funded" | "submitted" | "validated" | "refunded";
-  deliverableUrl?: string;
+  status: "initiated" | "deploying" | "open" | "approving" | "locking" | "locked" | "validating" | "releasing" | "closed" | "refunding" | "refunded" | "failed" | "created" | "funded" | "submitted" | "validated";
   deliverableProof?: string;
   aiVerificationLogs: string[];
+  contractAddress?: string;
+  circleContractId?: string;
+  deploymentTransactionId?: string;
+  depositorCircleWalletAddress?: string;
+  beneficiaryCircleWalletAddress?: string;
+  approvalTransactionId?: string;
+  depositTransactionId?: string;
+  releaseTransactionId?: string;
+  refundTransactionId?: string;
+  circleTransactionState?: string;
+  paymentId?: number;
+  validationResult?: { valid: boolean; confidence: "HIGH" | "MEDIUM" | "LOW"; reasons: string[]; fileName: string; fileHash: string };
+  lastError?: string;
   depositTxHash?: string;
   releaseTxHash?: string;
+  refundTxHash?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface EscrowConfiguration {
+  configured: boolean;
+  missing: string[];
+  blockchain: string;
+  usdcAddress: string;
+  contractSource: string;
 }
 
 function CreateEscrowModal({
@@ -761,7 +782,7 @@ function CreateEscrowModal({
       onCreated(data.escrow);
       onClose();
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to deploy escrow contract");
+      setCreateError(err instanceof Error ? err.message : "Failed to create escrow agreement");
     } finally {
       setCreateBusy(false);
     }
@@ -773,25 +794,25 @@ function CreateEscrowModal({
         <button className="modal-x" onClick={onClose} aria-label="Close modal"><X size={18}/></button>
         
         <div className="escrow-wizard-head">
-          <span className="section-tag">REFUND PROTOCOL · ERC-8183 SPEC</span>
-          <h2>Create AI Escrow Contract</h2>
-          <p>Setup an AI-monitored escrow on Arc Testnet. Funds are locked in vault and released automatically when AI verification passes.</p>
+          <span className="section-tag">CIRCLE REFUND PROTOCOL · ARC TESTNET</span>
+          <h2>Open an AI escrow.</h2>
+          <p>Agree on the work first. OffGrid then provisions participant Circle wallets, deploys the official RefundProtocol, and locks real testnet USDC.</p>
         </div>
 
         <div className="escrow-stepper">
           <div className={`stepper-step ${step >= 1 ? "active" : ""}`}>
             <span>1</span>
-            <small>Deliverable Scope</small>
+            <small>Agreement</small>
           </div>
           <i className={step >= 2 ? "active" : ""} />
           <div className={`stepper-step ${step >= 2 ? "active" : ""}`}>
             <span>2</span>
-            <small>Counterparty & Amount</small>
+            <small>Participants</small>
           </div>
           <i className={step >= 3 ? "active" : ""} />
           <div className={`stepper-step ${step >= 3 ? "active" : ""}`}>
             <span>3</span>
-            <small>AI Verification</small>
+            <small>Validation rules</small>
           </div>
         </div>
 
@@ -823,8 +844,8 @@ function CreateEscrowModal({
               <div className="wizard-info-box">
                 <FileCode size={18} />
                 <div>
-                  <b>What is an AI Escrow?</b>
-                  <p>Instead of manual approval, your escrow contract uses an AI Sentinel to inspect source code, run tests, or ping endpoints before releasing funds.</p>
+                  <b>Same sequence as Circle&apos;s official sample</b>
+                  <p>Create the agreement, deploy a RefundProtocol contract, lock USDC, submit image evidence, validate with vision AI, then withdraw or refund onchain.</p>
                 </div>
               </div>
             </div>
@@ -833,7 +854,7 @@ function CreateEscrowModal({
           {step === 2 && (
             <div className="wizard-step-pane">
               <label className="wizard-label">
-                <span>PROVIDER / SELLER WALLET ADDRESS</span>
+                <span>REGISTERED BENEFICIARY WALLET</span>
                 <input
                   className="wizard-input"
                   value={providerAddress}
@@ -855,12 +876,12 @@ function CreateEscrowModal({
                   />
                   <span>USDC</span>
                 </div>
-                <small className="wizard-field-note">Locked in Arc Testnet Vault upon funding</small>
+                <small className="wizard-field-note">A dedicated Circle SCA wallet is provisioned after the agreement is created.</small>
               </label>
 
               <div className="wizard-rail-badge">
                 <Zap size={14}/>
-                <span>Arc Testnet Settlement Vault · &lt;1.0s Block Finality</span>
+                <span>Circle developer-controlled wallets · RefundProtocol · Arc Testnet</span>
               </div>
             </div>
           )}
@@ -884,15 +905,15 @@ function CreateEscrowModal({
                 <div className="trust-features">
                   <div>
                     <Lock size={15} />
-                    <span><b>Vault Lock</b><small>Buyer deposits USDC before work starts</small></span>
+                    <span><b>Contract Lock</b><small>Depositor approves and pays RefundProtocol</small></span>
                   </div>
                   <div>
                     <Bot size={15} />
-                    <span><b>AI Sentinel</b><small>Automated code & test suite inspection</small></span>
+                    <span><b>Vision Validation</b><small>Beneficiary submits image evidence against these rules</small></span>
                   </div>
                   <div>
                     <CheckCircle2 size={15} />
-                    <span><b>Instant Release</b><small>Funds transferred on Arc upon green check</small></span>
+                    <span><b>Onchain Release</b><small>HIGH-confidence validation calls withdraw([0])</small></span>
                   </div>
                 </div>
               </div>
@@ -914,7 +935,7 @@ function CreateEscrowModal({
               </button>
             ) : (
               <button type="button" className="neon-button wizard-deploy-btn" disabled={createBusy} onClick={() => void handleSubmit()}>
-                {createBusy ? <LoaderCircle className="spin" size={16} /> : <Scale size={16} />} Deploy AI Escrow Contract
+                {createBusy ? <LoaderCircle className="spin" size={16} /> : <Scale size={16} />} Create escrow agreement
               </button>
             )}
           </div>
@@ -924,7 +945,7 @@ function CreateEscrowModal({
   );
 }
 
-function EscrowView({
+function LegacyEscrowView({
   walletAddress,
   arcBalance,
   onConnect,
@@ -1166,6 +1187,117 @@ function EscrowView({
       )}
     </section>
   );
+}
+
+function EscrowView({ walletAddress, arcBalance, onConnect, onRefresh }: { walletAddress: string; arcBalance: string | null; onConnect: () => void; onRefresh: () => void }) {
+  const [escrows, setEscrows] = useState<EscrowItem[]>([]);
+  const [configuration, setConfiguration] = useState<EscrowConfiguration | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [activeEscrow, setActiveEscrow] = useState<EscrowItem | null>(null);
+  const [actionBusy, setActionBusy] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [evidenceFiles, setEvidenceFiles] = useState<Record<string, File | undefined>>({});
+
+  const loadEscrows = async (quiet = false) => {
+    try {
+      const data = await api<{ escrows: EscrowItem[]; configuration: EscrowConfiguration }>("/api/escrows");
+      setEscrows(data.escrows || []);
+      setConfiguration(data.configuration);
+      setActiveEscrow((current) => current ? data.escrows.find((entry) => entry.id === current.id) || current : null);
+    } catch (error) {
+      if (!quiet) setActionError(error instanceof Error ? error.message : "Unable to load escrow agreements");
+    } finally {
+      if (!quiet) setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadEscrows(); }, []);
+  const hasPendingAction = escrows.some((item) => ["deploying", "approving", "locking", "validating", "releasing", "refunding"].includes(item.status));
+  useEffect(() => {
+    if (!hasPendingAction) return;
+    const timer = window.setInterval(() => { if (!document.hidden) void loadEscrows(true); }, 4000);
+    return () => window.clearInterval(timer);
+  }, [hasPendingAction]);
+
+  const updateEscrow = (escrow: EscrowItem) => {
+    setEscrows((previous) => previous.map((entry) => entry.id === escrow.id ? escrow : entry));
+    setActiveEscrow((current) => current?.id === escrow.id ? escrow : current);
+  };
+
+  const handleAction = async (item: EscrowItem, action: "deploy" | "fund" | "refund" | "refresh") => {
+    setActionBusy(`${item.id}:${action}`);
+    setActionError("");
+    try {
+      const data = await api<{ escrow: EscrowItem }>("/api/escrows", { method: "PATCH", body: JSON.stringify({ id: item.id, action }) });
+      updateEscrow(data.escrow);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Escrow action failed");
+    } finally {
+      setActionBusy("");
+    }
+  };
+
+  const validateEvidence = async (item: EscrowItem) => {
+    const file = evidenceFiles[item.id];
+    if (!file) return;
+    setActionBusy(`${item.id}:validate`);
+    setActionError("");
+    const body = new FormData();
+    body.set("escrowId", item.id);
+    body.set("file", file);
+    try {
+      const response = await fetch("/api/escrows/validate", { method: "POST", body });
+      const data = await response.json() as { escrow?: EscrowItem; error?: string; reasons?: string[] };
+      if (!response.ok || !data.escrow) throw new Error([data.error, ...(data.reasons || [])].filter(Boolean).join(" · ") || "Validation failed");
+      updateEscrow(data.escrow);
+      setEvidenceFiles((current) => ({ ...current, [item.id]: undefined }));
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Validation failed");
+      await loadEscrows(true);
+    } finally {
+      setActionBusy("");
+    }
+  };
+
+  const isDepositor = (item: EscrowItem) => item.clientAddress.toLowerCase() === walletAddress.toLowerCase();
+  const isBeneficiary = (item: EscrowItem) => item.providerAddress.toLowerCase() === walletAddress.toLowerCase();
+  const pending = new Set(["deploying", "approving", "locking", "validating", "releasing", "refunding"]);
+  const tvl = escrows.filter((item) => ["locked", "validating", "releasing"].includes(item.status)).reduce((sum, item) => sum + Number(item.amount), 0);
+  const settled = escrows.filter((item) => item.status === "closed").reduce((sum, item) => sum + Number(item.amount), 0);
+  const flowIndex = (status: EscrowItem["status"]) => status === "initiated" ? 0 : ["deploying", "open"].includes(status) ? 1 : ["approving", "locking", "locked"].includes(status) ? 2 : status === "validating" ? 3 : ["releasing", "closed", "refunded"].includes(status) ? 4 : 0;
+  const transactionHash = (item: EscrowItem) => item.releaseTxHash || item.refundTxHash || item.depositTxHash;
+
+  return <section className="escrow-view">
+    <div className="view-heading"><div><span className="section-tag">CIRCLE REFUND PROTOCOL · ARC TESTNET</span><h1>AI Escrow</h1><p>The exact official Arc escrow sequence—agreement, contract deployment, USDC lock, vision validation, then onchain release or refund—in OffGrid&apos;s workflow.</p></div><div className="escrow-live-actions"><button className="quiet-refresh" onClick={() => { void loadEscrows(); onRefresh(); }}><RefreshCw size={13}/> Refresh</button><button className="neon-button" onClick={() => walletAddress ? setShowCreateModal(true) : onConnect()}><Plus size={15}/> {walletAddress ? "Create AI Escrow" : "Connect wallet"}</button></div></div>
+
+    <div className="escrow-stats-grid"><article className="escrow-stat-card"><small><Lock size={13}/> ACTIVE COMMITMENTS</small><b>{displayMoney(tvl)} <em>USDC</em></b><p>Locked in deployed RefundProtocol contracts</p></article><article className="escrow-stat-card"><small><Scale size={13}/> RELEASED ONCHAIN</small><b>{displayMoney(settled)} <em>USDC</em></b><p>AI-approved Arc withdrawals</p></article><article className="escrow-stat-card"><small><Bot size={13}/> HIGH CONFIDENCE</small><b>{escrows.filter((item) => item.validationResult?.confidence === "HIGH").length} <em>VALIDATIONS</em></b><p>Image evidence matched to agreement rules</p></article><article className="escrow-stat-card"><small><Zap size={13}/> ARC WALLET</small><b>{arcBalance === null ? "—" : displayMoney(arcBalance)} <em>USDC</em></b><p>Your connected wallet balance; escrow uses Circle SCAs</p></article></div>
+
+    {configuration && !configuration.configured && <div className="escrow-setup-banner"><ShieldAlert size={18}/><div><b>Live Circle execution needs server credentials</b><p>Add {configuration.missing.join(", ")} to Vercel. OPENAI_API_KEY is also required for evidence validation.</p></div></div>}
+    {actionError && <div className="escrow-action-error"><CircleAlert size={15}/><span><b>Escrow action stopped</b>{actionError}</span><button onClick={() => setActionError("")}><X size={13}/></button></div>}
+
+    <div className="escrow-list-panel"><div className="ledger-toolbar"><div><b>RefundProtocol agreements</b><small>{escrows.length} participant agreement{escrows.length === 1 ? "" : "s"} · live Circle transaction status</small></div></div>
+      {loading ? <div className="escrow-empty-state"><LoaderCircle className="spin" size={25}/><h3>Loading escrow state</h3><p>Reading agreements and Circle transaction status.</p></div> : escrows.length === 0 ? <div className="escrow-empty-state"><div className="escrow-empty-icon"><Scale size={28}/></div><h3>No escrow agreements yet</h3><p>Create terms with another registered OffGrid user, then deploy Circle&apos;s RefundProtocol on Arc Testnet.</p><button className="neon-button" onClick={() => walletAddress ? setShowCreateModal(true) : onConnect()}><Plus size={15}/> {walletAddress ? "Create escrow agreement" : "Connect wallet"}</button></div> : <div className="escrow-cards-grid">{escrows.map((item) => <article key={item.id} className={`escrow-item-card ${item.status}`}>
+        <div className="escrow-card-head"><span className={`escrow-category-badge ${item.category}`}>{item.category === "code" ? <FileCode size={12}/> : item.category === "api_key" ? <Bot size={12}/> : <FileCheck size={12}/>}{item.category.toUpperCase().replace("_", " ")}</span><span className={`escrow-status-pill ${item.status}`}><i/>{item.status.toUpperCase()}</span></div>
+        <h3>{item.title}</h3><p className="escrow-specs-text">{item.specs}</p>
+        <div className="escrow-flow-line">{["Agreement", "Contract", "USDC locked", "AI check", "Settlement"].map((label, index) => <span key={label} className={index <= flowIndex(item.status) ? "active" : ""}><i>{index < flowIndex(item.status) ? <Check size={9}/> : index + 1}</i><small>{label}</small></span>)}</div>
+        <div className="escrow-participants"><div><small>DEPOSITOR</small><b>{item.clientName}</b></div><ArrowRight size={14} className="arrow-split"/><div><small>BENEFICIARY</small><b>{item.providerName}</b></div></div>
+        <div className="escrow-amount-row"><span><small>{["locked", "validating", "releasing"].includes(item.status) ? "LOCKED AMOUNT" : item.status === "closed" ? "RELEASED AMOUNT" : "AGREED AMOUNT"}</small><b>{displayMoney(item.amount)} USDC</b></span><button className="escrow-detail-btn" onClick={() => setActiveEscrow(item)}>Inspect protocol <ArrowRight size={12}/></button></div>
+        {item.lastError && <p className="escrow-card-error"><CircleAlert size={12}/>{item.lastError}</p>}
+        {item.status === "initiated" && isDepositor(item) && <button className="neon-button escrow-action-full" disabled={!configuration?.configured || Boolean(actionBusy)} onClick={() => void handleAction(item, "deploy")}>{actionBusy === `${item.id}:deploy` ? <LoaderCircle className="spin" size={14}/> : <Blocks size={14}/>} Deploy RefundProtocol</button>}
+        {item.status === "initiated" && !isDepositor(item) && <div className="escrow-waiting-banner"><Clock size={14}/> Waiting for the depositor to deploy the contract</div>}
+        {item.status === "open" && isDepositor(item) && <div className="escrow-circle-wallet"><small>FUND THIS CIRCLE SCA WALLET FIRST</small><code>{item.depositorCircleWalletAddress}</code><p>Use Circle&apos;s Arc testnet faucet, then approve and lock the agreed USDC.</p><a href="https://faucet.circle.com/" target="_blank" rel="noreferrer">Open faucet <ExternalLink size={11}/></a><button className="neon-button escrow-action-full" disabled={Boolean(actionBusy)} onClick={() => void handleAction(item, "fund")}>{actionBusy === `${item.id}:fund` ? <LoaderCircle className="spin" size={14}/> : <Lock size={14}/>} Approve &amp; lock {displayMoney(item.amount)} USDC</button></div>}
+        {item.status === "open" && !isDepositor(item) && <div className="escrow-waiting-banner"><Clock size={14}/> Contract deployed · waiting for depositor funding</div>}
+        {item.status === "locked" && isBeneficiary(item) && <div className="escrow-evidence-action"><label><FileCheck size={14}/><span><b>{evidenceFiles[item.id]?.name || "Choose image evidence"}</b><small>PNG, JPG, WEBP · max 5 MB</small></span><input type="file" accept="image/*" onChange={(event) => setEvidenceFiles((current) => ({ ...current, [item.id]: event.target.files?.[0] }))}/></label><div><button className="neon-button" disabled={!evidenceFiles[item.id] || Boolean(actionBusy)} onClick={() => void validateEvidence(item)}>{actionBusy === `${item.id}:validate` ? <LoaderCircle className="spin" size={14}/> : <Bot size={14}/>} Validate &amp; release</button><button className="escrow-refund-button" disabled={Boolean(actionBusy)} onClick={() => void handleAction(item, "refund")}><Unlock size={13}/> Refund depositor</button></div></div>}
+        {item.status === "locked" && !isBeneficiary(item) && <div className="escrow-waiting-banner"><Lock size={14}/> Payment 0 locked · waiting for beneficiary evidence</div>}
+        {pending.has(item.status) && <div className="escrow-pending-banner"><LoaderCircle className="spin" size={14}/><span><b>{item.status === "deploying" ? "Deploying RefundProtocol" : item.status === "approving" ? "Approving USDC" : item.status === "locking" ? "Locking payment 0" : item.status === "validating" ? "Validating evidence" : item.status === "releasing" ? "Releasing to beneficiary" : "Returning funds"}</b><small>{item.circleTransactionState || "Circle transaction queued"} · safe to leave this tab</small></span><button onClick={() => void handleAction(item, "refresh")} disabled={Boolean(actionBusy)}><RefreshCw size={12}/></button></div>}
+        {item.status === "closed" && <div className="escrow-success-banner"><CheckCircle2 size={15}/> AI-approved release confirmed on Arc Testnet</div>}{item.status === "refunded" && <div className="escrow-success-banner"><Unlock size={15}/> Payment 0 returned to the depositor</div>}
+      </article>)}</div>}
+    </div>
+
+    {showCreateModal && <CreateEscrowModal onClose={() => setShowCreateModal(false)} onCreated={(item) => setEscrows((previous) => [item, ...previous])} walletAddress={walletAddress}/>}
+    {activeEscrow && <div className="overlay"><article className="history-proof-modal escrow-inspector"><button className="modal-x" onClick={() => setActiveEscrow(null)}><X size={18}/></button><div className="history-proof-head"><span className="section-tag">CIRCLE REFUND PROTOCOL INSPECTOR</span>{transactionHash(activeEscrow) && <a className="ledger-proof-link" href={`https://testnet.arcscan.app/tx/${transactionHash(activeEscrow)}`} target="_blank" rel="noreferrer"><ExternalLink size={12}/> View Arc tx</a>}</div><h2>{activeEscrow.title}</h2><p>{activeEscrow.specs}</p><div className="history-proof-summary"><span><small>STATUS</small><b className={activeEscrow.status}>{activeEscrow.status.toUpperCase()}</b></span><span><small>AMOUNT</small><b>{displayMoney(activeEscrow.amount)} USDC</b></span><span><small>PAYMENT ID</small><b>{activeEscrow.paymentId ?? 0}</b></span></div><div className="escrow-protocol-details"><span><small>REFUNDPROTOCOL</small><code>{activeEscrow.contractAddress || "Deploy pending"}</code></span><span><small>DEPOSITOR CIRCLE WALLET</small><code>{activeEscrow.depositorCircleWalletAddress || "Provision pending"}</code></span><span><small>BENEFICIARY CIRCLE WALLET</small><code>{activeEscrow.beneficiaryCircleWalletAddress || "Provision pending"}</code></span></div><div className="escrow-audit-logs"><small className="section-tag">PROTOCOL AUDIT TRAIL</small>{activeEscrow.aiVerificationLogs.map((log, index) => <div key={`${log}-${index}`} className="audit-log-line"><Bot size={12}/><span>{log}</span></div>)}</div>{activeEscrow.deliverableProof && <div className="escrow-proof-box"><small>DELIVERABLE PROOF</small><code>{activeEscrow.deliverableProof}</code></div>}{activeEscrow.validationResult && <div className={`escrow-validation-result ${activeEscrow.validationResult.valid ? "valid" : "invalid"}`}><small>VISION VALIDATION · {activeEscrow.validationResult.confidence}</small><b>{activeEscrow.validationResult.valid ? "Criteria satisfied" : "Evidence rejected"}</b><p>{activeEscrow.validationResult.reasons.join(" · ") || "No unmet criteria reported."}</p><code>sha256:{activeEscrow.validationResult.fileHash}</code></div>}</article></div>}
+  </section>;
 }
 
 export function OffGridDashboard() {

@@ -12,6 +12,9 @@ export interface StoredUser {
   displayName: string;
   sandboxFiatBalance: string;
   sandboxFiatPending: string;
+  circleWalletSetId?: string;
+  circleWalletId?: string;
+  circleWalletAddress?: string;
   createdAt: string;
 }
 
@@ -121,7 +124,24 @@ export interface StoredPaymentSession {
   expiresAt: string;
 }
 
-export type EscrowStatus = "created" | "funded" | "submitted" | "validated" | "refunded";
+export type EscrowStatus =
+  | "initiated"
+  | "deploying"
+  | "open"
+  | "approving"
+  | "locking"
+  | "locked"
+  | "validating"
+  | "releasing"
+  | "closed"
+  | "refunding"
+  | "refunded"
+  | "failed"
+  // Legacy proof-record states are retained for safe migration.
+  | "created"
+  | "funded"
+  | "submitted"
+  | "validated";
 
 export interface StoredEscrow {
   id: string;
@@ -132,6 +152,7 @@ export interface StoredEscrow {
   clientName: string;
   providerAddress: string;
   providerName: string;
+  providerUserId?: string;
   amount: string;
   specs: string;
   status: EscrowStatus;
@@ -141,6 +162,27 @@ export interface StoredEscrow {
   depositTxHash?: string;
   releaseTxHash?: string;
   refundTxHash?: string;
+  circleContractId?: string;
+  contractAddress?: string;
+  depositorCircleWalletId?: string;
+  depositorCircleWalletAddress?: string;
+  beneficiaryCircleWalletId?: string;
+  beneficiaryCircleWalletAddress?: string;
+  deploymentTransactionId?: string;
+  approvalTransactionId?: string;
+  depositTransactionId?: string;
+  releaseTransactionId?: string;
+  refundTransactionId?: string;
+  circleTransactionState?: string;
+  paymentId?: number;
+  validationResult?: {
+    valid: boolean;
+    confidence: "HIGH" | "MEDIUM" | "LOW";
+    reasons: string[];
+    fileName?: string;
+    fileHash?: string;
+  };
+  lastError?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -192,6 +234,9 @@ function normalizeUser(user: Partial<StoredUser>): StoredUser {
     displayName: String(user.displayName ?? user.username ?? walletAddress),
     sandboxFiatBalance: typeof user.sandboxFiatBalance === "string" ? user.sandboxFiatBalance : "0",
     sandboxFiatPending: typeof user.sandboxFiatPending === "string" ? user.sandboxFiatPending : "0",
+    circleWalletSetId: typeof user.circleWalletSetId === "string" ? user.circleWalletSetId : undefined,
+    circleWalletId: typeof user.circleWalletId === "string" ? user.circleWalletId : undefined,
+    circleWalletAddress: typeof user.circleWalletAddress === "string" ? user.circleWalletAddress : undefined,
     createdAt: String(user.createdAt ?? new Date().toISOString()),
   };
 }
