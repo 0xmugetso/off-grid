@@ -9,6 +9,14 @@ import { formatUsdc, parseUsdc } from "@/lib/money";
 export async function GET() {
   const current = await getCurrentUser();
   if (!current) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  await mutateDatabase((database) => {
+    const now = Date.now();
+    for (const session of database.paymentSessions) {
+      const stale = (session.status === "open" || session.status === "ready") && (new Date(session.expiresAt).getTime() <= now || now - new Date(session.createdAt).getTime() > 24 * 60 * 60 * 1000);
+      if (stale) { session.status = "expired"; session.updatedAt = new Date().toISOString(); }
+    }
+    return null;
+  });
   const sessions = await queryDatabase((database) => database.paymentSessions
     .filter((session) => session.creatorId === current.id || session.counterpartyId === current.id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))

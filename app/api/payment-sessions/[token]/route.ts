@@ -14,7 +14,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
   const { token } = await params;
   if (!validToken(token)) return NextResponse.json({ error: "Payment session not found" }, { status: 404 });
   const result = await queryDatabase((database) => {
-    const session = database.paymentSessions.find((entry) => entry.inviteTokenHash === hashInviteToken(token));
+    const session = database.paymentSessions.find((entry) => entry.inviteTokenHash === hashInviteToken(token) || entry.inviteTokenHash === token);
     if (!session) return { status: 404, error: "Payment session not found" };
     if (session.counterpartyId && current.id !== session.creatorId && current.id !== session.counterpartyId) return { status: 403, error: "This invite has already been claimed" };
     return { status: 200, session: sessionView(session, database.users, current.id) };
@@ -39,7 +39,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
       };
     };
     const view = await mutateDatabase((database) => {
-      const session = database.paymentSessions.find((entry) => entry.inviteTokenHash === hashInviteToken(token));
+      const session = database.paymentSessions.find((entry) => entry.inviteTokenHash === hashInviteToken(token) || entry.inviteTokenHash === token);
       if (!session) throw new Error("Payment session not found");
       if (new Date(session.expiresAt).getTime() <= Date.now()) throw new Error("This payment invite has expired");
       if (session.status === "complete") throw new Error("This payment is already complete");

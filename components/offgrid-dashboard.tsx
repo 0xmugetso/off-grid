@@ -1510,14 +1510,16 @@ export function OffGridDashboard() {
 
   async function archiveSession(tokenHash?: string) {
     if (!tokenHash) return;
+    setSessionError("");
     try {
       const { session } = await api<{ session: PaymentSessionView }>(`/api/payment-sessions/${tokenHash}`, {
         method: "PATCH",
         body: JSON.stringify({ action: "archive" }),
       });
       setPaymentSessionsList((curr) => curr.map((s) => s.inviteTokenHash === tokenHash || s.id === session.id ? session : s));
-    } catch {
-      // Best effort
+      await refreshPaymentSessions();
+    } catch (error) {
+      setSessionError(error instanceof Error ? error.message : "Could not archive session");
     }
   }
 
@@ -2331,9 +2333,9 @@ export function OffGridDashboard() {
             <div className="session-launch-copy"><span><Sparkles size={11} /> START HERE · PRIVATE PAYMENT</span><h2>Open a payment session.</h2><p>Set the direction and amount, share one secure link, then let both sides choose how money moves.</p><div className="session-launch-flow"><span><i>1</i>Set terms</span><b /><span><i>2</i>Share privately</span><b /><span><i>3</i>Settle together</span></div></div>
             <div className="session-launch-column">
               <button className="session-launch-button" onClick={() => { setCreatedSessionLink(""); setSessionError(""); setSessionLinkCopied(false); setShowSessionCreator(true); }}><span><Plus size={18} /></span><div><small>NEW SECURE FLOW</small><b>Create payment session</b></div><ArrowRight size={18} /></button>
-              <button type="button" className="live-sessions-text-link" onClick={() => setShowLiveSessionsModal(true)}>
+              <button type="button" className="live-sessions-text-link" onClick={() => { setSessionError(""); setShowLiveSessionsModal(true); void refreshPaymentSessions(); }}>
                 <Radio size={12} className="spin-slow" />
-                <span>View active payment sessions ({paymentSessionsList.length})</span>
+                <span>View active payment sessions ({paymentSessionsList.filter((session) => session.status === "open" || session.status === "ready").length})</span>
                 <ArrowRight size={12} />
               </button>
             </div>
@@ -2640,12 +2642,6 @@ export function OffGridDashboard() {
                     ) : (
                       displayedSessions.map((sess) => {
                         const inviteUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/?session=${sess.inviteTokenHash}`;
-                        const expiresAtTime = new Date(sess.expiresAt).getTime();
-                        const secondsLeft = Math.max(0, Math.floor((expiresAtTime - Date.now()) / 1000));
-                        const minutesLeft = Math.floor(secondsLeft / 60);
-                        const secsLeft = secondsLeft % 60;
-                        const timerText = secondsLeft > 0 ? `${minutesLeft}m ${secsLeft < 10 ? "0" : ""}${secsLeft}s remaining` : "Session Expired";
-
                         return (
                           <div className="live-session-card" key={sess.id}>
                             <div className="session-card-header">
@@ -2656,11 +2652,6 @@ export function OffGridDashboard() {
                               </div>
                               
                               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                {(sess.status === "open" || sess.status === "ready") && (
-                                  <span className={`session-card-timer ${secondsLeft <= 0 ? "expired" : ""}`}>
-                                    <Clock size={12} /> {timerText}
-                                  </span>
-                                )}
                                 <span className={`session-status-badge ${sess.status}`}>
                                   {sess.status.toUpperCase()}
                                 </span>
@@ -2778,6 +2769,7 @@ export function OffGridDashboard() {
                       })
                     )}
                   </div>
+                  {sessionError && <p className="inline-error session-modal-error"><CircleAlert size={13} /> {sessionError}</p>}
                 </>
               );
             })()}
