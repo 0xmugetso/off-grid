@@ -27,6 +27,7 @@ function pendingTransaction(item: StoredEscrow) {
   if (item.status === "approving") return item.approvalTransactionId;
   if (item.status === "locking") return item.depositTransactionId;
   if (item.status === "releasing") return item.releaseTransactionId;
+  if (item.status === "settling") return item.beneficiaryPayoutTransactionId;
   if (item.status === "refunding") return item.refundTransactionId;
   return undefined;
 }
@@ -34,6 +35,7 @@ function pendingTransaction(item: StoredEscrow) {
 function failedFallback(status: EscrowStatus): EscrowStatus {
   if (status === "approving" || status === "locking") return "open";
   if (status === "releasing" || status === "refunding") return "locked";
+  if (status === "settling") return "payout_failed";
   return "failed";
 }
 
@@ -79,7 +81,7 @@ async function reconcileEscrow(id: string) {
         target.status = "open";
         target.contractAddress = contractAddress;
         target.circleTransactionState = "COMPLETE";
-        target.depositTxHash = observation.txHash;
+        target.deploymentTxHash = observation.txHash;
         target.lastError = undefined;
         target.aiVerificationLogs.push(`[${new Date().toISOString()}] RefundProtocol deployed on Arc Testnet at ${contractAddress}.`);
         target.updatedAt = new Date().toISOString();
@@ -105,11 +107,54 @@ async function reconcileEscrow(id: string) {
         if (!target) return null;
         target.status = "locking";
         target.approvalTransactionId = transactionId;
+        target.approvalTxHash = observation.txHash;
         target.depositTransactionId = payment.id;
         target.circleTransactionState = payment.state;
         target.lastError = undefined;
         target.aiVerificationLogs.push(`[${new Date().toISOString()}] USDC approval confirmed; RefundProtocol pay transaction submitted.`);
         target.updatedAt = new Date().toISOString();
+        return target;
+      });
+    }
+
+    if (item.status === "releasing") {
+      if (!item.beneficiaryCircleWalletId || !isAddress(item.providerAddress)) {
+        throw new Error("Beneficiary payout wallet is incomplete");
+      }
+      let payout;
+      try {
+        payout = await executeEscrowContract({
+          walletId: item.beneficiaryCircleWalletId,
+          contractAddress: ARC.contracts.usdc,
+          signature: "transfer(address,uint256)",
+          parameters: [item.providerAddress, parseUsdc(item.amount).toString()],
+        });
+      } catch (error) {
+        return mutateDatabase((database) => {
+          const target = database.escrows.find((entry) => entry.id === id);
+          if (!target) return null;
+          const now = new Date().toISOString();
+          target.status = "payout_failed";
+          target.withdrawTxHash = observation.txHash;
+          target.circleTransactionState = "WITHDRAW_COMPLETE";
+          target.lastError = error instanceof Error ? error.message : "Connected-wallet payout submission failed";
+          target.aiVerificationLogs.push(`[${now}] RefundProtocol withdrawal confirmed; connected-wallet payout requires recovery: ${target.lastError}`);
+          target.updatedAt = now;
+          return target;
+        });
+      }
+      return mutateDatabase((database) => {
+        const target = database.escrows.find((entry) => entry.id === id);
+        if (!target) return null;
+        const now = new Date().toISOString();
+        target.status = "settling";
+        target.withdrawTxHash = observation.txHash;
+        target.beneficiaryPayoutTransactionId = payout.id;
+        target.circleTransactionState = payout.state;
+        target.lastError = undefined;
+        target.aiVerificationLogs.push(`[${now}] RefundProtocol withdrawal confirmed into the beneficiary Circle wallet.`);
+        target.aiVerificationLogs.push(`[${now}] Final USDC payout submitted to beneficiary connected wallet ${target.providerAddress}.`);
+        target.updatedAt = now;
         return target;
       });
     }
@@ -124,10 +169,11 @@ async function reconcileEscrow(id: string) {
         target.status = "locked";
         target.depositTxHash = observation.txHash;
         target.aiVerificationLogs.push(`[${now}] USDC deposit confirmed. Payment 0 is locked in RefundProtocol.`);
-      } else if (target.status === "releasing") {
+      } else if (target.status === "settling") {
         target.status = "closed";
+        target.beneficiaryPayoutTxHash = observation.txHash;
         target.releaseTxHash = observation.txHash;
-        target.aiVerificationLogs.push(`[${now}] AI-approved deliverable released payment 0 to the beneficiary wallet.`);
+        target.aiVerificationLogs.push(`[${now}] AI-approved payout confirmed in the beneficiary connected wallet.`);
       } else if (target.status === "refunding") {
         target.status = "refunded";
         target.refundTxHash = observation.txHash;
@@ -210,7 +256,7 @@ export async function PATCH(request: Request) {
   const current = await getCurrentUser();
   if (!current) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const body = await request.json() as { id?: string; action?: "deploy" | "fund" | "refund" | "refresh" };
+    const body = await request.json() as { id?: string; action?: "deploy" | "fund" | "refund" | "refresh" | "complete_payout" };
     if (!body.id || !body.action) throw new Error("Escrow ID and action are required");
     const item = await queryDatabase((database) => database.escrows.find((entry) => entry.id === body.id) ?? null);
     if (!item) throw new Error("Escrow agreement not found");
@@ -218,6 +264,33 @@ export async function PATCH(request: Request) {
 
     if (body.action === "refresh") {
       const escrow = await reconcileEscrow(item.id);
+      return NextResponse.json({ escrow });
+    }
+
+    if (body.action === "complete_payout") {
+      const isRecoverableLegacyRelease = item.status === "closed" && !item.beneficiaryPayoutTransactionId && !item.beneficiaryPayoutTxHash;
+      if (item.status !== "payout_failed" && !isRecoverableLegacyRelease) throw new Error("This beneficiary payout is not awaiting recovery");
+      if (!item.beneficiaryCircleWalletId || !isAddress(item.providerAddress)) throw new Error("Beneficiary payout wallet is incomplete");
+      const payout = await executeEscrowContract({
+        walletId: item.beneficiaryCircleWalletId,
+        contractAddress: ARC.contracts.usdc,
+        signature: "transfer(address,uint256)",
+        parameters: [item.providerAddress, parseUsdc(item.amount).toString()],
+      });
+      const escrow = await mutateDatabase((database) => {
+        const target = database.escrows.find((entry) => entry.id === item.id)!;
+        if (isRecoverableLegacyRelease && target.releaseTxHash && !target.withdrawTxHash) {
+          target.withdrawTxHash = target.releaseTxHash;
+          target.releaseTxHash = undefined;
+        }
+        target.status = "settling";
+        target.beneficiaryPayoutTransactionId = payout.id;
+        target.circleTransactionState = payout.state;
+        target.lastError = undefined;
+        target.aiVerificationLogs.push(`[${new Date().toISOString()}] Beneficiary connected-wallet payout recovery submitted.`);
+        target.updatedAt = new Date().toISOString();
+        return target;
+      });
       return NextResponse.json({ escrow });
     }
 

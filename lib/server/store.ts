@@ -133,6 +133,8 @@ export type EscrowStatus =
   | "locked"
   | "validating"
   | "releasing"
+  | "settling"
+  | "payout_failed"
   | "closed"
   | "refunding"
   | "refunded"
@@ -168,7 +170,11 @@ export interface StoredEscrow {
   deliverableUrl?: string;
   deliverableProof?: string;
   aiVerificationLogs: string[];
+  deploymentTxHash?: string;
+  approvalTxHash?: string;
   depositTxHash?: string;
+  withdrawTxHash?: string;
+  beneficiaryPayoutTxHash?: string;
   releaseTxHash?: string;
   refundTxHash?: string;
   circleContractId?: string;
@@ -181,6 +187,7 @@ export interface StoredEscrow {
   approvalTransactionId?: string;
   depositTransactionId?: string;
   releaseTransactionId?: string;
+  beneficiaryPayoutTransactionId?: string;
   refundTransactionId?: string;
   circleTransactionState?: string;
   paymentId?: number;
