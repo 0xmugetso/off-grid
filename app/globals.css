@@ -1087,6 +1087,45 @@ html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-c
 .escrow-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-top: 18px; }
 .escrow-item-card { border: 1px solid rgba(255,255,255,.11); border-radius: 12px; background: rgba(13,16,11,.95); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); padding: 20px; display: flex; flex-direction: column; gap: 12px; transition: border-color .15s ease, transform .15s ease; position: relative; box-shadow: 0 16px 48px rgba(0,0,0,.4); }
 .escrow-item-card:hover { border-color: rgba(199,255,61,.38); transform: translateY(-1px); }
+.escrow-wizard-modal { width:min(760px,calc(100vw - 32px)); border-radius:24px; background:linear-gradient(145deg,rgba(18,22,16,.98),rgba(6,8,7,.99)); box-shadow:0 40px 120px rgba(0,0,0,.72),0 0 0 1px rgba(199,255,61,.16); overflow:hidden; }
+.escrow-wizard-body { background:rgba(5,7,6,.56); border:1px solid rgba(255,255,255,.07); border-radius:18px; padding:24px; }
+.escrow-list-panel { border-radius:20px; background:linear-gradient(145deg,rgba(13,16,12,.97),rgba(6,8,7,.98)); }
+.escrow-item-card { border-radius:18px; background:linear-gradient(155deg,rgba(19,23,17,.98),rgba(8,10,9,.98)); box-shadow:0 20px 60px rgba(0,0,0,.32); }
+.escrow-upload-progress { display:grid; gap:10px; padding:16px; border:1px solid rgba(80,240,205,.25); border-radius:14px; background:rgba(35,220,178,.06); }
+.escrow-upload-progress span { display:flex; align-items:center; gap:9px; color:var(--ink); font-weight:700; }
+.escrow-upload-progress i { height:3px; overflow:hidden; border-radius:99px; background:rgba(255,255,255,.08); }
+.escrow-upload-progress i b { display:block; width:42%; height:100%; background:linear-gradient(90deg,var(--acid),#4ff0d3); animation:escrowAnalyze 1.15s ease-in-out infinite; }
+.escrow-upload-progress small { color:var(--muted); }
+@keyframes escrowAnalyze { from{transform:translateX(-110%)} to{transform:translateX(340%)} }
+.escrow-create-overlay { align-items:center; padding:24px; overflow:auto; }
+.escrow-wizard-premium { max-height:min(880px,calc(100vh - 32px)); overflow:auto; padding:32px; }
+.escrow-wizard-premium::before { content:""; position:absolute; inset:0 0 auto; height:2px; background:linear-gradient(90deg,transparent,var(--acid),#4ff0d3,transparent); }
+.escrow-wizard-head h2 { font-size:clamp(28px,4vw,42px); margin:9px 0; letter-spacing:.015em; }
+.premium-stepper { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:24px 0; }
+.premium-stepper .stepper-step { display:flex; flex-direction:row; justify-content:flex-start; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:rgba(255,255,255,.025); }
+.premium-stepper .stepper-step.active { border-color:rgba(199,255,61,.35); background:rgba(199,255,61,.07); }
+.premium-stepper .stepper-step.complete { color:#4ff0d3; }
+.wizard-pane-title { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+.wizard-pane-title>svg { color:var(--acid); }
+.wizard-pane-title span,.wizard-pane-title div { display:grid; gap:3px; }
+.wizard-pane-title b { font-size:17px; }.wizard-pane-title small { color:var(--muted); }
+.wizard-search-wrap { display:flex; align-items:center; gap:10px; padding:0 14px; border:1px solid var(--line-bright); border-radius:12px; background:var(--panel); }
+.wizard-search-wrap .wizard-input { border:0!important; padding-left:0!important; background:transparent!important; }
+.escrow-recipient-option.selected { border-color:var(--acid); background:rgba(199,255,61,.08); }
+.recipient-avatar,.dropzone-icon { width:42px; height:42px; display:grid; place-items:center; border-radius:12px; background:rgba(199,255,61,.1); color:var(--acid); }
+.wizard-route-preview { display:flex; align-items:center; justify-content:center; gap:12px; padding:14px; border:1px solid var(--line); border-radius:13px; color:var(--muted); }
+.wizard-route-preview span { display:flex; gap:7px; align-items:center; }
+.escrow-dropzone { min-height:190px; display:grid; place-items:center; align-content:center; gap:9px; padding:28px; border:1px dashed rgba(199,255,61,.38); border-radius:18px; background:radial-gradient(circle at 50% 0,rgba(199,255,61,.08),transparent 65%); cursor:pointer; text-align:center; }
+.escrow-dropzone input { position:absolute; opacity:0; pointer-events:none; }.escrow-dropzone small { color:var(--muted); }.escrow-dropzone.busy { cursor:wait; }
+.escrow-review-grid { display:grid; grid-template-columns:1fr 150px; gap:16px; }.escrow-review-grid .wide { grid-column:1/-1; }
+.escrow-review-metric { padding:12px 14px; border:1px solid var(--line); border-radius:12px; display:grid; }.escrow-review-metric small { color:var(--muted); }.escrow-review-metric b { font-size:28px; color:var(--acid); }
+.wizard-funding-note { display:flex; gap:12px; padding:15px; border:1px solid rgba(79,240,211,.25); border-radius:13px; background:rgba(79,240,211,.055); }.wizard-funding-note>svg { color:#4ff0d3; }.wizard-funding-note span { display:grid; gap:4px; }.wizard-funding-note small { color:var(--muted); line-height:1.5; }
+.wizard-step-count { color:var(--faint); font:10px var(--mono); letter-spacing:.12em; }
+.creator-funding-card { border-color:rgba(79,240,211,.28)!important; background:linear-gradient(145deg,rgba(79,240,211,.07),rgba(199,255,61,.04))!important; }
+.funding-route { display:flex; align-items:center; justify-content:space-between; gap:9px; color:#4ff0d3; font:10px var(--mono); }
+.escrow-list-panel .ledger-toolbar { padding:4px 4px 20px; border-bottom:1px solid var(--line); margin-bottom:20px; }
+.escrow-cards-grid { gap:18px; }.escrow-item-card { padding:22px; gap:15px; overflow:hidden; }.escrow-item-card::before { content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:linear-gradient(var(--acid),transparent 72%); opacity:.55; }
+@media(max-width:700px){.escrow-wizard-premium{padding:22px}.premium-stepper .stepper-step{justify-content:center}.premium-stepper small{display:none}.escrow-review-grid{grid-template-columns:1fr}.escrow-review-grid .wide{grid-column:auto}.wizard-route-preview{font-size:10px}.wizard-route-preview span{flex-direction:column}}
 .escrow-item-card.validated { border-color: rgba(199,255,61,.32); background: linear-gradient(160deg, rgba(199,255,61,.04), rgba(13,16,11,.96) 70%); }
 
 .escrow-card-head { display: flex; justify-content: space-between; align-items: center; }
