@@ -148,6 +148,7 @@ export type EscrowStatus =
 export interface StoredEscrow {
   id: string;
   creatorId: string;
+  visibility?: "public" | "private";
   title: string;
   category: "code" | "digital_goods" | "api_key" | "freelance";
   clientAddress: string;

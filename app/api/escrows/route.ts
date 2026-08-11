@@ -14,12 +14,17 @@ import {
 } from "@/lib/server/arc-escrow-circle";
 import { mutateDatabase, queryDatabase, type EscrowStatus, type StoredEscrow } from "@/lib/server/store";
 
-function participantCanAccess(item: StoredEscrow, userId: string, walletAddress: string) {
+function participantCanManage(item: StoredEscrow, userId: string, walletAddress: string) {
   const wallet = walletAddress.toLowerCase();
   return item.creatorId === userId
     || item.providerUserId === userId
     || item.clientAddress.toLowerCase() === wallet
     || item.providerAddress.toLowerCase() === wallet;
+}
+
+function userCanSee(item: StoredEscrow, userId: string, walletAddress: string) {
+  const isOpenMarketplacePost = item.visibility === "public" && item.status === "initiated" && !item.providerUserId;
+  return isOpenMarketplacePost || participantCanManage(item, userId, walletAddress);
 }
 
 function pendingTransaction(item: StoredEscrow) {
@@ -197,11 +202,11 @@ export async function GET() {
   const current = await getCurrentUser();
   if (!current) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const visible = await queryDatabase((database) => database.escrows
-    .filter((item) => participantCanAccess(item, current.id, current.walletAddress))
+    .filter((item) => userCanSee(item, current.id, current.walletAddress))
     .map((item) => item.id));
   await Promise.allSettled(visible.map((id) => reconcileEscrow(id)));
   const escrows = await queryDatabase((database) => database.escrows
-    .filter((item) => participantCanAccess(item, current.id, current.walletAddress))
+    .filter((item) => userCanSee(item, current.id, current.walletAddress))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
   return NextResponse.json({ escrows, configuration: circleEscrowConfiguration() });
 }
@@ -213,24 +218,28 @@ export async function POST(request: Request) {
     const body = await request.json() as Partial<StoredEscrow>;
     if (!current.walletAddress) throw new Error("Connect and bind an EVM wallet before creating an escrow");
     if (!body.title || body.title.trim().length < 3) throw new Error("Title is required (min 3 characters)");
-    if (!body.providerAddress || !isAddress(body.providerAddress)) throw new Error("Select a registered provider wallet address");
+    const visibility = body.visibility === "private" || (!body.visibility && body.providerAddress) ? "private" : "public";
+    if (visibility === "private" && (!body.providerAddress || !isAddress(body.providerAddress))) throw new Error("Select a registered beneficiary for a private escrow");
     if (!body.amount || parseUsdc(body.amount) <= 0n) throw new Error("Amount must be greater than 0 USDC");
     if (!body.specs || body.specs.trim().length < 5) throw new Error("AI validation criteria are required");
 
-    const provider = await queryDatabase((database) => database.users.find((user) => user.walletAddress.toLowerCase() === body.providerAddress!.toLowerCase()) ?? null);
-    if (!provider || provider.id === current.id) throw new Error("Choose another registered OffGrid user as the beneficiary");
+    const provider = body.providerAddress
+      ? await queryDatabase((database) => database.users.find((user) => user.walletAddress.toLowerCase() === body.providerAddress!.toLowerCase()) ?? null)
+      : null;
+    if (visibility === "private" && (!provider || provider.id === current.id)) throw new Error("Choose another registered OffGrid user as the beneficiary");
 
     const now = new Date().toISOString();
     const escrow: StoredEscrow = {
       id: randomUUID(),
       creatorId: current.id,
-      providerUserId: provider.id,
+      visibility,
+      providerUserId: provider?.id,
       title: body.title.trim().slice(0, 100),
       category: body.category && ["code", "digital_goods", "api_key", "freelance"].includes(body.category) ? body.category : "code",
       clientAddress: current.walletAddress,
       clientName: current.displayName || `@${current.username}`,
-      providerAddress: provider.walletAddress,
-      providerName: provider.displayName || `@${provider.username}`,
+      providerAddress: provider?.walletAddress || "",
+      providerName: provider ? (provider.displayName || `@${provider.username}`) : "Open to applicants",
       amount: body.amount,
       specs: body.specs.trim().slice(0, 2000),
       terms: body.terms,
@@ -240,7 +249,9 @@ export async function POST(request: Request) {
       paymentId: 0,
       aiVerificationLogs: [
         `[${now}] Agreement created from Circle's RefundProtocol workflow.`,
-        `[${now}] Depositor and beneficiary terms locked; awaiting smart-contract deployment.`,
+        visibility === "public"
+          ? `[${now}] Public job posted to the OffGrid escrow marketplace.`
+          : `[${now}] Private depositor and beneficiary terms saved; awaiting smart-contract deployment.`,
       ],
       createdAt: now,
       updatedAt: now,
@@ -256,14 +267,31 @@ export async function PATCH(request: Request) {
   const current = await getCurrentUser();
   if (!current) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const body = await request.json() as { id?: string; action?: "deploy" | "fund" | "refund" | "refresh" | "complete_payout" };
+    const body = await request.json() as { id?: string; action?: "claim" | "deploy" | "fund" | "refund" | "refresh" | "complete_payout" };
     if (!body.id || !body.action) throw new Error("Escrow ID and action are required");
     const item = await queryDatabase((database) => database.escrows.find((entry) => entry.id === body.id) ?? null);
     if (!item) throw new Error("Escrow agreement not found");
-    if (!participantCanAccess(item, current.id, current.walletAddress)) throw new Error("Only escrow participants can update this agreement");
+    if (body.action !== "claim" && body.action !== "refresh" && !participantCanManage(item, current.id, current.walletAddress)) throw new Error("Only escrow participants can update this agreement");
 
     if (body.action === "refresh") {
       const escrow = await reconcileEscrow(item.id);
+      return NextResponse.json({ escrow });
+    }
+
+    if (body.action === "claim") {
+      if (item.visibility !== "public" || item.status !== "initiated" || item.providerUserId) throw new Error("This marketplace job is no longer available");
+      if (item.creatorId === current.id) throw new Error("You cannot accept your own job post");
+      if (!current.walletAddress || !isAddress(current.walletAddress)) throw new Error("Connect a verified wallet before accepting this job");
+      const escrow = await mutateDatabase((database) => {
+        const target = database.escrows.find((entry) => entry.id === item.id)!;
+        if (target.providerUserId) throw new Error("This marketplace job was already accepted");
+        target.providerUserId = current.id;
+        target.providerAddress = current.walletAddress;
+        target.providerName = current.displayName || `@${current.username}`;
+        target.aiVerificationLogs.push(`[${new Date().toISOString()}] ${target.providerName} accepted the public job. The creator can now deploy RefundProtocol.`);
+        target.updatedAt = new Date().toISOString();
+        return target;
+      });
       return NextResponse.json({ escrow });
     }
 
