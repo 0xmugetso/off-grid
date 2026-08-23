@@ -43,22 +43,80 @@ export interface CircleMintMockWirePayment {
   };
 }
 
+export interface CircleMintTransferRecord {
+  code?: number;
+  message?: string;
+  data?: {
+    id?: string;
+    status?: string;
+    transactionHash?: string;
+    errorCode?: string;
+    createDate?: string;
+    updateDate?: string;
+  };
+}
+
 const sandboxBaseUrl = "https://api-sandbox.circle.com";
 
 export function circleMintSandboxStatus() {
   const checks = [
     { key: "apiKey", label: "Circle Mint sandbox API key", configured: Boolean(process.env.CIRCLE_MINT_API_KEY) },
     { key: "bankAccount", label: "Sandbox linked wire bank account ID", configured: Boolean(process.env.CIRCLE_MINT_BANK_ACCOUNT_ID) },
+    { key: "settlementRecipient", label: "Approved settlement wallet in Circle Mint", configured: Boolean(process.env.CIRCLE_MINT_SETTLEMENT_RECIPIENT_ADDRESS_ID) },
+    { key: "settlementWallet", label: "Developer settlement wallet", configured: Boolean(
+      process.env.CIRCLE_API_KEY
+      && process.env.CIRCLE_ENTITY_SECRET
+      && (process.env.CIRCLE_SETTLEMENT_WALLET_ID || process.env.CIRCLE_ESCROW_AGENT_WALLET_ID)
+      && (process.env.CIRCLE_SETTLEMENT_WALLET_ADDRESS || process.env.CIRCLE_ESCROW_AGENT_ADDRESS)
+    ) },
     { key: "webhook", label: "HTTPS webhook verification secret", configured: Boolean(process.env.PAYOUT_WEBHOOK_SECRET) },
   ];
   return {
     provider: "circle_mint_sandbox" as const,
     mode: "sandbox" as const,
-    configured: checks.slice(0, 2).every((check) => check.configured),
+    configured: checks.slice(0, 4).every((check) => check.configured),
     checks,
     baseUrl: process.env.CIRCLE_MINT_BASE_URL ?? sandboxBaseUrl,
     simulated: true,
   };
+}
+
+function mintError(operation: string, response: Response, data: { code?: number; message?: string }) {
+  return new Error(`${operation} failed with HTTP ${response.status}${typeof data.code === "number" ? ` (${data.code})` : ""}${data.message ? `: ${data.message}` : ""}`);
+}
+
+export async function createCircleMintOnchainTransfer(input: {
+  idempotencyKey: string;
+  recipientAddressId: string;
+  amount: string;
+  reference: string;
+}) {
+  const apiKey = process.env.CIRCLE_MINT_API_KEY;
+  if (!apiKey) throw new Error("Circle Mint sandbox API key is not configured");
+  const response = await fetch(`${process.env.CIRCLE_MINT_BASE_URL ?? sandboxBaseUrl}/v1/businessAccount/transfers`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      idempotencyKey: input.idempotencyKey,
+      destination: { type: "blockchain", addressId: input.recipientAddressId },
+      amount: { amount: input.amount, currency: "USD" },
+      customerExternalRef: input.reference.replace(/[^A-Za-z0-9-]/g, "").slice(0, 21),
+    }),
+  });
+  const data = await response.json() as CircleMintTransferRecord;
+  if (!response.ok) throw mintError("Circle Mint onchain transfer", response, data);
+  return data;
+}
+
+export async function getCircleMintOnchainTransfer(transferId: string) {
+  const apiKey = process.env.CIRCLE_MINT_API_KEY;
+  if (!apiKey) throw new Error("Circle Mint sandbox API key is not configured");
+  const response = await fetch(`${process.env.CIRCLE_MINT_BASE_URL ?? sandboxBaseUrl}/v1/businessAccount/transfers/${encodeURIComponent(transferId)}`, {
+    headers: { authorization: `Bearer ${apiKey}` },
+  });
+  const data = await response.json() as CircleMintTransferRecord;
+  if (!response.ok) throw mintError("Circle Mint transfer lookup", response, data);
+  return data;
 }
 
 export interface CircleMintBalancesResponse {

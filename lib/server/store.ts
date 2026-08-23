@@ -98,6 +98,34 @@ export interface ReceiverBankDetails {
   bankCountry: string;
 }
 
+export type FiatSettlementStage =
+  | "not_started"
+  | "wire_submitted"
+  | "circle_balance_funded"
+  | "circle_transfer_submitted"
+  | "settlement_wallet_funded"
+  | "receiver_transfer_submitted"
+  | "complete"
+  | "failed";
+
+export interface StoredFiatSettlement {
+  mode: "fiat_to_web3" | "web3_to_fiat" | "fiat_to_fiat";
+  stage: FiatSettlementStage;
+  startingCircleBalance: string | null;
+  mockWireTrackingRef: string | null;
+  circleTransferId: string | null;
+  circleTransferStatus: string | null;
+  circleTransferTxHash: string | null;
+  receiverTransferId: string | null;
+  receiverTransferState: string | null;
+  receiverTxHash: string | null;
+  wireIdempotencyKey: string;
+  circleTransferIdempotencyKey: string;
+  receiverTransferIdempotencyKey: string;
+  error: string | null;
+  updatedAt: string;
+}
+
 export interface StoredPaymentSession {
   id: string;
   inviteTokenHash: string;
@@ -110,6 +138,7 @@ export interface StoredPaymentSession {
   payerInputRail: PayerInputRail | null;
   receiverOutputRail: ReceiverOutputRail | null;
   receiverBankDetails?: ReceiverBankDetails | null;
+  fiatSettlement?: StoredFiatSettlement | null;
   payerRailStatus: PayerRailStatus;
   receiverRailStatus: ReceiverRailStatus;
   clearingStatus: ClearingStatus;

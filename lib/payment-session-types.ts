@@ -40,6 +40,19 @@ export interface PaymentSessionView {
   payerInputRail?: string | null;
   receiverOutputRail?: string | null;
   receiverBankDetails?: ReceiverBankDetails | null;
+  fiatSettlement?: {
+    mode: "fiat_to_web3" | "web3_to_fiat" | "fiat_to_fiat";
+    stage: string;
+    mockWireTrackingRef: string | null;
+    circleTransferId: string | null;
+    circleTransferStatus: string | null;
+    circleTransferTxHash: string | null;
+    receiverTransferId: string | null;
+    receiverTransferState: string | null;
+    receiverTxHash: string | null;
+    error: string | null;
+    updatedAt: string;
+  } | null;
   payerRailStatus?: string;
   receiverRailStatus?: string;
   clearingStatus?: string;

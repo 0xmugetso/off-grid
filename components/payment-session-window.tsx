@@ -85,6 +85,7 @@ export function PaymentSessionWindow({ token }: { token: string }) {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [fiatStatus, setFiatStatus] = useState<{ configured: boolean; checks: Array<{ key: string; label: string; configured: boolean }> } | null>(null);
+  const [settlementBusy, setSettlementBusy] = useState(false);
   const [liveNotice, setLiveNotice] = useState<{ title: string; detail: string } | null>(null);
   const sessionSnapshotRef = useRef<string | null>(null);
 
@@ -125,11 +126,6 @@ export function PaymentSessionWindow({ token }: { token: string }) {
     request<{ configured: boolean; checks: Array<{ key: string; label: string; configured: boolean }> }>("/api/fiat/status").then(setFiatStatus).catch(() => setFiatStatus(null));
   }, [session]);
 
-  const [accountHolderName, setAccountHolderName] = useState("");
-  const [ibanOrAccountNumber, setIbanOrAccountNumber] = useState("");
-  const [routingOrSwift, setRoutingOrSwift] = useState("");
-  const [bankCountry, setBankCountry] = useState("US");
-
   async function bindWallet() {
     const wallets = await discoverBrowserWallets();
     const selected = wallets.find(({ info }) => info.rdns === "io.metamask" || info.name === "MetaMask") ?? wallets[0];
@@ -146,21 +142,12 @@ export function PaymentSessionWindow({ token }: { token: string }) {
     try {
       let current = user;
       if (rail === "web3_usdc" && !current?.walletAddress) current = await bindWallet();
-      if (rail === "fiat_bank") {
-        if (!accountHolderName.trim()) throw new Error("Enter the bank account holder name");
-        if (!ibanOrAccountNumber.trim()) throw new Error("Enter IBAN or Account Number");
-      }
       const response = await request<{ session: PaymentSessionView }>(`/api/payment-sessions/${token}`, {
         method: "PATCH",
         body: JSON.stringify({
           action: "respond",
           rail,
-          receiverBankDetails: rail === "fiat_bank" ? {
-            accountHolderName,
-            ibanOrAccountNumber,
-            routingOrSwift,
-            bankCountry,
-          } : null,
+          receiverBankDetails: null,
         }),
       });
       setSession(response.session);
@@ -173,6 +160,30 @@ export function PaymentSessionWindow({ token }: { token: string }) {
     await navigator.clipboard.writeText(window.location.href);
     setCopied(true);
   }
+
+  async function advanceSettlement(silent = false) {
+    if (!silent) setSettlementBusy(true);
+    setError("");
+    try {
+      const response = await request<{ session: PaymentSessionView }>(`/api/payment-sessions/${token}/settlement`, { method: "POST", body: "{}" });
+      setSession(response.session);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to advance sandbox settlement");
+    } finally {
+      if (!silent) setSettlementBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    const active = session?.actionRole === "payer"
+      && session.payerRail === "fiat_bank"
+      && session.receiverRail === "web3_usdc"
+      && Boolean(session.fiatSettlement)
+      && session.fiatSettlement?.stage !== "complete";
+    if (!active) return;
+    const timer = window.setInterval(() => { if (!document.hidden) void advanceSettlement(true); }, 8_000);
+    return () => window.clearInterval(timer);
+  }, [session?.id, session?.fiatSettlement?.stage, session?.actionRole, session?.payerRail, session?.receiverRail]);
 
   if (booting) return <main className="boot-screen"><Logo /><LoaderCircle className="spin" /><span>OPENING SECURE PAYMENT SESSION</span></main>;
   if (!user) return <AuthScreen onAuthenticated={setUser} />;
@@ -213,11 +224,8 @@ export function PaymentSessionWindow({ token }: { token: string }) {
                 {rail === "fiat_bank" && <div className="session-rail-advisory"><CircleAlert size={14} /><p><b>Provider-orchestrated rail</b><span>This choice locks the bank side of the route. It does not report settlement until Circle returns proof for each required stage.</span></p></div>}
 
                 {rail === "fiat_bank" && session.actionRole === "receiver" && (
-                  <div className="receiver-bank-inputs" style={{ display: "flex", flexDirection: "column", gap: "8px", margin: "12px 0", textAlign: "left" }}>
-                    <small style={{ color: "var(--acid)", font: "9px var(--mono)", textTransform: "uppercase" }}>Wire Payout Destination Account</small>
-                    <input className="session-memo-input" value={accountHolderName} onChange={(e) => setAccountHolderName(e.target.value)} placeholder="Account Holder Name (e.g. John Doe)" />
-                    <input className="session-memo-input" value={ibanOrAccountNumber} onChange={(e) => setIbanOrAccountNumber(e.target.value)} placeholder="IBAN / Account Number (e.g. US1234567890)" />
-                    <input className="session-memo-input" value={routingOrSwift} onChange={(e) => setRoutingOrSwift(e.target.value)} placeholder="SWIFT / BIC / Routing Code (Optional)" />
+                  <div className="sandbox-bank-destination">
+                    <span><Banknote size={16} /></span><div><small>OFFGRID SANDBOX DESTINATION</small><b>Platform test bank account</b><p>No personal bank details are collected. Circle simulates this payout and returns provider proof. No real fiat moves.</p></div><Check size={15} />
                   </div>
                 )}
 
@@ -259,8 +267,10 @@ export function PaymentSessionWindow({ token }: { token: string }) {
                   </>
                 ) : session.payerRail === "fiat_bank" && session.receiverRail === "web3_usdc" ? (
                   <>
-                    <p>A bank wire must settle into Circle Mint before Circle can submit an onchain USDC transfer to the receiver. A payout request is not a fiat deposit and no longer marks this session complete.</p>
-                    <ProviderRouteStatus status={fiatStatus} label="Fiat to Web3" />
+                    <p>This test uses Circle's sandbox to simulate the bank deposit. It then sends real testnet USDC from the platform settlement wallet to the receiver.</p>
+                    <ProviderRouteStatus status={fiatStatus} label="Fiat to Web3" settlement={session.fiatSettlement} />
+                    {session.actionRole === "payer" && !session.fiatSettlement && <button className="neon-button" disabled={settlementBusy || !fiatStatus?.configured} onClick={() => advanceSettlement()}>{settlementBusy ? <LoaderCircle className="spin" size={15} /> : <Banknote size={15} />} Start simulated bank payment</button>}
+                    {session.actionRole === "payer" && session.fiatSettlement && session.fiatSettlement.stage !== "complete" && <button className="session-cta session-cta-secondary" disabled={settlementBusy} onClick={() => advanceSettlement()}>{settlementBusy ? <LoaderCircle className="spin" size={13} /> : <Radio size={13} />} Refresh provider proof</button>}
                   </>
                 ) : session.payerRail === "fiat_bank" && session.receiverRail === "fiat_bank" ? (
                   <><p>The payer deposit must settle in Circle Mint before a separate redemption can be sent to the receiver's linked and verified bank account.</p><ProviderRouteStatus status={fiatStatus} label="Fiat to fiat" /></>
@@ -286,6 +296,15 @@ export function PaymentSessionWindow({ token }: { token: string }) {
   );
 }
 
-function ProviderRouteStatus({ status, label }: { status: { configured: boolean; checks: Array<{ key: string; label: string; configured: boolean }> } | null; label: string }) {
-  return <div className="provider-route-status"><div><Banknote size={15} /><span><small>{label.toUpperCase()}</small><b>{status?.configured ? "Provider configured, orchestration pending" : "Provider setup required"}</b></span></div><p>OffGrid will not report success until every deposit, conversion, transfer, and payout stage has a provider ID or transaction proof.</p>{status && <div className="fiat-checks">{status.checks.map((check) => <span className={check.configured ? "done" : ""} key={check.key}><i>{check.configured ? <Check size={9} /> : "!"}</i>{check.label}</span>)}</div>}</div>;
+function ProviderRouteStatus({ status, label, settlement }: { status: { configured: boolean; checks: Array<{ key: string; label: string; configured: boolean }> } | null; label: string; settlement?: PaymentSessionView["fiatSettlement"] }) {
+  const stages = [
+    { key: "wire_submitted", label: "Simulated wire", proof: settlement?.mockWireTrackingRef },
+    { key: "circle_balance_funded", label: "Circle balance funded", proof: null },
+    { key: "circle_transfer_submitted", label: "Settlement wallet funded", proof: settlement?.circleTransferId },
+    { key: "receiver_transfer_submitted", label: "Receiver transfer", proof: settlement?.receiverTransferId },
+    { key: "complete", label: "Confirmed on testnet", proof: settlement?.receiverTxHash },
+  ];
+  const order = ["not_started", ...stages.map((stage) => stage.key), "settlement_wallet_funded", "failed"];
+  const current = order.indexOf(settlement?.stage || "not_started");
+  return <div className="provider-route-status"><div><Banknote size={15} /><span><small>SANDBOX SIMULATION · NO REAL FIAT CHARGED</small><b>{status?.configured ? label : "Provider setup required"}</b></span></div>{settlement ? <div className="provider-proof-steps">{stages.map((stage, index) => { const done = current > order.indexOf(stage.key) || settlement.stage === stage.key || settlement.stage === "complete"; return <span className={done ? "done" : current + 1 === order.indexOf(stage.key) ? "active" : ""} key={stage.key}><i>{done ? <Check size={9} /> : index + 1}</i><b>{stage.label}</b>{stage.proof && <code title={stage.proof}>{stage.proof.slice(0, 10)}…{stage.proof.slice(-6)}</code>}</span>; })}</div> : <p>Start the simulation to receive a Circle wire reference, Circle transfer ID, developer wallet transaction ID, and final testnet transaction hash.</p>}{settlement?.error && <p className="inline-error"><CircleAlert size={12} />{settlement.error}</p>}{!settlement && status && !status.configured && <div className="fiat-checks">{status.checks.map((check) => <span className={check.configured ? "done" : ""} key={check.key}><i>{check.configured ? <Check size={9} /> : "!"}</i>{check.label}</span>)}</div>}</div>;
 }
