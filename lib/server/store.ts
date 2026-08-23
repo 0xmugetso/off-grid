@@ -295,7 +295,7 @@ export interface Database {
   escrows: StoredEscrow[];
 }
 
-const CURRENT_RESET_VERSION = "submission-clean-2026-08-24-v1";
+const CURRENT_RESET_VERSION = "submission-clean-2026-08-24-v2";
 
 const dataDirectory = path.join(process.cwd(), ".data");
 const databasePath = path.join(dataDirectory, "offgrid.json");

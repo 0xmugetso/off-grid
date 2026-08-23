@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/server/auth";
 import { mutateDatabase, type Database, type StoredCctpOperation, type StoredInvoice } from "@/lib/server/store";
 
 const TX_HASH = /^0x[a-fA-F0-9]{64}$/;
+const AUTOMATIC_RECOVERY_CUTOFF = Date.parse("2026-08-23T21:20:00.000Z");
 const EVM_SOURCES = ["Base_Sepolia", "Arbitrum_Sepolia", "Ethereum_Sepolia"] as const satisfies readonly CctpSourceChain[];
 
 const SOURCE_EXPLORERS: Record<(typeof EVM_SOURCES)[number], { api: string; web: string }> = {
@@ -129,7 +130,10 @@ export async function POST(request: Request) {
   const discoveredByChain = hasManualInput ? [] : await Promise.all(EVM_SOURCES.map(async (chain) => ({ chain, result: await discoverTransactions(current.walletAddress as string, chain) })));
   const candidates: Candidate[] = hasManualInput
     ? [{ hash: input.txHash as string, sourceChain: input.sourceChain as Candidate["sourceChain"], createdAt: new Date().toISOString() }]
-    : discoveredByChain.flatMap(({ result }) => result.candidates);
+    : discoveredByChain.flatMap(({ result }) => result.candidates).filter((candidate) => {
+        const createdAt = Date.parse(candidate.createdAt);
+        return Number.isFinite(createdAt) && createdAt >= AUTOMATIC_RECOVERY_CUTOFF;
+      });
   const unavailableChains = discoveredByChain.filter(({ result }) => !result.available).map(({ chain }) => chain);
   const observations = await mapWithConcurrency(candidates, 8, async (candidate) => ({ candidate, message: await queryIris(candidate) }));
   const cctp = observations.filter((observation): observation is { candidate: Candidate; message: IrisMessage } => Boolean(observation.message));

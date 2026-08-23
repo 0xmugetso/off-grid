@@ -3837,3 +3837,53 @@ html[data-theme="light"] .escrow-stat-card:first-child { border-color:rgba(21,13
   .escrow-workspace-modal .escrow-item-card { display:flex; }
   .escrow-workspace-modal .escrow-card-copy,.escrow-workspace-modal .escrow-participants,.escrow-workspace-modal .escrow-amount-row,.escrow-workspace-modal .escrow-flow-line { width:100%; height:auto; min-height:0; }
 }
+
+/* History uses one readable type scale. Protocol metadata stays compact, but
+   no label or actionable control drops below the legible dashboard baseline. */
+.history-view .view-heading p { font-size:11px; }
+.history-view .history-live-actions :is(.quiet-refresh,.live-data-pill) { font-size:8px; }
+.history-view .history-recovery-note { font-size:10px; }
+.history-view .cctp-hash-recovery { padding:13px 14px; gap:10px; }
+.history-view .cctp-hash-recovery .section-tag { font-size:8px; }
+.history-view .cctp-hash-recovery>div p { margin-top:6px; font-size:9px; line-height:1.5; }
+.history-view .cctp-hash-recovery input,
+.history-view .cctp-hash-recovery>button { font-size:9px; }
+.history-view .gateway-recovery-toggle>button,
+.history-view .gateway-recovery-toggle input,
+.history-view .gateway-recovery-toggle form>button,
+.history-view .gateway-recovery-toggle>p { font-size:9px; }
+.history-view .cctp-tray-head small { font-size:8px; }
+.history-view .cctp-tray-head b { margin-top:4px; font-size:12px; }
+.history-view .cctp-tray-head p { margin-top:4px; font-size:9px; line-height:1.45; }
+.history-view .cctp-tray-head>button { min-height:32px; font-size:8px; }
+.history-view .cctp-operation-list article { min-height:72px; }
+.history-view .cctp-operation-main b { font-size:11px; }
+.history-view .cctp-operation-main .chain-name,
+.history-view .cctp-operation-main>small,
+.history-view .cctp-operation-stage>span,
+.history-view .cctp-operation-stage small,
+.history-view .cctp-operation-list article>a,
+.history-view .cctp-no-hash { font-size:8px; }
+.history-view .history-stats small { font-size:8px; }
+.history-view .history-stats b { font-size:25px; }
+.history-view .history-stats b em,
+.history-view .history-stats p { font-size:9px; }
+.history-view .ledger-toolbar>div:first-child b { font-size:13px; }
+.history-view .ledger-toolbar>div:first-child small { font-size:9px; }
+.history-view .ledger-search input { font-size:10px; }
+.history-view .ledger-select span { font-size:7px; }
+.history-view .ledger-select select { font-size:10px; }
+.history-view .ledger-table th { font-size:8px; }
+.history-view .ledger-status,
+.history-view .route-badge,
+.history-view .tx-not-submitted { font-size:9px; }
+.history-view .ledger-activity>b { font-size:13px; }
+.history-view .ledger-activity>small { margin-top:5px; font-size:10px; }
+.history-view .ledger-activity summary,
+.history-view .ledger-activity details span { font-size:9px; }
+.history-view .tx-id code,
+.history-view .ledger-table time { font-size:10px; }
+.history-view .ledger-table time small { margin-top:4px; font-size:8px; }
+.history-view .ledger-table td>strong { font-size:19px; }
+.history-view .ledger-table td>strong small { margin-top:5px; font-size:8px; }
+.history-view .ledger-proof-button { min-height:30px; font-size:8px; }
