@@ -75,21 +75,21 @@ function publicTransportFor(chain: Chain) {
   if (chain.id === BASE_SEPOLIA_CHAIN_ID) {
     rpcUrls = [
       process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL?.trim(),
+      "https://sepolia.base.org",
       "https://base-sepolia-rpc.publicnode.com",
       "https://base-sepolia.blockpi.network/v1/rpc/public",
-      chain.rpcUrls.default.http[0],
     ].filter((url): url is string => Boolean(url));
   } else if (chain.id === ARBITRUM_SEPOLIA_CHAIN_ID) {
     rpcUrls = [
       process.env.NEXT_PUBLIC_ARBITRUM_SEPOLIA_RPC_URL?.trim(),
+      "https://sepolia-rollup.arbitrum.io/rpc",
       "https://arbitrum-sepolia-rpc.publicnode.com",
-      chain.rpcUrls.default.http[0],
     ].filter((url): url is string => Boolean(url));
   } else if (chain.id === ETHEREUM_SEPOLIA_CHAIN_ID) {
     rpcUrls = [
       process.env.NEXT_PUBLIC_ETHEREUM_SEPOLIA_RPC_URL?.trim(),
+      "https://rpc.sepolia.org",
       "https://ethereum-sepolia-rpc.publicnode.com",
-      chain.rpcUrls.default.http[0],
     ].filter((url): url is string => Boolean(url));
   } else {
     rpcUrls = [chain.rpcUrls.default.http[0]].filter(Boolean);

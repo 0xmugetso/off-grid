@@ -61,6 +61,29 @@ export interface StoredFiatPayout {
   updatedAt: string;
 }
 
+export type GatewayDepositStatus = "submitted" | "source_confirmed" | "indexing" | "confirmed" | "failed";
+
+export interface StoredGatewayDeposit {
+  id: string;
+  ownerId: string;
+  sourceAddress: string;
+  sourceChain: string;
+  sourceDomain: number;
+  amount: string;
+  txHash: string;
+  explorerUrl: string | null;
+  status: GatewayDepositStatus;
+  confirmedBefore: string | null;
+  expectedConfirmed: string | null;
+  observedGatewayBalance: string | null;
+  sourceBlockNumber: string | null;
+  sourceConfirmedAt: string | null;
+  gatewayPendingObserved: boolean;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface StoredCctpOperation {
   id: string;
   ownerId: string;
@@ -267,6 +290,7 @@ export interface Database {
   paymentSessions: StoredPaymentSession[];
   cctpOperations: StoredCctpOperation[];
   fiatPayouts: StoredFiatPayout[];
+  gatewayDeposits: StoredGatewayDeposit[];
   escrows: StoredEscrow[];
 }
 
@@ -296,7 +320,7 @@ function hostedSql() {
 }
 
 function emptyDatabase(): Database {
-  return { users: [], invoices: [], paymentSessions: [], cctpOperations: [], fiatPayouts: [], escrows: [] };
+  return { users: [], invoices: [], paymentSessions: [], cctpOperations: [], fiatPayouts: [], gatewayDeposits: [], escrows: [] };
 }
 
 function normalizeUser(user: Partial<StoredUser>): StoredUser {
@@ -327,6 +351,7 @@ function normalizeDatabase(value: unknown): Database {
     paymentSessions: Array.isArray(parsed.paymentSessions) ? parsed.paymentSessions : [],
     cctpOperations: Array.isArray(parsed.cctpOperations) ? parsed.cctpOperations : [],
     fiatPayouts: Array.isArray(parsed.fiatPayouts) ? parsed.fiatPayouts : [],
+    gatewayDeposits: Array.isArray(parsed.gatewayDeposits) ? parsed.gatewayDeposits : [],
     escrows: Array.isArray(parsed.escrows) ? parsed.escrows : [],
   };
 }
@@ -354,11 +379,12 @@ async function readDatabase(): Promise<Database> {
       paymentSessions: parsed.paymentSessions ?? [],
       cctpOperations: parsed.cctpOperations ?? [],
       fiatPayouts: parsed.fiatPayouts ?? [],
+      gatewayDeposits: parsed.gatewayDeposits ?? [],
       escrows: parsed.escrows ?? [],
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    return { users: [], invoices: [], paymentSessions: [], cctpOperations: [], fiatPayouts: [], escrows: [] };
+    return { users: [], invoices: [], paymentSessions: [], cctpOperations: [], fiatPayouts: [], gatewayDeposits: [], escrows: [] };
   }
 }
 
