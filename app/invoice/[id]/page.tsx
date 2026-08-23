@@ -21,7 +21,7 @@ function fundingLabel(method: "arc_wallet" | "unified_balance" | "cctp_bridge" |
   if (method === "cctp_bridge") return "Circle CCTP V2";
   if (method === "unified_balance") return "Gateway unified balance";
   if (method === "fiat_bank") return "Sandbox fiat ledger";
-  return "Arc wallet";
+  return "Direct wallet";
 }
 
 export default async function PublicInvoicePage({ params }: { params: Promise<{ id: string }> }) {
@@ -37,7 +37,7 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
       <header><a href="/"><span className="og-logo"><i /><i /><i /></span><b>offgrid</b></a><div className="receipt-header-actions"><a className="receipt-back" href="/"><ArrowLeft size={13} /> Back to dashboard</a><span><i /> VERIFIED RECEIPT</span><ThemeToggle /></div></header>
       <article className="public-receipt">
         <div className="public-glow"><span><Zap size={25} /></span></div>
-        <p className="invoice-status">{isFiat ? "FINALIZED IN SANDBOX LEDGER" : "FINALIZED ON ARC TESTNET"}</p>
+        <p className="invoice-status">{isFiat ? "FINALIZED IN SANDBOX LEDGER" : "PAYMENT CONFIRMED"}</p>
         <h1><span>{Number(invoice.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span><em>USDC</em></h1>
         <p>{isFiat ? <>A sandbox fiat transfer from <b>{sender?.displayName ?? "OffGrid user"}</b> to <b>{invoice.recipientLabel}</b>.</> : <>A real testnet transfer from <b>{sender?.displayName ?? "OffGrid user"}</b> to <b>{invoice.recipientLabel}</b>.</>}</p>
         <div className="public-route"><span><small>FROM</small><b>{sender?.displayName ?? "OffGrid user"}</b><em>@{sender?.username ?? "private"}</em></span><i><Zap size={14} /></i><span><small>TO</small><b>{invoice.recipientLabel}</b><em>{isFiat ? "Sandbox ledger" : short(invoice.recipientAddress)}</em></span></div>

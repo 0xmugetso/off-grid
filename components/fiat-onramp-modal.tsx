@@ -94,7 +94,7 @@ export function FiatOnRampModal({
         {/* Top Header & Tabs */}
         <div className="onramp-top-bar">
           <div className="onramp-simple-header">
-            <span className="section-tag">ARC FIAT ON-RAMP</span>
+            <span className="section-tag">FIAT ON-RAMP</span>
             <h2>Buy USDC with Fiat</h2>
             <div className="onramp-target-pill">
               <ShieldCheck size={14} />
@@ -162,7 +162,7 @@ export function FiatOnRampModal({
               </div>
               <div className="stripe-checkout-box">
                 <div>
-                  <span>Target Arc Wallet</span>
+                  <span>Destination wallet</span>
                   <b>{shortAddress(effectiveAddress, 8)}</b>
                 </div>
                 <div>

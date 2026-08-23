@@ -134,7 +134,7 @@ export async function POST(request: Request) {
   const observations = await mapWithConcurrency(candidates, 8, async (candidate) => ({ candidate, message: await queryIris(candidate) }));
   const cctp = observations.filter((observation): observation is { candidate: Candidate; message: IrisMessage } => Boolean(observation.message));
   if (hasManualInput && !cctp.length) {
-    return NextResponse.json({ error: "Circle has not indexed a CCTP message for this source transaction. Verify the chain and burn hash, or retry after finality." }, { status: 404 });
+    return NextResponse.json({ error: "Circle has not indexed a CCTP message for this source transaction. Verify the chain and burn hash, or retry after source confirmation." }, { status: 404 });
   }
 
   const result = await mutateDatabase((database) => {

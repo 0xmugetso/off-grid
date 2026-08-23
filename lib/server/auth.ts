@@ -99,6 +99,7 @@ export async function authenticateOrRegisterSiweUser(input: {
   address: string;
   message: string;
   signature: string;
+  mode?: "signin" | "register";
   username?: string;
   displayName?: string;
 }) {
@@ -115,11 +116,18 @@ export async function authenticateOrRegisterSiweUser(input: {
   const defaultHandle = `${verifiedAddress.slice(0, 6)}...${verifiedAddress.slice(-4)}`;
   const requestedUsername = (input.username?.trim() || defaultHandle).toLowerCase();
   const requestedDisplayName = input.displayName?.trim() || input.username?.trim() || defaultHandle;
+  if (input.username?.trim() && !/^[a-z0-9][a-z0-9_-]{2,23}$/.test(requestedUsername)) {
+    throw new Error("Username must be 3 to 24 characters using letters, numbers, underscores, or hyphens");
+  }
 
   return mutateDatabase((database) => {
     let user = database.users.find(
       (u) => u.walletAddress && u.walletAddress.toLowerCase() === normalizedAddress
     );
+
+    if (!user && input.mode === "signin") {
+      throw new Error("No OffGrid account is linked to this wallet. Choose Register to create one.");
+    }
 
     if (user) {
       // Update display name or username if provided
@@ -130,7 +138,7 @@ export async function authenticateOrRegisterSiweUser(input: {
     } else {
       // Create new SIWE user
       const takenUsername = database.users.some((u) => u.username === requestedUsername);
-      const finalUsername = takenUsername ? `${requestedUsername}_${randomBytes(2).toString("hex")}` : requestedUsername;
+      const finalUsername = takenUsername ? `${requestedUsername.slice(0, 19)}_${randomBytes(2).toString("hex")}` : requestedUsername;
 
       user = {
         id: randomUUID(),

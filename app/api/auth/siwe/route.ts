@@ -7,6 +7,7 @@ export async function POST(request: Request) {
       address?: string;
       message?: string;
       signature?: string;
+      mode?: "signin" | "register";
       username?: string;
       displayName?: string;
     };
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
       address: body.address,
       message: body.message,
       signature: body.signature,
+      mode: body.mode,
       username: body.username,
       displayName: body.displayName,
     });

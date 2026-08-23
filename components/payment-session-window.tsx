@@ -40,10 +40,10 @@ function SessionProgressBar({ session, isClearing }: { session: PaymentSessionVi
       ? "Wallet destination set"
       : session.actionRole === "receiver" ? "Choose receiving rail" : "Counterparty choice";
   const clearingLabel = payer === "fiat_bank" && receiver === "web3_usdc"
-    ? "Minting USDC on Arc"
+    ? "Minting destination USDC"
     : payer === "web3_usdc" && receiver === "fiat_bank"
       ? "Routing fiat payout"
-      : "Arc USDC transfer";
+      : "USDC transfer";
   const finalLabel = receiver === "fiat_bank" ? "Fiat payout sent" : "USDC received";
 
   return (
@@ -187,7 +187,7 @@ export function PaymentSessionWindow({ token }: { token: string }) {
       // Never fall back to a demo address: a missing deployment must stop before signing.
       const escrowRecipient = process.env.NEXT_PUBLIC_ARC_SETTLEMENT_ADDRESS;
       if (!escrowRecipient || !/^0x[a-fA-F0-9]{40}$/.test(escrowRecipient)) {
-        throw new Error("Crypto-to-fiat settlement is not configured: set NEXT_PUBLIC_ARC_SETTLEMENT_ADDRESS to the audited Arc settlement contract");
+        throw new Error("Crypto-to-fiat settlement is not configured: set NEXT_PUBLIC_ARC_SETTLEMENT_ADDRESS to the audited settlement contract");
       }
       await client.sendArcUsdc(adapter, escrowRecipient, session.amount);
 
@@ -249,7 +249,7 @@ export function PaymentSessionWindow({ token }: { token: string }) {
                 <h2>How do you want to {session.actionRole === "payer" ? "pay" : "receive"}?</h2>
                 <p>Your selection becomes part of the locked two-party payment terms.</p>
                 <div className="session-rail-options">
-                  <button type="button" className={rail === "web3_usdc" ? "active" : ""} onClick={() => setRail("web3_usdc")}><Wallet size={19} /><span><b>Web3 USDC</b><small>Arc, Gateway, or CCTP</small></span>{rail === "web3_usdc" ? <Check size={15} /> : null}</button>
+                  <button type="button" className={rail === "web3_usdc" ? "active" : ""} onClick={() => setRail("web3_usdc")}><Wallet size={19} /><span><b>Web3 USDC</b><small>Direct, Gateway, or CCTP</small></span>{rail === "web3_usdc" ? <Check size={15} /> : null}</button>
                   <button type="button" className={rail === "fiat_bank" ? "active" : ""} onClick={() => setRail("fiat_bank")}><Banknote size={19} /><span><b>Bank / fiat</b><small>Circle Mint wire settlement</small></span>{rail === "fiat_bank" ? <Check size={15} /> : null}</button>
                 </div>
 
@@ -272,9 +272,9 @@ export function PaymentSessionWindow({ token }: { token: string }) {
                 <span className="section-tag">BOTH SIDES LOCKED</span>
                 <h2>
                   {session.payerRail === "web3_usdc" && session.receiverRail === "fiat_bank"
-                    ? "Arc Crypto-to-Fiat Settlement"
+                    ? "Crypto-to-Fiat Settlement"
                     : session.payerRail === "fiat_bank" && session.receiverRail === "web3_usdc"
-                    ? "Arc Fiat-to-Crypto Settlement"
+                    ? "Fiat-to-Crypto Settlement"
                     : session.actionRole === "payer"
                     ? "Ready for your signature"
                     : "Waiting for payer execution"}
@@ -297,14 +297,14 @@ export function PaymentSessionWindow({ token }: { token: string }) {
                   <>
                     <p>
                       {session.actionRole === "payer"
-                        ? "Payer signs USDC from a Web3 wallet to the configured Arc settlement contract. Circle Mint can wire fiat only after the provider and compliance workflow are configured."
-                        : "Waiting for the payer to sign USDC transfer onto Arc. Circle Mint will wire fiat directly to your bank account."}
+                        ? "Payer signs USDC from a Web3 wallet to the configured settlement contract. Circle Mint can wire fiat only after the provider and compliance workflow are configured."
+                        : "Waiting for the payer to sign the USDC transfer. Circle Mint will wire fiat directly to your bank account."}
                     </p>
                     {session.actionRole === "payer" && (
                       <div className="fiat-action-row" style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", marginTop: "14px" }}>
                         <button className="session-cta session-cta-primary" onClick={executeBankWirePayout} disabled={fiatBusy}>
                           {fiatBusy ? <LoaderCircle className="spin" size={16} /> : <Zap size={16} />}
-                          <span>{fiatBusy ? "Clearing on Arc & Wiring Fiat..." : "Sign USDC & Execute Bank Wire Payout ⚡"}</span>
+                          <span>{fiatBusy ? "Clearing USDC and wiring fiat..." : "Sign USDC and execute bank payout"}</span>
                         </button>
                       </div>
                     )}
@@ -315,7 +315,7 @@ export function PaymentSessionWindow({ token }: { token: string }) {
                   <>
                     <p>
                       {session.actionRole === "payer"
-                        ? "Payer sends fiat wire/card deposit to Circle Mint Sandbox. Circle Mint mints USDC on Arc Testnet, clearing in ~0.48s directly into the receiver's Web3 wallet address."
+                        ? "Payer sends a fiat wire or card deposit to Circle Mint Sandbox. Circle Mint mints USDC on Arc Testnet directly into the receiver's Web3 wallet address."
                         : "Waiting for the payer to complete bank wire deposit. USDC will be minted on Arc Testnet directly to your Web3 wallet."}
                     </p>
                     {session.actionRole === "payer" && (

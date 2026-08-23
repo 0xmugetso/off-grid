@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       auditProof: {
         sessionId: randomUUID(),
         createdAt: now.toISOString(),
-        network: "Arc Testnet (~0.48s finality)",
+        network: "Arc Testnet",
       },
       amount: formatUsdc(parsedAmount),
       currency: "USD",

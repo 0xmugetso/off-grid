@@ -4,7 +4,7 @@ import "./mass-payment.css";
 
 export const metadata: Metadata = {
   title: "OffGrid - Money without borders",
-  description: "Real testnet payments powered by Arc and Circle App Kit.",
+  description: "Real testnet payments with direct wallet, Gateway, CCTP, and escrow settlement.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

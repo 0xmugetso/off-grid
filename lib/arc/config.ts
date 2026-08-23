@@ -5,7 +5,6 @@ export const ARC = {
   rpcUrl: process.env.NEXT_PUBLIC_ARC_RPC_URL ?? "https://rpc.testnet.arc.io",
   explorerUrl: "https://testnet.arcscan.app",
   cctpDomain: 26,
-  finalityMs: 480,
   nativeGasDecimals: 18,
   usdcDecimals: 6,
   contracts: {
