@@ -266,6 +266,7 @@ html.theme-transitioning .theme-toggle,html.theme-transitioning .theme-toggle *,
 .faucet-card p { color: var(--faint); font-size: 7px; line-height: 1.4; margin: 4px 0 0; }
 .faucet-card > a { margin-left: auto; width: 27px; height: 27px; border-radius: 50%; background: var(--acid); color: #0a0c08; display: grid; place-items: center; }
 .gateway-deposit-stack { margin: -2px 0 12px; border: 1px solid rgba(78,220,255,.18); border-radius: 9px; background: rgba(8,12,9,.72); overflow: hidden; }
+.history-gateway-deposits { margin: 0 0 14px; animation: soft-reveal .28s ease-out both; }
 .gateway-deposit-stack-head { min-height: 48px; padding: 10px 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }.gateway-deposit-stack-head > div { display: grid; gap: 3px; }.gateway-deposit-stack-head small { color: var(--cyan); font: 6px var(--mono); letter-spacing: .12em; }.gateway-deposit-stack-head b { font-size: 9px; }.gateway-deposit-stack-head button { height: 28px; padding: 0 9px; border: 1px solid var(--line-bright); border-radius: 4px; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 5px; font-size: 7px; cursor: pointer; }
 .gateway-status { min-height: 68px; margin: 0; padding: 11px 14px; border: 0; border-bottom: 1px solid var(--line); background: linear-gradient(110deg,rgba(78,220,255,.045),rgba(199,255,61,.012)); display: grid; grid-template-columns: 34px minmax(0,1fr) auto; gap: 10px; align-items: center; position: relative; overflow: hidden; }.gateway-status:last-child { border-bottom: 0; }
 .gateway-status::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 2px; background: var(--cyan); box-shadow: 0 0 18px var(--cyan); }
@@ -3732,10 +3733,14 @@ html[data-theme="light"] .escrow-route-line,html[data-theme="light"] .escrow-evi
 .history-view .ledger-select span { font-size: 7px; }
 .history-view .ledger-select select { font-size: 9px; }
 .history-view .ledger-table th { font-size: 7px; }
-.history-view .ledger-status,.history-view .route-badge,.history-view .tx-not-submitted { font-size: 8px; }
-.history-view .ledger-activity>b { font-size: 10px; }
-.history-view .ledger-activity>small { font-size: 8px; }
-.history-view .ledger-activity summary,.history-view .ledger-activity details span { font-size: 7px; }
+.history-view .ledger-status,.history-view .route-badge,.history-view .tx-not-submitted { font-size: 9px; }
+.history-view .ledger-activity>b { font-size: 12px; }
+.history-view .ledger-activity>small { font-size: 9px; }
+.history-view .ledger-activity summary,.history-view .ledger-activity details span { font-size: 8px; }
+.history-view .tx-id code,.history-view .ledger-table time { font-size: 9px; }
+.history-view .ledger-table time small { font-size: 7px; }
+.history-view .ledger-table td>strong { font-size: 16px; line-height: 1; }
+.history-view .ledger-table td>strong small { margin-top: 5px; font-size: 7px; }
 .history-view .ledger-proof-button { min-height: 28px; font-size: 8px; }
 .history-proof-modal>p { font-size: 11px; }
 .history-proof-summary small,.history-proof-meta small { font-size: 8px; }

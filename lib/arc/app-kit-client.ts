@@ -139,6 +139,43 @@ function withReliablePublicReads(provider: EIP1193Provider): EIP1193Provider {
     on: provider.on.bind(provider),
     removeListener: provider.removeListener.bind(provider),
     request: (async (request: { method: string; params?: unknown }) => {
+      if (request.method === "eth_sendTransaction") {
+        const currentChainId = await provider.request({ method: "eth_chainId" });
+        const numericChainId = typeof currentChainId === "string" ? Number.parseInt(currentChainId, 16) : Number(currentChainId);
+        const chain = VIEM_CHAIN_BY_ID.get(numericChainId);
+        const params = Array.isArray(request.params) ? request.params : [];
+        const transaction = params[0];
+
+        if (chain && transaction && typeof transaction === "object") {
+          const publicClient = createPublicClient({ chain, transport: publicTransportFor(chain) });
+          const rpc = publicClient as unknown as {
+            request(args: { method: string; params?: readonly unknown[] }): Promise<unknown>;
+          };
+          const prepared = { ...(transaction as Record<string, unknown>) };
+          const from = typeof prepared.from === "string" ? prepared.from : "";
+
+          // Give the signer every public-chain value it needs up front. Rabby
+          // otherwise asks its saved network RPC for the nonce and gas while
+          // opening the confirmation screen. Some existing Sepolia profiles
+          // still point at the retired sepolia.drpc.org free endpoint.
+          if (from && prepared.nonce === undefined) {
+            prepared.nonce = await rpc.request({ method: "eth_getTransactionCount", params: [from, "pending"] });
+          }
+          if (prepared.gas === undefined) {
+            const estimate = await rpc.request({ method: "eth_estimateGas", params: [prepared] });
+            if (typeof estimate === "string") {
+              prepared.gas = `0x${((BigInt(estimate) * 120n) / 100n).toString(16)}`;
+            }
+          }
+          if (prepared.gasPrice === undefined && prepared.maxFeePerGas === undefined) {
+            prepared.gasPrice = await rpc.request({ method: "eth_gasPrice" });
+          }
+          prepared.chainId ??= `0x${chain.id.toString(16)}`;
+
+          return provider.request({ ...request, params: [prepared, ...params.slice(1)] } as Parameters<EIP1193Provider["request"]>[0]);
+        }
+      }
+
       if (!PUBLIC_RPC_METHODS.has(request.method)) {
         return provider.request(request as Parameters<EIP1193Provider["request"]>[0]);
       }

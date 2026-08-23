@@ -286,7 +286,8 @@ function compactPaymentError(message: string) {
 function describeGatewayDepositIssue(message: string, chain: SourceChain) {
   const source = CHAIN_LABELS[chain];
   if (/user rejected|user denied|rejected the request|request rejected/i.test(message)) return "Deposit cancelled in your wallet. No Gateway transaction was submitted.";
-  if (/chain is not available on free plan|sepolia\.drpc\.org|rpc request failed|failed to fetch|network request failed|timeout|timed out/i.test(message)) return `${source} could not complete the network check. OffGrid will use a chain-specific public RPC when you retry. No deposit was submitted.`;
+  if (/chain is not available on free plan|sepolia\.drpc\.org/i.test(message)) return `Your wallet's saved ${source} RPC is unavailable. No transaction was submitted. OffGrid now supplies the nonce and gas from a working public RPC before opening the wallet. Retry the deposit.`;
+  if (/rpc request failed|failed to fetch|network request failed|timeout|timed out/i.test(message)) return `${source} could not complete the network check. No transaction was submitted. Retry when the source network responds.`;
   if (/insufficient funds|insufficient balance/i.test(message)) return `Your ${source} wallet needs enough USDC and native gas for this deposit.`;
   if (/chain.*mismatch|unknown blockchain|unsupported chain/i.test(message)) return `Switch your wallet to ${source}, then review the Gateway deposit again.`;
   return compactPaymentError(message) || "The Gateway deposit could not be submitted.";
@@ -725,6 +726,24 @@ function HistoryView({ invoices, paymentSessions, deposits, walletAddress, cctpO
   const [gatewayRecoveryAmount, setGatewayRecoveryAmount] = useState("");
   const [gatewayRecoveryBusy, setGatewayRecoveryBusy] = useState(false);
   const [gatewayRecoveryNote, setGatewayRecoveryNote] = useState("");
+  const [depositTrackerNow, setDepositTrackerNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const terminalExpiry = deposits
+      .filter((deposit) => deposit.status === "confirmed" || deposit.status === "failed")
+      .map((deposit) => Date.parse(deposit.updatedAt) + 15_000)
+      .filter((expiry) => Number.isFinite(expiry) && expiry > Date.now())
+      .sort((a, b) => a - b)[0];
+    if (!terminalExpiry) return;
+    const timer = window.setTimeout(() => setDepositTrackerNow(Date.now()), Math.max(250, terminalExpiry - Date.now() + 50));
+    return () => window.clearTimeout(timer);
+  }, [deposits, depositTrackerNow]);
+
+  const trackedDeposits = deposits.filter((deposit) => {
+    if (deposit.status !== "confirmed" && deposit.status !== "failed") return true;
+    const updatedAt = Date.parse(deposit.updatedAt);
+    return Number.isFinite(updatedAt) && depositTrackerNow - updatedAt < 15_000;
+  });
 
   const entries = useMemo<LedgerEntry[]>(() => {
     const payments = invoices.map((item): LedgerEntry => {
@@ -865,6 +884,17 @@ function HistoryView({ invoices, paymentSessions, deposits, walletAddress, cctpO
     <form className="cctp-hash-recovery" onSubmit={(event) => { event.preventDefault(); void recoverHash(); }}><div><span className="section-tag">MISSING A CCTP TRANSFER?</span><p>Paste its source-chain burn hash. OffGrid verifies it with Circle and restores the live attestation or destination mint status.</p></div><ChainSelect value={recoveryChain} chains={CCTP_SOURCE_CHAINS.filter((chain) => chain !== "Solana_Devnet")} onChange={(chain) => setRecoveryChain(chain as CctpSourceChain)} /><label><Search size={13}/><input value={recoveryHash} onChange={(event) => setRecoveryHash(event.target.value.trim())} placeholder="0x source transaction hash" /></label><button type="submit" disabled={manualRecoveryBusy || !/^0x[a-fA-F0-9]{64}$/.test(recoveryHash)}>{manualRecoveryBusy ? <LoaderCircle className="spin" size={12}/> : <Blocks size={12}/>} Track Transfer</button></form>
     <div className="gateway-recovery-toggle"><button onClick={() => setGatewayRecoveryOpen((open) => !open)}><ArrowDownToLine size={13}/> Missing A Gateway Deposit? <ChevronDown className={gatewayRecoveryOpen ? "open" : ""} size={12}/></button>{gatewayRecoveryOpen && <form onSubmit={recoverGatewayDeposit}><ChainSelect value={gatewayRecoveryChain} chains={SOURCE_CHAINS.filter((chain) => chain !== "Solana_Devnet")} onChange={(chain) => setGatewayRecoveryChain(chain)} /><label><input value={gatewayRecoveryAmount} onChange={(event) => setGatewayRecoveryAmount(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="Amount"/><span>USDC</span></label><label><Search size={12}/><input value={gatewayRecoveryHash} onChange={(event) => setGatewayRecoveryHash(event.target.value.trim())} placeholder="0x deposit transaction hash"/></label><button type="submit" disabled={gatewayRecoveryBusy || !(Number(gatewayRecoveryAmount) > 0) || !/^0x[a-fA-F0-9]{64}$/.test(gatewayRecoveryHash)}>{gatewayRecoveryBusy ? <LoaderCircle className="spin" size={12}/> : <Radio size={12}/>} Restore Proof</button></form>}{gatewayRecoveryNote && <p>{gatewayRecoveryNote}</p>}</div>
     <CctpOperationsTray operations={cctpOperations} onRefresh={onRefreshCctp} />
+    {trackedDeposits.length > 0 && <section className="gateway-deposit-stack history-gateway-deposits">
+      <div className="gateway-deposit-stack-head"><div><small>GATEWAY DEPOSIT TRACKING</small><b>{trackedDeposits.filter((deposit) => deposit.status !== "confirmed" && deposit.status !== "failed").length} active, with confirmed results clearing after 15 seconds</b></div><button onClick={onRefreshGateway}><RefreshCw size={12} /> Refresh Proof</button></div>
+      {trackedDeposits.slice(0, 4).map((deposit) => {
+        const presentation = gatewayDepositPresentation(deposit);
+        return <article className={`gateway-status ${deposit.status} ${presentation.delayed ? "delayed" : ""}`} key={deposit.id}>
+          <span className="gateway-status-icon">{deposit.status === "confirmed" ? <CircleCheck size={19} /> : deposit.status === "failed" || presentation.delayed ? <Clock size={19} /> : <LoaderCircle className="spin" size={19} />}</span>
+          <div><small>{presentation.label.toUpperCase()} <em>{presentation.elapsed}</em></small><b>{displayMoney(deposit.amount)} USDC from {SOURCE_CHAINS.includes(deposit.sourceChain as SourceChain) ? <ChainName chain={deposit.sourceChain as SourceChain} size={17}/> : deposit.sourceChain}</b><code className="gateway-tracking-hash">TX {shortAddress(deposit.txHash, 7)}</code><p>{presentation.detail}</p></div>
+          <div className="gateway-status-actions"><a href={gatewayExplorerUrl(deposit.sourceChain as SourceChain, deposit.txHash)} target="_blank" rel="noreferrer">Source Proof <ExternalLink size={12} /></a><button onClick={() => onSelectEntry(gatewayDepositLedgerEntry(deposit))}><Receipt size={12} /> View Proof</button></div>
+        </article>;
+      })}
+    </section>}
     <div className="history-stats">
       <article><small>TOTAL ACTIVITY</small><b>{entries.length}</b><p>{confirmed} confirmed · {pending} in flight · {failed} failed</p></article>
       <article><small>ONCHAIN VOLUME</small><b>{displayMoney(volume)} <em>USDC</em></b><p>Only submitted or confirmed transactions</p></article>
@@ -2726,18 +2756,6 @@ export function OffGridDashboard() {
                 <article className="real-balance"><div><span className="balance-icon gateway">{gatewayLoading ? <LoaderCircle className="spin" size={16}/> : <Network size={16} />}</span><small>UNIFIED BALANCE</small><button onClick={() => loadBalances()} aria-label="Refresh balances"><RefreshCw className={gatewayLoading ? "spin" : ""} size={13} /></button></div><b>{unifiedBalance === null ? "0.00" : displayMoney(unifiedBalance)} <em>USDC</em></b><p className={gatewayError ? "balance-read-error" : ""} title={gatewayError || undefined}>{gatewayLoading ? "Reading live Circle Gateway balance" : gatewayError || (unifiedBalance === null ? "Connect wallet to load Gateway" : pendingBalance && Number(pendingBalance) > 0 ? `${displayMoney(pendingBalance)} USDC pending` : "Circle Gateway · confirmed")}</p><button className="deposit-link" onClick={() => { setDepositError(""); setShowFunding(true); }}><Plus size={12} /> Deposit</button></article>
                 <article className="real-balance total-money"><div><span className="balance-icon total-money"><Wallet size={16} /></span><small>TOTAL MONEY</small><button onClick={() => { void loadBalances(); }} aria-label="Refresh total money"><RefreshCw size={13} /></button></div><b>{totalMoney === null ? "-" : displayMoney(totalMoney)} <em>USDC</em></b><p>{totalMoney === null ? "Reading confirmed balances" : "Direct Arc Testnet wallet plus confirmed unified balance"}</p></article>
               </section>
-
-              {gatewayDeposits.length > 0 && <section className="gateway-deposit-stack">
-                <div className="gateway-deposit-stack-head"><div><small>GATEWAY DEPOSITS</small><b>{gatewayDeposits.filter((deposit) => deposit.status !== "confirmed" && deposit.status !== "failed").length} tracking in background</b></div><button onClick={() => void refreshGatewayDeposits()}><RefreshCw size={12} /> Refresh Proof</button></div>
-                {gatewayDeposits.slice(0, 3).map((deposit) => {
-                  const presentation = gatewayDepositPresentation(deposit);
-                  return <article className={`gateway-status ${deposit.status} ${presentation.delayed ? "delayed" : ""}`} key={deposit.id}>
-                    <span className="gateway-status-icon">{deposit.status === "confirmed" ? <CircleCheck size={19} /> : deposit.status === "failed" || presentation.delayed ? <Clock size={19} /> : <LoaderCircle className="spin" size={19} />}</span>
-                    <div><small>{presentation.label.toUpperCase()} <em>{presentation.elapsed}</em></small><b>{displayMoney(deposit.amount)} USDC from {SOURCE_CHAINS.includes(deposit.sourceChain as SourceChain) ? <ChainName chain={deposit.sourceChain as SourceChain} size={17}/> : deposit.sourceChain}</b><code className="gateway-tracking-hash">TX {shortAddress(deposit.txHash, 7)}</code><p>{presentation.detail}</p></div>
-                    <div className="gateway-status-actions"><a href={gatewayExplorerUrl(deposit.sourceChain as SourceChain, deposit.txHash)} target="_blank" rel="noreferrer">Source Proof <ExternalLink size={12} /></a><button onClick={() => { setActiveView("history"); setSelectedProofEntry(gatewayDepositLedgerEntry(deposit)); }}><Receipt size={12} /> History</button></div>
-                  </article>;
-                })}
-              </section>}
 
               <section className="pay-console" id="payment-console">
                 <div className="console-head"><div><span className="section-tag">NEW PAYMENT</span><h2>Send with zero ambiguity.</h2></div><div className="stepper">{["recipient","amount","review"].map((item,index) => <span key={item} className={step === item || (step === "processing" && index === 2) ? "active" : ""}><i>{index + 1}</i>{item}</span>)}</div></div>
