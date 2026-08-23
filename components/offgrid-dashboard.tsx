@@ -122,7 +122,10 @@ type GatewayDeposit = {
   txHash: string;
   explorerUrl: string | null;
   observedGatewayBalance: string | null;
+  confirmedBefore: string | null;
+  expectedConfirmed: string | null;
   sourceBlockNumber: string | null;
+  sourceConfirmedAt: string | null;
   gatewayPendingObserved: boolean;
   errorMessage: string | null;
   createdAt: string;
@@ -615,12 +618,75 @@ function proofSteps(entry: LedgerEntry): Array<{ label: string; detail: string; 
   ];
 }
 
+type GatewayDepositPresentation = {
+  label: string;
+  detail: string;
+  delayed: boolean;
+  elapsed: string;
+};
+
+function formatGatewayElapsed(milliseconds: number) {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1_000));
+  if (seconds < 60) return `${seconds}s elapsed`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m elapsed`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m elapsed`;
+}
+
+function gatewayDepositPresentation(deposit: GatewayDeposit): GatewayDepositPresentation {
+  const startedAt = Date.parse(deposit.sourceConfirmedAt || deposit.createdAt);
+  const elapsedMs = Number.isFinite(startedAt) ? Math.max(0, Date.now() - startedAt) : 0;
+  const elapsed = formatGatewayElapsed(elapsedMs);
+
+  if (deposit.status === "confirmed") return {
+    label: "Balance Credited",
+    detail: "Circle Gateway indexed this deposit and added it to the spendable unified balance.",
+    delayed: false,
+    elapsed,
+  };
+  if (deposit.status === "failed") return {
+    label: "Deposit Failed",
+    detail: deposit.errorMessage || "The source-chain deposit failed.",
+    delayed: false,
+    elapsed,
+  };
+  if (deposit.status === "submitted") return {
+    label: "Source Confirmation",
+    detail: "The wallet submitted the deposit. OffGrid is waiting for its source-chain receipt before tracking Circle.",
+    delayed: false,
+    elapsed,
+  };
+
+  const timing = deposit.sourceChain === "Arc_Testnet"
+    ? { expected: "about 0.5 seconds", delayedAfterMs: 15_000 }
+    : deposit.sourceChain === "Solana_Devnet"
+      ? { expected: "about 8 seconds", delayedAfterMs: 30_000 }
+      : { expected: "about 13 to 19 minutes", delayedAfterMs: 20 * 60_000 };
+  const delayed = elapsedMs > timing.delayedAfterMs;
+
+  if (delayed) return {
+    label: "Circle Indexing Delayed",
+    detail: `The deposit is final onchain. Circle's testnet Gateway has not credited it after ${elapsed.replace(" elapsed", "")}. Normal finality for this chain is ${timing.expected}. No second deposit is needed.`,
+    delayed: true,
+    elapsed,
+  };
+  if (deposit.status === "indexing" || deposit.gatewayPendingObserved) return {
+    label: "Circle Indexing",
+    detail: `Circle detected the deposit and is waiting for finality. This chain normally reaches Gateway credit in ${timing.expected}.`,
+    delayed: false,
+    elapsed,
+  };
+  return {
+    label: "Source Confirmed",
+    detail: `The Gateway contract accepted the deposit onchain. Circle is waiting for finality and ledger indexing, normally ${timing.expected}.`,
+    delayed: false,
+    elapsed,
+  };
+}
+
 function gatewayDepositDetail(deposit: GatewayDeposit) {
-  if (deposit.status === "confirmed") return "Circle Gateway indexed this deposit and made it available to the unified balance.";
-  if (deposit.status === "indexing") return "Circle has detected the deposit and is waiting for source-chain finality.";
-  if (deposit.status === "source_confirmed") return "The Gateway contract accepted the deposit onchain. Circle is waiting for finality before crediting it.";
-  if (deposit.status === "failed") return deposit.errorMessage || "The source-chain deposit failed.";
-  return "The wallet submitted the Gateway deposit. Waiting for source-chain confirmation.";
+  return gatewayDepositPresentation(deposit).detail;
 }
 
 function HistoryView({ invoices, paymentSessions, deposits, walletAddress, cctpOperations, fiatPayouts, recovering, recoveryNote, onRecover, onRefreshCctp, onRefreshGateway, onRefreshFiat, onSelectEntry }: { invoices: InvoiceData[]; paymentSessions: PaymentSessionView[]; deposits: GatewayDeposit[]; walletAddress: string; cctpOperations: CctpOperation[]; fiatPayouts: FiatPayout[]; recovering: boolean; recoveryNote: string; onRecover: () => void; onRefreshCctp: () => void; onRefreshGateway: () => void; onRefreshFiat: () => void; onSelectEntry: (entry: LedgerEntry) => void }) {
@@ -721,7 +787,7 @@ function HistoryView({ invoices, paymentSessions, deposits, walletAddress, cctpO
     const ledger = [...fiatEntries, ...allPayments];
     return [...deposits.map((deposit): LedgerEntry => ({
       id: `deposit-${deposit.id}`,
-      activity: "Fund unified balance",
+      activity: "Fund Unified Balance",
       detail: gatewayDepositDetail(deposit),
       kind: "deposit",
       rail: `${CHAIN_LABELS[deposit.sourceChain as SourceChain] ?? deposit.sourceChain} → Gateway`,
@@ -732,7 +798,7 @@ function HistoryView({ invoices, paymentSessions, deposits, walletAddress, cctpO
       createdAt: deposit.createdAt,
       logs: [
         { name: "Gateway source transaction", txHash: deposit.txHash, explorerUrl: deposit.explorerUrl ?? undefined },
-        { name: deposit.status === "confirmed" ? "Circle Gateway balance credited" : `Gateway status: ${deposit.status.replaceAll("_", " ")}` },
+        { name: deposit.status === "confirmed" ? "Circle Gateway Balance Credited" : gatewayDepositPresentation(deposit).label },
       ],
     })), ...ledger];
   }, [cctpOperations, deposits, fiatPayouts, invoices, paymentSessions]);
@@ -790,8 +856,8 @@ function HistoryView({ invoices, paymentSessions, deposits, walletAddress, cctpO
   return <section className="history-view">
     <div className="view-heading"><div><span className="section-tag">TRANSACTION INTELLIGENCE</span><h1>History</h1><p>Every real OffGrid settlement, protocol log, and transaction proof in one place.</p></div><div className="history-live-actions"><button className="quiet-refresh" onClick={onRecover} disabled={recovering}>{recovering ? <LoaderCircle className="spin" size={13}/> : <RefreshCw size={13}/>} {recovering ? "Scanning chains…" : "Recover CCTP"}</button><span className="live-data-pill"><i /> LIVE TESTNET DATA</span></div></div>
     {(recoveryNote || manualRecoveryNote) && <p className="history-recovery-note"><CircleCheck size={13}/>{manualRecoveryNote || recoveryNote}</p>}
-    <form className="cctp-hash-recovery" onSubmit={(event) => { event.preventDefault(); void recoverHash(); }}><div><span className="section-tag">MISSING A CCTP TRANSFER?</span><p>Paste its source-chain burn hash. OffGrid verifies it with Circle and restores the live attestation or destination mint status.</p></div><ChainSelect value={recoveryChain} chains={CCTP_SOURCE_CHAINS.filter((chain) => chain !== "Solana_Devnet")} onChange={(chain) => setRecoveryChain(chain as CctpSourceChain)} /><label><Search size={13}/><input value={recoveryHash} onChange={(event) => setRecoveryHash(event.target.value.trim())} placeholder="0x source transaction hash" /></label><button type="submit" disabled={manualRecoveryBusy || !/^0x[a-fA-F0-9]{64}$/.test(recoveryHash)}>{manualRecoveryBusy ? <LoaderCircle className="spin" size={12}/> : <Blocks size={12}/>} Track transfer</button></form>
-    <div className="gateway-recovery-toggle"><button onClick={() => setGatewayRecoveryOpen((open) => !open)}><ArrowDownToLine size={13}/> Missing a Gateway deposit? <ChevronDown className={gatewayRecoveryOpen ? "open" : ""} size={12}/></button>{gatewayRecoveryOpen && <form onSubmit={recoverGatewayDeposit}><ChainSelect value={gatewayRecoveryChain} chains={SOURCE_CHAINS.filter((chain) => chain !== "Solana_Devnet")} onChange={(chain) => setGatewayRecoveryChain(chain)} /><label><input value={gatewayRecoveryAmount} onChange={(event) => setGatewayRecoveryAmount(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="Amount"/><span>USDC</span></label><label><Search size={12}/><input value={gatewayRecoveryHash} onChange={(event) => setGatewayRecoveryHash(event.target.value.trim())} placeholder="0x deposit transaction hash"/></label><button type="submit" disabled={gatewayRecoveryBusy || !(Number(gatewayRecoveryAmount) > 0) || !/^0x[a-fA-F0-9]{64}$/.test(gatewayRecoveryHash)}>{gatewayRecoveryBusy ? <LoaderCircle className="spin" size={12}/> : <Radio size={12}/>} Restore proof</button></form>}{gatewayRecoveryNote && <p>{gatewayRecoveryNote}</p>}</div>
+    <form className="cctp-hash-recovery" onSubmit={(event) => { event.preventDefault(); void recoverHash(); }}><div><span className="section-tag">MISSING A CCTP TRANSFER?</span><p>Paste its source-chain burn hash. OffGrid verifies it with Circle and restores the live attestation or destination mint status.</p></div><ChainSelect value={recoveryChain} chains={CCTP_SOURCE_CHAINS.filter((chain) => chain !== "Solana_Devnet")} onChange={(chain) => setRecoveryChain(chain as CctpSourceChain)} /><label><Search size={13}/><input value={recoveryHash} onChange={(event) => setRecoveryHash(event.target.value.trim())} placeholder="0x source transaction hash" /></label><button type="submit" disabled={manualRecoveryBusy || !/^0x[a-fA-F0-9]{64}$/.test(recoveryHash)}>{manualRecoveryBusy ? <LoaderCircle className="spin" size={12}/> : <Blocks size={12}/>} Track Transfer</button></form>
+    <div className="gateway-recovery-toggle"><button onClick={() => setGatewayRecoveryOpen((open) => !open)}><ArrowDownToLine size={13}/> Missing A Gateway Deposit? <ChevronDown className={gatewayRecoveryOpen ? "open" : ""} size={12}/></button>{gatewayRecoveryOpen && <form onSubmit={recoverGatewayDeposit}><ChainSelect value={gatewayRecoveryChain} chains={SOURCE_CHAINS.filter((chain) => chain !== "Solana_Devnet")} onChange={(chain) => setGatewayRecoveryChain(chain)} /><label><input value={gatewayRecoveryAmount} onChange={(event) => setGatewayRecoveryAmount(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="Amount"/><span>USDC</span></label><label><Search size={12}/><input value={gatewayRecoveryHash} onChange={(event) => setGatewayRecoveryHash(event.target.value.trim())} placeholder="0x deposit transaction hash"/></label><button type="submit" disabled={gatewayRecoveryBusy || !(Number(gatewayRecoveryAmount) > 0) || !/^0x[a-fA-F0-9]{64}$/.test(gatewayRecoveryHash)}>{gatewayRecoveryBusy ? <LoaderCircle className="spin" size={12}/> : <Radio size={12}/>} Restore Proof</button></form>}{gatewayRecoveryNote && <p>{gatewayRecoveryNote}</p>}</div>
     <CctpOperationsTray operations={cctpOperations} onRefresh={onRefreshCctp} />
     <div className="history-stats">
       <article><small>TOTAL ACTIVITY</small><b>{entries.length}</b><p>{confirmed} confirmed · {pending} in flight · {failed} failed</p></article>
@@ -811,8 +877,8 @@ function UnifiedBalanceView({ walletAddress, walletOnArc, arcBalance, unifiedBal
   const pending = Number(pendingBalance ?? 0);
   const total = confirmed + pending;
   return <section className="unified-view">
-    <div className="view-heading"><div><span className="section-tag">CIRCLE GATEWAY</span><h1>Unified Balance</h1><p>One spendable USDC balance assembled from supported testnet chains.</p></div>{walletAddress && <button className="quiet-refresh" onClick={onRefresh}><RefreshCw size={13} /> Refresh balances</button>}</div>
-    {!walletAddress ? <div className="unified-empty"><Network size={30} /><h2>Connect a wallet to query Gateway.</h2><p>OffGrid will read only real confirmed and pending balances for your connected address.</p><button className="neon-button" onClick={onConnect}><Wallet size={15} /> Connect wallet</button></div> : <>
+    <div className="view-heading"><div><span className="section-tag">CIRCLE GATEWAY</span><h1>Unified Balance</h1><p>One spendable USDC balance assembled from supported testnet chains.</p></div>{walletAddress && <button className="quiet-refresh" onClick={onRefresh}><RefreshCw size={13} /> Refresh Balances</button>}</div>
+    {!walletAddress ? <div className="unified-empty"><Network size={30} /><h2>Connect a wallet to query Gateway.</h2><p>OffGrid will read only real confirmed and pending balances for your connected address.</p><button className="neon-button" onClick={onConnect}><Wallet size={15} /> Connect Wallet</button></div> : <>
       <section className={`unified-hero ${gatewayStale ? "stale" : ""} ${gatewayLoading ? "loading" : ""}`}><div><span>{gatewayLoading ? <LoaderCircle className="spin" size={18}/> : <Network size={18} />}</span><small>TOTAL GATEWAY POSITION</small><b>{displayMoney(total)} <em>USDC</em></b><p>{gatewayLoading ? "Reading your live Circle Gateway position" : gatewayError || (unifiedBalance === null ? "Connect your wallet to load a live Gateway balance" : "Confirmed plus deposits currently indexing")}</p></div><div className="unified-breakdown"><span><small>SPENDABLE NOW</small><b>{displayMoney(confirmed)} USDC</b><i><em style={{ width: `${total > 0 ? (confirmed / total) * 100 : 0}%` }} /></i></span><span><small>PENDING INDEXING</small><b>{displayMoney(pending)} USDC</b><i className="pending"><em style={{ width: `${total > 0 ? (pending / total) * 100 : 0}%` }} /></i></span></div><button className="unified-deposit-cta" onClick={onDeposit}><Plus size={16} /><span><small>ADD LIQUIDITY</small><b>Deposit to Gateway</b></span><ArrowRight size={15} /></button><div className="unified-hero-orbit session-launch-glow" aria-hidden="true" /></section>
       <div className="unified-chain-head"><div><span className="section-tag">SOURCE ALLOCATION</span><h2>Balance by chain</h2><p>Live Gateway positions returned by Circle App Kit for this connected account.</p></div><span><i /> CONFIRMED <i /> PENDING</span></div>
       <div className="unified-chain-grid">{(chainBalances ?? SOURCE_CHAINS.map((chain) => ({ chain, confirmed: "0", pending: "0", queried: chain !== "Solana_Devnet" }))).map((position) => <article className={!position.queried ? "unlinked" : ""} key={position.chain}><div className="unified-chain-logo"><ChainLogo chain={position.chain} size={33}/></div><div><small>{CHAIN_LABELS[position.chain].toUpperCase()}</small><b>{position.queried ? displayMoney(position.confirmed) : "-"} <em>USDC</em></b><p>{!position.queried ? "Connect Solana wallet to query" : Number(position.pending) > 0 ? `${displayMoney(position.pending)} USDC pending` : "Gateway confirmed"}</p></div><span className={Number(position.pending) > 0 ? "pending" : "online"}><i />{Number(position.pending) > 0 ? "INDEXING" : position.queried ? "LIVE" : "UNLINKED"}</span></article>)}</div>
@@ -827,7 +893,7 @@ function CctpOperationsTray({ operations, onRefresh }: { operations: CctpOperati
   if (!visible.length) return null;
   const stage = (status: CctpOperation["status"]) => status === "awaiting_signature" ? "Wallet signature" : status === "attesting" ? "Circle attestation" : status === "minting" ? "Forwarder mint" : "Needs attention";
   return <section className="cctp-operations-tray">
-    <div className="cctp-tray-head"><div><span><Blocks size={15}/><i /></span><div><small>ONCHAIN CCTP TRACKER</small><b>{visible.length} submitted CCTP {visible.length === 1 ? "transfer" : "transfers"} being tracked</b><p>Only source-chain burns appear here. Preflight and wallet errors are never transaction history.</p></div></div><button onClick={onRefresh}><RefreshCw size={12}/> Refresh status</button></div>
+    <div className="cctp-tray-head"><div><span><Blocks size={15}/><i /></span><div><small>ONCHAIN CCTP TRACKER</small><b>{visible.length} submitted CCTP {visible.length === 1 ? "transfer" : "transfers"} being tracked</b><p>Only source-chain burns appear here. Preflight and wallet errors are never transaction history.</p></div></div><button onClick={onRefresh}><RefreshCw size={12}/> Refresh Status</button></div>
     <div className="cctp-operation-list">{visible.map((operation) => <article className={operation.status} key={operation.id}>
       <ChainLogo chain={operation.sourceChain} size={28}/><div className="cctp-operation-main"><span><b>{displayMoney(operation.amount)} USDC</b><i><ArrowRight size={10}/></i><ChainName chain="Arc_Testnet" size={15}/></span><small>TO {operation.recipientLabel} · {shortAddress(operation.recipientAddress)}</small></div>
       <div className="cctp-operation-stage"><span><i />{stage(operation.status)}</span><small>{operation.status === "failed" ? cctpStatusDetail(operation) : operation.status === "attesting" ? "Waiting for source confirmation" : operation.status === "minting" ? "Circle is submitting the destination mint" : "Status is stored securely"}</small></div>
@@ -1584,7 +1650,6 @@ export function OffGridDashboard() {
   const [balanceError, setBalanceError] = useState("");
   const [showFaucetMenu, setShowFaucetMenu] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
-  const [userModalCopied, setUserModalCopied] = useState(false);
   const [selectedProofEntry, setSelectedProofEntry] = useState<LedgerEntry | null>(null);
 
   function disconnectSolanaWallet() {
@@ -1634,7 +1699,6 @@ export function OffGridDashboard() {
   const [protocolEvents, setProtocolEvents] = useState<ProtocolEvent[]>([]);
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
   const [cctpOperations, setCctpOperations] = useState<CctpOperation[]>([]);
-  const [circleMintBalance, setCircleMintBalance] = useState<{ availableUsd: string; unallocatedUsd: string } | null>(null);
   const [cctpRecovering, setCctpRecovering] = useState(false);
   const [cctpRecoveryNote, setCctpRecoveryNote] = useState("");
   const [showSessionCreator, setShowSessionCreator] = useState(false);
@@ -1996,10 +2060,6 @@ export function OffGridDashboard() {
     try {
       const { payouts } = await api<{ payouts: FiatPayout[] }>("/api/fiat/payouts");
       setFiatPayouts(payouts);
-      const statusData = await api<{ realCircleBalance?: { availableUsd: string; unallocatedUsd: string } }>("/api/fiat/status");
-      if (statusData.realCircleBalance) {
-        setCircleMintBalance(statusData.realCircleBalance);
-      }
     } catch {
       // Fiat sandbox refresh is best-effort; a read failure should not break the dashboard.
     }
@@ -2573,6 +2633,10 @@ export function OffGridDashboard() {
   if (booting) return <main className="boot-screen"><Logo /><LoaderCircle className="spin" /><span>INITIALIZING OFFGRID</span></main>;
   if (!user) return <AuthScreen onAuthenticated={setUser} />;
 
+  const totalMoney = arcBalance !== null && unifiedBalance !== null
+    ? Number(arcBalance) + Number(unifiedBalance)
+    : null;
+
   return (
     <main className="product-shell">
       <header className="product-header">
@@ -2581,7 +2645,7 @@ export function OffGridDashboard() {
           {displayWalletAddress && !walletOnArc && <button className="arc-switch-button" onClick={switchToArc} disabled={walletBusy}>{walletBusy ? <LoaderCircle className="spin" size={12} /> : <Network size={12} />} Switch to Arc Testnet</button>}
           
           <button className="faucet-button onramp-header-btn" onClick={() => setShowOnRamp(true)}><CreditCard size={15} /> Buy USDC (On-Ramp)</button>
-          <a className="faucet-button" href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><Fuel size={15} /> Get test USDC <ExternalLink size={12} /></a>
+          <a className="faucet-button" href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><Fuel size={15} /> Get Test USDC <ExternalLink size={12} /></a>
 
           {displayWalletAddress ? (
             <div className={`connected-wallet-shell ${showWalletMenu ? "open" : ""}`} ref={walletMenuRef}>
@@ -2594,17 +2658,17 @@ export function OffGridDashboard() {
               <div className="connected-wallet-menu">
                 <button className="solana-dropdown-row" onClick={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} disabled={solanaBusy}>
                   <ChainLogo chain="Solana_Devnet" size={16}/>
-                  <span>{solanaAddress ? `Solana: ${shortAddress(solanaAddress, 4)}` : "Connect Solana wallet"}</span>
+                  <span>{solanaAddress ? `Solana: ${shortAddress(solanaAddress, 4)}` : "Connect Solana Wallet"}</span>
                   {solanaAddress && <small>{solanaUsdcBalance === null ? "" : `${displayMoney(solanaUsdcBalance)} USDC`}</small>}
                 </button>
                 <div className="menu-divider" />
-                <button onClick={() => { setShowWalletMenu(false); void loadBalances(); }}><RefreshCw size={12} /> Refresh balances</button>
-                <button onClick={() => { void disconnectWallet(); }}><LogOut size={12} /> Disconnect wallet</button>
+                <button onClick={() => { setShowWalletMenu(false); void loadBalances(); }}><RefreshCw size={12} /> Refresh Balances</button>
+                <button onClick={() => { void disconnectWallet(); }}><LogOut size={12} /> Disconnect Wallet</button>
               </div>
             </div>
           ) : (
             <button className="connect-wallet" onClick={beginWalletConnection} disabled={walletBusy}>
-              {walletBusy ? <LoaderCircle className="spin" size={15} /> : <Wallet size={15} />} Connect wallet
+              {walletBusy ? <LoaderCircle className="spin" size={15} /> : <Wallet size={15} />} Connect Wallet
             </button>
           )}
 
@@ -2622,7 +2686,7 @@ export function OffGridDashboard() {
           <div className="rail-user"><span className="user-emblem"><User size={16} /></span><div><b>{user.displayName}</b><small>@{user.username}</small></div><BadgeCheck size={16} /></div>
           <nav><button className={activeView === "transfer" ? "active" : ""} onClick={() => setActiveView("transfer")}><Send size={17} /> Transfer</button><button className={activeView === "history" ? "active" : ""} onClick={() => setActiveView("history")}><Receipt size={17} /> History {displayWalletAddress && <span>{activity.length + fiatPayouts.length + cctpOperations.filter((operation) => !operation.invoiceId && isSubmittedCctpOperation(operation)).length + gatewayDeposits.length}</span>}</button><button className={activeView === "unified" ? "active" : ""} onClick={() => { setActiveView("unified"); void loadBalances(); }}><Network size={17} /> Unified Balance</button><button className={activeView === "mass" ? "active" : ""} onClick={() => setActiveView("mass")}><UserRound size={17} /> Mass Payment</button><button className={activeView === "escrow" ? "active" : ""} onClick={() => setActiveView("escrow")}><Scale size={17} /> Escrow Market</button><button className={activeView === "agents" ? "active" : ""} onClick={() => setActiveView("agents")}><Sparkles size={17} /> Agent Payments <span className="soon-badge">SOON</span></button></nav>
           <div className="rail-flow"><small>LIVE PAYMENT STACK</small><div><span>01</span><p><b>IDENTITY</b><em>Authenticated</em></p><Check size={13} /></div><i /><div><span>02</span><p><b>WALLET</b><em>{displayWalletAddress ? "Connected" : "Waiting"}</em></p>{displayWalletAddress ? <Check size={13} /> : <Radio size={13} />}</div><i /><div><span>03</span><p><b>NETWORK</b><em>{walletOnArc ? "Arc Testnet active" : chainReady ? "Switch network" : "Not configured"}</em></p>{walletOnArc ? <Check size={13} /> : <Radio size={13} />}</div><i /><div><span>04</span><p><b>SETTLEMENT</b><em>App Kit</em></p><Zap size={13} /></div></div>
-          <button className="logout-button" onClick={logout}><LogOut size={15} /> Sign out</button>
+          <button className="logout-button" onClick={logout}><LogOut size={15} /> Sign Out</button>
         </aside>
 
         <section className="product-main">
@@ -2633,10 +2697,10 @@ export function OffGridDashboard() {
             <div className="session-launch-icon"><LockKeyhole size={24} /><i /></div>
             <div className="session-launch-copy"><span><Sparkles size={11} /> START HERE · PRIVATE PAYMENT</span><h2>Open a payment session.</h2><p>Set the direction and amount, share one secure link, then let both sides choose how money moves.</p><div className="session-launch-flow"><span><i>1</i>Set terms</span><b /><span><i>2</i>Share privately</span><b /><span><i>3</i>Settle together</span></div></div>
             <div className="session-launch-column">
-              <button className="session-launch-button" onClick={() => { setCreatedSessionLink(""); setSessionError(""); setSessionLinkCopied(false); setShowSessionCreator(true); }}><span><Plus size={18} /></span><div><small>NEW SECURE FLOW</small><b>Create payment session</b></div><ArrowRight size={18} /></button>
+              <button className="session-launch-button" onClick={() => { setCreatedSessionLink(""); setSessionError(""); setSessionLinkCopied(false); setShowSessionCreator(true); }}><span><Plus size={18} /></span><div><small>NEW SECURE FLOW</small><b>Create Payment Session</b></div><ArrowRight size={18} /></button>
               <button type="button" className="live-sessions-text-link" onClick={() => { setSessionError(""); setShowLiveSessionsModal(true); void refreshPaymentSessions(); }}>
                 <Radio size={12} className="spin-slow" />
-                <span>View active payment sessions ({paymentSessionsList.filter((session) => session.status === "open" || session.status === "ready").length})</span>
+                <span>View Active Payment Sessions ({paymentSessionsList.filter((session) => session.status === "open" || session.status === "ready").length})</span>
                 <ArrowRight size={12} />
               </button>
             </div>
@@ -2654,16 +2718,19 @@ export function OffGridDashboard() {
                 <div className="balance-intro"><span className="section-tag">REAL TESTNET BALANCES</span><h2>Your money, live.</h2><p>Read directly from connected networks and Circle Gateway. No demo numbers.</p></div>
                 <article className="real-balance primary"><div><span className="balance-icon"><ChainLogo chain="Arc_Testnet" size={25}/></span><small>ARC TESTNET WALLET</small><button onClick={() => loadBalances()} aria-label="Refresh balances"><RefreshCw size={13} /></button></div><b>{arcBalance === null ? "-" : displayMoney(arcBalance)} <em>USDC</em></b><p className={balanceError ? "balance-read-error" : ""} title={balanceError || undefined}>{balanceError ? "Testnet RPC unavailable · retry" : shortAddress(displayWalletAddress)}</p></article>
                 <article className="real-balance"><div><span className="balance-icon gateway">{gatewayLoading ? <LoaderCircle className="spin" size={16}/> : <Network size={16} />}</span><small>UNIFIED BALANCE</small><button onClick={() => loadBalances()} aria-label="Refresh balances"><RefreshCw className={gatewayLoading ? "spin" : ""} size={13} /></button></div><b>{unifiedBalance === null ? "0.00" : displayMoney(unifiedBalance)} <em>USDC</em></b><p className={gatewayError ? "balance-read-error" : ""} title={gatewayError || undefined}>{gatewayLoading ? "Reading live Circle Gateway balance" : gatewayError || (unifiedBalance === null ? "Connect wallet to load Gateway" : pendingBalance && Number(pendingBalance) > 0 ? `${displayMoney(pendingBalance)} USDC pending` : "Circle Gateway · confirmed")}</p><button className="deposit-link" onClick={() => { setDepositError(""); setShowFunding(true); }}><Plus size={12} /> Deposit</button></article>
-                <article className="real-balance fiat"><div><span className="balance-icon fiat"><Banknote size={16} /></span><small>TOTAL FIAT VOLUME</small><button onClick={() => { void refreshFiatPayouts(); }} aria-label="Refresh fiat volume"><RefreshCw size={13} /></button></div><b>{displayMoney(fiatPayouts.filter((entry) => entry.ownerId === user.id).reduce((acc, entry) => acc + (Number(entry.amount) || 0), 0))} <em>USD</em></b><p>{`Total fiat wired via Circle Mint · ${fiatPayouts.filter((entry) => entry.ownerId === user.id).length} payout transactions`}</p></article>
+                <article className="real-balance total-money"><div><span className="balance-icon total-money"><Wallet size={16} /></span><small>TOTAL MONEY</small><button onClick={() => { void loadBalances(); }} aria-label="Refresh total money"><RefreshCw size={13} /></button></div><b>{totalMoney === null ? "-" : displayMoney(totalMoney)} <em>USDC</em></b><p>{totalMoney === null ? "Reading confirmed balances" : "Direct Arc Testnet wallet plus confirmed unified balance"}</p></article>
               </section>
 
               {gatewayDeposits.length > 0 && <section className="gateway-deposit-stack">
-                <div className="gateway-deposit-stack-head"><div><small>GATEWAY DEPOSITS</small><b>{gatewayDeposits.filter((deposit) => deposit.status !== "confirmed" && deposit.status !== "failed").length} tracking in background</b></div><button onClick={() => void refreshGatewayDeposits()}><RefreshCw size={12} /> Refresh proof</button></div>
-                {gatewayDeposits.slice(0, 3).map((deposit) => <article className={`gateway-status ${deposit.status}`} key={deposit.id}>
-                  <span className="gateway-status-icon">{deposit.status === "confirmed" ? <CircleCheck size={19} /> : deposit.status === "failed" ? <CircleAlert size={19} /> : <LoaderCircle className="spin" size={19} />}</span>
-                  <div><small>{deposit.status.replaceAll("_", " ").toUpperCase()}</small><b>{displayMoney(deposit.amount)} USDC from {SOURCE_CHAINS.includes(deposit.sourceChain as SourceChain) ? <ChainName chain={deposit.sourceChain as SourceChain} size={17}/> : deposit.sourceChain}</b><p>{gatewayDepositDetail(deposit)}</p></div>
-                  <div className="gateway-status-actions">{deposit.explorerUrl && <a href={deposit.explorerUrl} target="_blank" rel="noreferrer">Source proof <ExternalLink size={12} /></a>}<button onClick={() => setActiveView("history")}><Receipt size={12} /> History</button></div>
-                </article>)}
+                <div className="gateway-deposit-stack-head"><div><small>GATEWAY DEPOSITS</small><b>{gatewayDeposits.filter((deposit) => deposit.status !== "confirmed" && deposit.status !== "failed").length} tracking in background</b></div><button onClick={() => void refreshGatewayDeposits()}><RefreshCw size={12} /> Refresh Proof</button></div>
+                {gatewayDeposits.slice(0, 3).map((deposit) => {
+                  const presentation = gatewayDepositPresentation(deposit);
+                  return <article className={`gateway-status ${deposit.status} ${presentation.delayed ? "delayed" : ""}`} key={deposit.id}>
+                    <span className="gateway-status-icon">{deposit.status === "confirmed" ? <CircleCheck size={19} /> : deposit.status === "failed" || presentation.delayed ? <Clock size={19} /> : <LoaderCircle className="spin" size={19} />}</span>
+                    <div><small>{presentation.label.toUpperCase()} <em>{presentation.elapsed}</em></small><b>{displayMoney(deposit.amount)} USDC from {SOURCE_CHAINS.includes(deposit.sourceChain as SourceChain) ? <ChainName chain={deposit.sourceChain as SourceChain} size={17}/> : deposit.sourceChain}</b><p>{presentation.detail}</p></div>
+                    <div className="gateway-status-actions">{deposit.explorerUrl && <a href={deposit.explorerUrl} target="_blank" rel="noreferrer">Source Proof <ExternalLink size={12} /></a>}<button onClick={() => setActiveView("history")}><Receipt size={12} /> History</button></div>
+                  </article>;
+                })}
               </section>}
 
               <section className="pay-console" id="payment-console">
@@ -2683,9 +2750,9 @@ export function OffGridDashboard() {
 
                     <label className="field-label"><span>03</span> FUND FROM</label>
                     <div className="funding-options">
-                      <button className={fundingMethod === "arc_wallet" ? "active" : ""} onClick={() => { setFundingMethod("arc_wallet"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Wallet size={16} /><span><b>Direct wallet</b><small>App Kit send</small></span>{fundingMethod === "arc_wallet" && <Check size={14} />}</button>
-                      <button className={fundingMethod === "unified_balance" ? "active" : ""} onClick={() => { setFundingMethod("unified_balance"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Network size={16} /><span><b>Unified balance</b><small>Gateway auto-allocation</small></span>{fundingMethod === "unified_balance" && <Check size={14} />}</button>
-                      <button className={fundingMethod === "cctp_bridge" ? "active" : ""} onClick={() => { setFundingMethod("cctp_bridge"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Blocks size={16} /><span><b>CCTP bridge</b><small>Cross-chain to Arc Testnet</small></span>{fundingMethod === "cctp_bridge" && <Check size={14} />}</button>
+                      <button className={fundingMethod === "arc_wallet" ? "active" : ""} onClick={() => { setFundingMethod("arc_wallet"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Wallet size={16} /><span><b>Direct Wallet</b><small>App Kit send</small></span>{fundingMethod === "arc_wallet" && <Check size={14} />}</button>
+                      <button className={fundingMethod === "unified_balance" ? "active" : ""} onClick={() => { setFundingMethod("unified_balance"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Network size={16} /><span><b>Unified Balance</b><small>Gateway auto-allocation</small></span>{fundingMethod === "unified_balance" && <Check size={14} />}</button>
+                      <button className={fundingMethod === "cctp_bridge" ? "active" : ""} onClick={() => { setFundingMethod("cctp_bridge"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Blocks size={16} /><span><b>CCTP Bridge</b><small>Cross-chain to Arc Testnet</small></span>{fundingMethod === "cctp_bridge" && <Check size={14} />}</button>
                       <button className={fundingMethod === "fiat_bank" ? "active" : ""} onClick={() => { setFundingMethod("fiat_bank"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Banknote size={16} /><span><b>Fiat to Web3</b><small>Circle sandbox + testnet USDC</small></span>{fundingMethod === "fiat_bank" && <Check size={14} />}</button>
                     </div>
                     {fundingMethod === "cctp_bridge" && <><div className="cctp-config"><div className="cctp-source-card"><span className="cctp-card-label">SOURCE CHAIN</span><ChainSelect className="cctp-chain-select" value={bridgeSourceChain} chains={CCTP_SOURCE_CHAINS} eyebrow="PAY FROM" onChange={(chain) => { setBridgeSourceChain(chain as CctpSourceChain); setPaymentEstimate(null); }} /><p>USDC balance and native source-chain gas required.</p></div><div className="cctp-route-card"><div className="cctp-protocol-head"><span><Blocks size={15} /></span><div><small>BRIDGE PROTOCOL</small><b>CCTP V2</b></div><em>FORWARDED</em></div><div className="cctp-mini-route"><ChainName chain={bridgeSourceChain} size={15}/><i><ArrowRight size={12} /></i><ChainName chain="Arc_Testnet" size={15}/></div><p><Check size={11} /> Circle Forwarder <i /> fee shown in estimate</p></div></div>{bridgeSourceChain === "Solana_Devnet" && <div className={`solana-source ${solanaAddress ? "connected" : ""}`}><span><ChainLogo chain="Solana_Devnet" size={22}/></span><div><b>{solanaAddress ? `${solanaWalletName} connected` : "Solana signer required"}</b><small>{solanaAddress ? `${shortAddress(solanaAddress, 6)} · ${solanaUsdcBalance === null ? "balance unavailable" : `${displayMoney(solanaUsdcBalance)} USDC`}` : "Phantom · Solflare · Backpack"}</small></div>{solanaAddress ? <Check size={15} /> : <button onClick={() => void beginSolanaConnection()} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={13} /> : "Connect"}</button>}</div>}{solanaError && <p className="inline-error"><CircleAlert size={13} />{solanaError}</p>}</>}
@@ -2714,7 +2781,7 @@ export function OffGridDashboard() {
               </section>
             </>
           )}
-          </div> : activeView === "history" ? walletAddress ? <HistoryView invoices={activity} paymentSessions={paymentSessionsList} deposits={gatewayDeposits} walletAddress={walletAddress} cctpOperations={cctpOperations} fiatPayouts={fiatPayouts} recovering={cctpRecovering} recoveryNote={cctpRecoveryNote} onRecover={() => void recoverCctpOperations()} onRefreshCctp={() => void refreshCctpOperations()} onRefreshGateway={() => void refreshGatewayDeposits()} onRefreshFiat={() => void refreshFiatPayouts()} onSelectEntry={setSelectedProofEntry} /> : <div className="unified-empty"><Receipt size={30} /><h2>Connect a wallet to view history.</h2><p>Transaction activity and receipts stay hidden until your wallet is connected.</p><button className="neon-button" onClick={beginWalletConnection}><Wallet size={15} /> Connect wallet</button></div> : activeView === "unified" ? <UnifiedBalanceView walletAddress={walletAddress} walletOnArc={walletOnArc} arcBalance={arcBalance} unifiedBalance={unifiedBalance} pendingBalance={pendingBalance} chainBalances={gatewayChainBalances} gatewayError={gatewayError} gatewayStale={gatewayStale} gatewayLoading={gatewayLoading} solanaAddress={solanaAddress} solanaWalletName={solanaWalletName} solanaUsdcBalance={solanaUsdcBalance} solanaBusy={solanaBusy} onRefresh={() => loadBalances()} onDeposit={() => { setDepositError(""); setShowFunding(true); }} onConnect={beginWalletConnection} onConnectSolana={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} /> : activeView === "mass" ? <MassPaymentView walletAddress={walletAddress} directBalance={arcBalance} unifiedBalance={unifiedBalance} onConnect={beginWalletConnection} onExecute={executeMassPayroll} /> : activeView === "escrow" ? <EscrowView walletAddress={displayWalletAddress} arcBalance={arcBalance} onConnect={beginWalletConnection} onRefresh={() => loadBalances()} /> : <section className="agent-soon-view"><div className="agent-orbit"><Sparkles size={27} /><i /><i /><i /></div><span className="section-tag">AUTONOMOUS SETTLEMENT · SOON</span><h1>Agent Payments</h1><p>Policy-controlled wallets, programmable limits, approvals, and auditable payments initiated by trusted agents.</p><div className="agent-soon-grid"><span><ShieldCheck size={16} /><b>Policy engine</b><small>Limits, allowlists, and human approval gates</small></span><span><Network size={16} /><b>Any-to-any rails</b><small>Circle Gateway, CCTP, and fiat routing</small></span><span><Receipt size={16} /><b>Agent audit trail</b><small>Intent, reasoning reference, and transaction proof</small></span></div><em>IN DEVELOPMENT</em></section>}
+          </div> : activeView === "history" ? walletAddress ? <HistoryView invoices={activity} paymentSessions={paymentSessionsList} deposits={gatewayDeposits} walletAddress={walletAddress} cctpOperations={cctpOperations} fiatPayouts={fiatPayouts} recovering={cctpRecovering} recoveryNote={cctpRecoveryNote} onRecover={() => void recoverCctpOperations()} onRefreshCctp={() => void refreshCctpOperations()} onRefreshGateway={() => void refreshGatewayDeposits()} onRefreshFiat={() => void refreshFiatPayouts()} onSelectEntry={setSelectedProofEntry} /> : <div className="unified-empty"><Receipt size={30} /><h2>Connect a wallet to view history.</h2><p>Transaction activity and receipts stay hidden until your wallet is connected.</p><button className="neon-button" onClick={beginWalletConnection}><Wallet size={15} /> Connect Wallet</button></div> : activeView === "unified" ? <UnifiedBalanceView walletAddress={walletAddress} walletOnArc={walletOnArc} arcBalance={arcBalance} unifiedBalance={unifiedBalance} pendingBalance={pendingBalance} chainBalances={gatewayChainBalances} gatewayError={gatewayError} gatewayStale={gatewayStale} gatewayLoading={gatewayLoading} solanaAddress={solanaAddress} solanaWalletName={solanaWalletName} solanaUsdcBalance={solanaUsdcBalance} solanaBusy={solanaBusy} onRefresh={() => loadBalances()} onDeposit={() => { setDepositError(""); setShowFunding(true); }} onConnect={beginWalletConnection} onConnectSolana={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} /> : activeView === "mass" ? <MassPaymentView walletAddress={walletAddress} directBalance={arcBalance} unifiedBalance={unifiedBalance} onConnect={beginWalletConnection} onExecute={executeMassPayroll} /> : activeView === "escrow" ? <EscrowView walletAddress={displayWalletAddress} arcBalance={arcBalance} onConnect={beginWalletConnection} onRefresh={() => loadBalances()} /> : <section className="agent-soon-view"><div className="agent-orbit"><Sparkles size={27} /><i /><i /><i /></div><span className="section-tag">AUTONOMOUS SETTLEMENT · SOON</span><h1>Agent Payments</h1><p>Policy-controlled wallets, programmable limits, approvals, and auditable payments initiated by trusted agents.</p><div className="agent-soon-grid"><span><ShieldCheck size={16} /><b>Policy engine</b><small>Limits, allowlists, and human approval gates</small></span><span><Network size={16} /><b>Any-to-any rails</b><small>Circle Gateway, CCTP, and fiat routing</small></span><span><Receipt size={16} /><b>Agent audit trail</b><small>Intent, reasoning reference, and transaction proof</small></span></div><em>IN DEVELOPMENT</em></section>}
         </section>
       </div>
 
@@ -2822,36 +2889,13 @@ export function OffGridDashboard() {
             </div>
 
             <div className="user-control-actions">
-              <div className="user-actions-row">
-                <div className="user-action-card fund" role="status">
-                  <div className="action-card-icon"><Banknote size={16} /></div>
-                  <div className="action-card-text">
-                    <b>Circle Mint balance</b>
-                    <small>{circleMintBalance ? `$${displayMoney(circleMintBalance.availableUsd)} available` : "Provider status unavailable"}</small>
-                  </div>
-                </div>
-
-                <button className="user-action-card share" onClick={() => {
-                  const inviteUrl = `${window.location.origin}/?invite=${user.id}`;
-                  navigator.clipboard.writeText(inviteUrl);
-                  setUserModalCopied(true);
-                  setTimeout(() => setUserModalCopied(false), 2000);
-                }}>
-                  <div className="action-card-icon"><Share2 size={15} /></div>
-                  <div className="action-card-text">
-                    <b>{userModalCopied ? "Copied!" : "Share Link"}</b>
-                    <small>{userModalCopied ? "Link in clipboard" : "Copy session URL"}</small>
-                  </div>
-                </button>
-              </div>
-
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "14px 0", padding: "10px 12px", background: "rgba(255, 255, 255, 0.04)", borderRadius: "8px" }}>
                 <span style={{ font: "11px var(--mono)", color: "var(--muted)", fontWeight: 600 }}>INTERFACE THEME</span>
                 <ThemeToggle />
               </div>
 
               <button className="user-logout-btn" onClick={() => { setShowUserModal(false); void logout(); }}>
-                <LogOut size={14} /> Sign out of account
+                <LogOut size={14} /> Sign Out Of Account
               </button>
 
               <div className="user-modal-version-footer" style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
