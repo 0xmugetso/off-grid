@@ -6,6 +6,7 @@ import { SOURCE_CHAINS, type SourceChain } from "@/lib/arc/config";
 import { ChainName } from "@/components/chain-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ReceiptCodeRain } from "@/components/receipt-code-rain";
+import { PublicReceiptActions, PublicReceiptDownload } from "@/components/public-receipt-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -34,17 +35,17 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
   return (
     <main className="public-receipt-shell">
       <ReceiptCodeRain />
-      <header><a href="/"><span className="og-logo"><i /><i /><i /></span><b>offgrid</b></a><div className="receipt-header-actions"><a className="receipt-back" href="/"><ArrowLeft size={13} /> Back to dashboard</a><span><i /> VERIFIED RECEIPT</span><ThemeToggle /></div></header>
-      <article className="public-receipt">
+      <header><a href="/"><span className="og-logo"><i /><i /><i /></span><b>offgrid</b></a><div className="receipt-header-actions"><a className="receipt-back" href="/"><ArrowLeft size={13} /> Back To Dashboard</a><PublicReceiptDownload receiptId="verified-receipt-card" reference={invoice.id} amount={invoice.amount} createdAt={invoice.createdAt} /><span><i /> VERIFIED RECEIPT</span><ThemeToggle /></div></header>
+      <article className="public-receipt" id="verified-receipt-card">
         <div className="public-glow"><span><Zap size={25} /></span></div>
         <p className="invoice-status">{isFiat ? "FINALIZED IN SANDBOX LEDGER" : "PAYMENT CONFIRMED"}</p>
         <h1><span>{Number(invoice.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span><em>USDC</em></h1>
         <p>{isFiat ? <>A sandbox fiat transfer from <b>{sender?.displayName ?? "OffGrid user"}</b> to <b>{invoice.recipientLabel}</b>.</> : <>A real testnet transfer from <b>{sender?.displayName ?? "OffGrid user"}</b> to <b>{invoice.recipientLabel}</b>.</>}</p>
         <div className="public-route"><span><small>FROM</small><b>{sender?.displayName ?? "OffGrid user"}</b><em>@{sender?.username ?? "private"}</em></span><i><Zap size={14} /></i><span><small>TO</small><b>{invoice.recipientLabel}</b><em>{isFiat ? "Sandbox ledger" : short(invoice.recipientAddress)}</em></span></div>
         {invoice.memo && <blockquote>“{invoice.memo}”</blockquote>}
-        <dl><div><dt>Status</dt><dd><i /> Confirmed</dd></div><div><dt>Network</dt><dd>{isFiat ? "OffGrid Sandbox" : <ChainName chain="Arc_Testnet" size={15}/>}</dd></div><div><dt>Time</dt><dd>{new Date(invoice.createdAt).toLocaleString()}</dd></div><div><dt>Funding</dt><dd>{fundingLabel(invoice.fundingMethod)}</dd></div>{invoice.sourceChain && <div><dt>Source</dt><dd>{SOURCE_CHAINS.includes(invoice.sourceChain as SourceChain) ? <ChainName chain={invoice.sourceChain as SourceChain} size={15}/> : invoice.sourceChain}</dd></div>}<div><dt>Reference</dt><dd>{invoice.id.slice(0, 8).toUpperCase()}</dd></div><div><dt>Transaction</dt><dd>{isFiat ? invoice.txHash : <a href={invoice.explorerUrl} target="_blank" rel="noreferrer">{short(invoice.txHash)} <ExternalLink size={11} /></a>}</dd></div></dl>
+        <dl><div><dt>Status</dt><dd><i /> Confirmed</dd></div><div><dt>Network</dt><dd>{isFiat ? "OffGrid Sandbox" : <ChainName chain="Arc_Testnet" size={15}/>}</dd></div><div><dt>Time</dt><dd>{new Date(invoice.createdAt).toLocaleString()}</dd></div><div><dt>Funding</dt><dd>{fundingLabel(invoice.fundingMethod)}</dd></div>{invoice.sourceChain && <div><dt>Source</dt><dd>{SOURCE_CHAINS.includes(invoice.sourceChain as SourceChain) ? <ChainName chain={invoice.sourceChain as SourceChain} size={15}/> : invoice.sourceChain}</dd></div>}<div><dt>Reference</dt><dd>{invoice.id.slice(0, 8).toUpperCase()}</dd></div><div className="receipt-transaction"><dt>Transaction</dt><dd>{invoice.explorerUrl ? <a href={invoice.explorerUrl} target="_blank" rel="noreferrer" title={invoice.txHash}>{short(invoice.txHash)} <ExternalLink size={11} /></a> : <span title={invoice.txHash}>{short(invoice.txHash)}</span>}</dd></div></dl>
         {invoice.bridgeSteps && invoice.bridgeSteps.some((step) => step.explorerUrl) && <div className="public-proof"><small>CCTP PROOF TRAIL</small>{invoice.bridgeSteps.filter((step) => step.explorerUrl).map((step) => <a href={step.explorerUrl} target="_blank" rel="noreferrer" key={`${step.name}-${step.txHash}`}>{step.name}<ExternalLink size={10} /></a>)}</div>}
-        {isFiat ? <a className="explorer-cta" href={`/invoice/${invoice.id}`}>Open sandbox receipt <ExternalLink size={14} /></a> : <a className="explorer-cta" href={invoice.explorerUrl} target="_blank" rel="noreferrer">Verify on ArcScan <ExternalLink size={14} /></a>}
+        <PublicReceiptActions explorerUrl={invoice.explorerUrl} />
         <small className="public-secure"><ShieldCheck size={12} /> {isFiat ? "Receipt data is matched to a confirmed sandbox ledger entry." : "Receipt data is matched to a confirmed transaction hash."}</small>
       </article>
       <footer>OFFGRID PAYMENT PROTOCOL · ARC TESTNET</footer>

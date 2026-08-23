@@ -64,6 +64,7 @@ import { FiatOnRampModal } from "@/components/fiat-onramp-modal";
 import { isSubmittedCctpOperation } from "@/lib/cctp-operations";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ReceiptCodeRain } from "@/components/receipt-code-rain";
+import { downloadReceiptPng } from "@/lib/download-receipt";
 import { gatewayExplorerUrl } from "@/lib/gateway-explorer";
 
 interface User {
@@ -510,6 +511,9 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
 
 function Invoice({ invoice, user, onClose }: { invoice: InvoiceData; user: User; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const receiptRef = useRef<HTMLElement>(null);
   const shareUrl = `${window.location.origin}/invoice/${invoice.id}`;
 
   async function share() {
@@ -518,16 +522,23 @@ function Invoice({ invoice, user, onClose }: { invoice: InvoiceData; user: User;
     else { await navigator.clipboard.writeText(shareUrl); setCopied(true); }
   }
 
-  function download() {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(invoice, null, 2)], { type: "application/json" }));
-    const anchor = document.createElement("a"); anchor.href = url; anchor.download = `offgrid-${invoice.id}.json`; anchor.click(); URL.revokeObjectURL(url);
+  async function download() {
+    if (!receiptRef.current || downloading) return;
+    setDownloading(true);
+    try { await downloadReceiptPng(receiptRef.current, { reference: invoice.id, amount: invoice.amount, createdAt: invoice.createdAt }); }
+    finally { setDownloading(false); }
+  }
+
+  function close() {
+    setClosing(true);
+    window.setTimeout(onClose, 220);
   }
 
   return (
-    <div className="overlay">
+    <div className={`overlay receipt-overlay ${closing ? "is-closing" : ""}`}>
       <ReceiptCodeRain modal />
-      <article className="invoice-modal">
-        <button className="modal-x" onClick={onClose}><X size={18} /></button>
+      <article className="invoice-modal" ref={receiptRef}>
+        <button className="modal-x" data-receipt-ignore="true" onClick={close}><X size={18} /></button>
         <div className="invoice-beam"><i /><span><Check size={30} /></span><i /></div>
         <span className="invoice-status"><Radio size={11} /> PAYMENT CONFIRMED</span>
         <h2>Payment complete.</h2>
@@ -541,7 +552,7 @@ function Invoice({ invoice, user, onClose }: { invoice: InvoiceData; user: User;
         {invoice.memo && <div className="invoice-memo"><small>MEMO</small><p>{invoice.memo}</p></div>}
         <dl className="invoice-meta"><div><dt>Network</dt><dd><ChainName chain="Arc_Testnet" size={15}/></dd></div><div><dt>Funding</dt><dd>{fundingLabel(invoice.fundingMethod)}</dd></div>{invoice.sourceChain && <div><dt>Source</dt><dd>{SOURCE_CHAINS.includes(invoice.sourceChain as SourceChain) ? <ChainName chain={invoice.sourceChain as SourceChain} size={15}/> : invoice.sourceChain}</dd></div>}<div><dt>Reference</dt><dd>{invoice.id.slice(0, 8).toUpperCase()}</dd></div><div><dt>Transaction</dt><dd><a href={invoice.explorerUrl} target="_blank" rel="noreferrer">{shortAddress(invoice.txHash, 7)} <ExternalLink size={11} /></a></dd></div></dl>
         {invoice.bridgeSteps && invoice.bridgeSteps.length > 0 && <div className="invoice-proof"><small>CCTP PROOF TRAIL</small>{invoice.bridgeSteps.filter((item) => item.explorerUrl).map((item) => <a href={item.explorerUrl} target="_blank" rel="noreferrer" key={`${item.name}-${item.txHash}`}>{item.name}<ExternalLink size={10} /></a>)}</div>}
-        <div className="invoice-actions"><button className="neon-button" onClick={share}><Share2 size={16} /> {copied ? "Link copied" : "Share receipt"}</button><button onClick={download}><Download size={16} /> Download</button></div>
+        <div className="invoice-actions" data-receipt-ignore="true"><button className="neon-button" onClick={share}><Share2 size={16} /> {copied ? "Link Copied" : "Share Receipt"}</button><button onClick={() => void download()} disabled={downloading}>{downloading ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />} {downloading ? "Creating Image" : "Download Receipt"}</button></div>
         <small className="invoice-foot"><ShieldCheck size={12} /> Cryptographically verifiable on ArcScan</small>
       </article>
     </div>
@@ -915,7 +926,7 @@ function UnifiedBalanceView({ walletAddress, walletOnArc, arcBalance, unifiedBal
   return <section className="unified-view">
     <div className="view-heading"><div><span className="section-tag">CIRCLE GATEWAY</span><h1>Unified Balance</h1><p>One spendable USDC balance assembled from supported testnet chains.</p></div>{walletAddress && <button className="quiet-refresh" onClick={onRefresh}><RefreshCw size={13} /> Refresh Balances</button>}</div>
     {!walletAddress ? <div className="unified-empty"><Network size={30} /><h2>Connect a wallet to query Gateway.</h2><p>OffGrid will read only real confirmed and pending balances for your connected address.</p><button className="neon-button" onClick={onConnect}><Wallet size={15} /> Connect Wallet</button></div> : <>
-      <section className={`unified-hero ${gatewayStale ? "stale" : ""} ${gatewayLoading ? "loading" : ""}`}><div><span>{gatewayLoading ? <LoaderCircle className="spin" size={18}/> : <Network size={18} />}</span><small>TOTAL GATEWAY POSITION</small><b>{displayMoney(total)} <em>USDC</em></b><p>{gatewayLoading ? "Reading your live Circle Gateway position" : gatewayError || (unifiedBalance === null ? "Connect your wallet to load a live Gateway balance" : "Confirmed plus deposits currently indexing")}</p></div><div className="unified-breakdown"><span><small>SPENDABLE NOW</small><b>{displayMoney(confirmed)} USDC</b><i><em style={{ width: `${total > 0 ? (confirmed / total) * 100 : 0}%` }} /></i></span><span><small>PENDING INDEXING</small><b>{displayMoney(pending)} USDC</b><i className="pending"><em style={{ width: `${total > 0 ? (pending / total) * 100 : 0}%` }} /></i></span></div><button className="unified-deposit-cta" onClick={onDeposit}><Plus size={16} /><span><small>ADD LIQUIDITY</small><b>Deposit to Gateway</b></span><ArrowRight size={15} /></button><div className="unified-hero-orbit session-launch-glow" aria-hidden="true" /></section>
+      <section className={`unified-hero ${gatewayStale ? "stale" : ""} ${gatewayLoading ? "loading" : ""}`}><div><span><Network size={18} /></span><small>TOTAL GATEWAY POSITION</small><b>{displayMoney(total)} <em>USDC</em></b><p>{gatewayLoading ? "Reading your live Circle Gateway position" : gatewayError || (unifiedBalance === null ? "Connect your wallet to load a live Gateway balance" : "Confirmed plus deposits currently indexing")}</p></div><div className="unified-breakdown"><span><small>SPENDABLE NOW</small><b>{displayMoney(confirmed)} USDC</b><i><em style={{ width: `${total > 0 ? (confirmed / total) * 100 : 0}%` }} /></i></span><span><small>PENDING INDEXING</small><b>{displayMoney(pending)} USDC</b><i className="pending"><em style={{ width: `${total > 0 ? (pending / total) * 100 : 0}%` }} /></i></span></div><button className="unified-deposit-cta" onClick={onDeposit}><span className="unified-deposit-icon"><ArrowDownToLine size={17} /></span><span><small>FUND YOUR BALANCE</small><b>Deposit USDC</b><em>From any supported chain</em></span><ArrowRight size={15} /></button></section>
       <div className="unified-chain-head"><div><span className="section-tag">SOURCE ALLOCATION</span><h2>Balance by chain</h2><p>Live Gateway positions returned by Circle App Kit for this connected account.</p></div><span><i /> CONFIRMED <i /> PENDING</span></div>
       <div className="unified-chain-grid">{(chainBalances ?? SOURCE_CHAINS.map((chain) => ({ chain, confirmed: "0", pending: "0", queried: chain !== "Solana_Devnet" }))).map((position) => <article className={!position.queried ? "unlinked" : ""} key={position.chain}><div className="unified-chain-logo"><ChainLogo chain={position.chain} size={33}/></div><div><small>{CHAIN_LABELS[position.chain].toUpperCase()}</small><b>{position.queried ? displayMoney(position.confirmed) : "-"} <em>USDC</em></b><p>{!position.queried ? "Connect Solana wallet to query" : Number(position.pending) > 0 ? `${displayMoney(position.pending)} USDC pending` : "Gateway confirmed"}</p></div><span className={Number(position.pending) > 0 ? "pending" : "online"}><i />{Number(position.pending) > 0 ? "INDEXING" : position.queried ? "LIVE" : "UNLINKED"}</span></article>)}</div>
       <div className="unified-wallet-balance"><ChainLogo chain="Arc_Testnet" size={25}/><div><small>ARC TESTNET WALLET · OUTSIDE GATEWAY</small><b>{arcBalance === null ? "-" : displayMoney(arcBalance)} USDC</b></div><span>{walletOnArc ? "ARC TESTNET ACTIVE" : "CONNECTED ON ANOTHER CHAIN"}</span></div>
