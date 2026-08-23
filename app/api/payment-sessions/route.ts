@@ -5,6 +5,7 @@ import { createInviteToken, hashInviteToken } from "@/lib/payment-session-securi
 import { sessionView } from "@/lib/server/payment-sessions";
 import { mutateDatabase, queryDatabase, type PaymentRail, type StoredPaymentSession } from "@/lib/server/store";
 import { formatUsdc, parseUsdc } from "@/lib/money";
+import { CIRCLE_MINT_SANDBOX_WIRE_MINIMUM } from "@/lib/server/circle-mint";
 
 export async function GET() {
   const current = await getCurrentUser();
@@ -33,6 +34,9 @@ export async function POST(request: Request) {
     if (body.rail !== "web3_usdc" && body.rail !== "fiat_bank") throw new Error("Choose a payment rail");
     const parsedAmount = parseUsdc(String(body.amount ?? ""));
     if (parsedAmount <= 0n) throw new Error("Amount must be greater than zero");
+    if (body.intent === "pay" && body.rail === "fiat_bank" && parsedAmount < CIRCLE_MINT_SANDBOX_WIRE_MINIMUM) {
+      throw new Error("Circle Mint sandbox bank payments require at least 2.00 USD");
+    }
     if (body.rail === "web3_usdc" && !current.walletAddress) throw new Error("Connect and bind your wallet before choosing Web3 USDC");
 
     const token = createInviteToken();

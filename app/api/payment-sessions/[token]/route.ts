@@ -3,6 +3,8 @@ import { getCurrentUser } from "@/lib/server/auth";
 import { hashInviteToken } from "@/lib/payment-session-security";
 import { sessionView } from "@/lib/server/payment-sessions";
 import { mutateDatabase, queryDatabase, type PaymentRail } from "@/lib/server/store";
+import { parseUsdc } from "@/lib/money";
+import { CIRCLE_MINT_SANDBOX_WIRE_MINIMUM } from "@/lib/server/circle-mint";
 
 function validToken(token: string) {
   return /^[A-Za-z0-9_-]{43}$/.test(token) || /^[a-f0-9]{64}$/i.test(token);
@@ -54,6 +56,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
         if (session.counterpartyId && session.counterpartyId !== current.id) throw new Error("This invite has already been claimed");
         if (body.rail !== "web3_usdc" && body.rail !== "fiat_bank") throw new Error("Choose a payment rail");
         if (body.rail === "web3_usdc" && !current.walletAddress) throw new Error("Connect and bind your wallet before choosing Web3 USDC");
+        if (session.creatorIntent === "receive" && body.rail === "fiat_bank" && parseUsdc(session.amount) < CIRCLE_MINT_SANDBOX_WIRE_MINIMUM) {
+          throw new Error("Circle Mint sandbox bank payments require at least 2.00 USD. Ask the creator for a new session or choose Web3 USDC.");
+        }
         session.counterpartyId = current.id;
         session.counterpartyRail = body.rail as PaymentRail;
         if (session.creatorIntent === "pay") {

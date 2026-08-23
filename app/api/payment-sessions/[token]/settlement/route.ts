@@ -188,6 +188,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ to
       return await runWeb3ToFiat({ session, currentUserId: current.id, payerId: parties.payerId!, receiverId: parties.receiverId!, txHash: body.txHash });
     }
     if (parties.payerRail !== "fiat_bank" || parties.receiverRail !== "web3_usdc") throw new Error("This sandbox route is not available yet");
+    if (parseUsdc(session.amount) < parseUsdc("2.00")) {
+      throw new Error("Circle Mint sandbox bank payments require at least 2.00 USD. This session cannot be funded by bank. Create a new session for 2.00 USD or more.");
+    }
     if (parseUsdc(session.amount) > maximumSandboxAmount()) {
       throw new Error(`Sandbox sessions are limited to ${formatUsdc(maximumSandboxAmount())} USD`);
     }

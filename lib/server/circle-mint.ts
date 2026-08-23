@@ -87,6 +87,7 @@ export interface CircleMintDepositRecord {
 }
 
 const sandboxBaseUrl = "https://api-sandbox.circle.com";
+export const CIRCLE_MINT_SANDBOX_WIRE_MINIMUM = parseUsdc("2.00");
 
 function apiKey() {
   const value = process.env.CIRCLE_MINT_API_KEY?.trim();
@@ -295,12 +296,15 @@ export async function getCircleMintSandboxWireInstructions(bankAccountId: string
     method: "GET",
     headers: { authorization: `Bearer ${apiKey}` },
   });
-  const data = await response.json() as CircleMintWireInstructions;
-  if (!response.ok) throw new Error(`Circle Mint wire instructions lookup failed with HTTP ${response.status}`);
+  const data = await response.json() as CircleMintWireInstructions & { code?: number; message?: string };
+  if (!response.ok) throw mintError("Circle Mint wire instructions lookup", response, data);
   return data;
 }
 
 export async function createCircleMintSandboxMockWirePayment(input: { bankAccountId: string; amount: string; memo?: string }) {
+  if (parseUsdc(input.amount) < CIRCLE_MINT_SANDBOX_WIRE_MINIMUM) {
+    throw new Error("Circle Mint sandbox bank payments require at least 2.00 USD. Create a new session for 2.00 USD or more.");
+  }
   const instructions = await getCircleMintSandboxWireInstructions(input.bankAccountId);
   const trackingRef = instructions.data?.trackingRef;
   const accountNumber = instructions.data?.beneficiaryBank?.accountNumber;
@@ -317,7 +321,7 @@ export async function createCircleMintSandboxMockWirePayment(input: { bankAccoun
       memo: input.memo?.slice(0, 140),
     }),
   });
-  const data = await response.json() as CircleMintMockWirePayment;
-  if (!response.ok) throw new Error(`Circle Mint mock wire payment failed with HTTP ${response.status}`);
+  const data = await response.json() as CircleMintMockWirePayment & { code?: number; message?: string };
+  if (!response.ok) throw mintError("Circle Mint mock wire payment", response, data);
   return data;
 }
