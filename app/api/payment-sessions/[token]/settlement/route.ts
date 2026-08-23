@@ -408,7 +408,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ to
       await mutateDatabase((database) => {
         const target = database.paymentSessions.find((entry) => entry.id === found.id);
         if (target?.fiatSettlement) {
-          target.fiatSettlement.error = message;
+          target.fiatSettlement.error = message.startsWith("Only the payer") ? null : message;
           target.fiatSettlement.updatedAt = new Date().toISOString();
           target.updatedAt = target.fiatSettlement.updatedAt;
         }
