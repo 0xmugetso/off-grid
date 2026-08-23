@@ -3773,3 +3773,48 @@ html[data-theme="light"] .unified-deposit-icon { background: #167f58; color: #f6
 html[data-theme="light"] .unified-deposit-cta small,html[data-theme="light"] .unified-deposit-cta > svg { color: #167f58; }
 html[data-theme="light"] .unified-deposit-cta b { color: #183126; }
 html[data-theme="light"] .unified-deposit-cta em { color: #5d6e63; }
+
+/* Calm premium surfaces. The primary CTA keeps its light treatment while the
+   surrounding cards stay still and legible. */
+.session-launchpad { border:1px solid rgba(199,255,61,.16); background:radial-gradient(circle at 8% 18%,rgba(199,255,61,.055),transparent 28%),linear-gradient(125deg,#10140e,#090c08 70%); box-shadow:0 22px 60px rgba(0,0,0,.32); }
+.session-launchpad::before { display:none; }
+.session-launchpad::after { background:transparent; animation:none!important; }
+.session-launch-glow { opacity:.34; animation:none!important; }
+.session-launch-icon::before { display:none; }
+.session-launch-icon i { animation:none!important; }
+.session-launch-flow > b::after { display:none; }
+.unified-hero { border-color:rgba(255,255,255,.1); box-shadow:0 18px 52px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.025); }
+.unified-hero::before,.unified-hero::after { display:none; }
+html[data-theme="light"] .session-launchpad { border-color:rgba(21,135,91,.2); background:radial-gradient(circle at 8% 18%,rgba(21,135,91,.09),transparent 30%),linear-gradient(125deg,#eef4f0,#dfe8e2 72%); box-shadow:0 16px 42px rgba(27,64,49,.1); }
+
+/* Marketplace first. Personal active work and history live in a focused
+   workspace modal, leaving the page itself as a public job board. */
+.escrow-workspace-backdrop { position:fixed; inset:0; z-index:89; border:0; background:rgba(2,4,3,.78); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); animation:premium-enter .18s ease-out both; cursor:default; }
+@keyframes escrow-workspace-enter { from { opacity:0; transform:translate(-50%,calc(-50% + 10px)) scale(.988); } to { opacity:1; transform:translate(-50%,-50%) scale(1); } }
+.escrow-market-panel.escrow-workspace-modal { position:fixed; z-index:90; left:50%; top:50%; width:min(1120px,calc(100vw - 40px)); height:min(820px,calc(100dvh - 40px)); transform:translate(-50%,-50%); overflow:auto; border-color:rgba(199,255,61,.22); background:linear-gradient(155deg,var(--panel),var(--bg)); box-shadow:0 42px 130px rgba(0,0,0,.66); animation:escrow-workspace-enter .22s cubic-bezier(.22,.75,.25,1) both; }
+.escrow-workspace-modal .escrow-market-toolbar { position:sticky; top:0; z-index:5; min-height:70px; padding:10px 16px; background:color-mix(in srgb,var(--panel-2) 96%,transparent); backdrop-filter:blur(18px); }
+.escrow-workspace-title,.escrow-market-label { min-width:0; display:flex; align-items:center; gap:10px; }
+.escrow-workspace-title>span,.escrow-market-label>span { width:36px; height:36px; flex:0 0 auto; display:grid; place-items:center; border:1px solid color-mix(in srgb,var(--cyan) 30%,var(--line)); border-radius:8px; background:color-mix(in srgb,var(--cyan) 5%,var(--panel)); color:var(--cyan); }
+.escrow-workspace-title>div,.escrow-market-label>div { min-width:0; display:grid; gap:3px; }
+.escrow-workspace-title b,.escrow-market-label b { color:var(--ink); font-size:12px; }
+.escrow-workspace-title small,.escrow-market-label small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-size:9px; }
+.escrow-workspace-close { position:static; flex:0 0 auto; }
+.escrow-market-panel:not(.escrow-workspace-modal) .escrow-market-toolbar { min-height:72px; padding:12px 18px; }
+.escrow-market-panel:not(.escrow-workspace-modal) .escrow-market-intro { padding-top:27px; }
+
+/* Escrow metrics share the compact balance-card language used on Transfer. */
+.escrow-stat-card { min-height:145px; padding:15px; overflow:hidden; border:1px solid rgba(255,255,255,.09); border-radius:8px; background:linear-gradient(145deg,rgba(18,22,15,.93),rgba(10,12,9,.96)); box-shadow:0 16px 45px rgba(0,0,0,.32); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
+.escrow-stat-card:first-child { border-color:rgba(199,255,61,.24); background:linear-gradient(145deg,rgba(23,29,17,.96),rgba(14,17,13,.98)); }
+.escrow-stat-card>small { min-height:18px; margin:0; color:var(--muted); font-size:8px; }
+.escrow-stat-card>b { margin:20px 0 0; color:var(--ink); font:400 24px/1 var(--numbers); font-variant-numeric:tabular-nums lining-nums; letter-spacing:.045em; }
+.escrow-stat-card>b em { color:var(--muted); font:7px var(--mono); letter-spacing:.06em; }
+.escrow-stat-card>p { margin:7px 0 0; color:var(--faint); font:8px/1.45 var(--mono); }
+html[data-theme="light"] .escrow-stat-card { border-color:rgba(32,61,49,.12); background:linear-gradient(145deg,rgba(245,248,246,.94),rgba(226,233,228,.92)); box-shadow:0 13px 34px rgba(32,61,49,.075); }
+html[data-theme="light"] .escrow-stat-card:first-child { border-color:rgba(21,135,91,.28); background:radial-gradient(circle at 10% 5%,rgba(21,135,91,.1),transparent 35%),linear-gradient(145deg,#edf5f0,#dce8e0); }
+
+@media(max-width:760px){
+  .escrow-market-panel.escrow-workspace-modal { width:calc(100vw - 16px); height:calc(100dvh - 16px); }
+  .escrow-workspace-modal .escrow-market-toolbar { align-items:center; flex-wrap:wrap; }
+  .escrow-workspace-title { flex:1; }.escrow-workspace-title small { display:none; }
+  .escrow-workspace-modal .escrow-section-tabs { order:3; width:100%; }.escrow-workspace-modal .escrow-section-tabs button { flex:1; justify-content:center; }
+}

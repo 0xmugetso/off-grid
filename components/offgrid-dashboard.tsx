@@ -29,6 +29,7 @@ import {
   Lock,
   LockKeyhole,
   LogOut,
+  LayoutDashboard,
   Network,
   Plus,
   Radio,
@@ -1522,6 +1523,7 @@ function EscrowView({ walletAddress, arcBalance, onConnect, onRefresh }: { walle
   const [loadingMore, setLoadingMore] = useState(false);
   const [showFullAudit, setShowFullAudit] = useState(false);
   const [escrowSection, setEscrowSection] = useState<"marketplace" | "mine" | "history">("marketplace");
+  const [showEscrowWorkspace, setShowEscrowWorkspace] = useState(false);
 
   const loadEscrows = async (quiet = false) => {
     try {
@@ -1616,6 +1618,22 @@ function EscrowView({ walletAddress, arcBalance, onConnect, onRefresh }: { walle
   const sectionEscrows = escrowSection === "marketplace" ? marketplaceEscrows : escrowSection === "mine" ? activeEscrows : historyEscrows;
   const visibleEscrows = sectionEscrows.slice(0, visibleCount);
   useEffect(() => { setVisibleCount(6); }, [escrowSection]);
+  useEffect(() => {
+    if (!showEscrowWorkspace) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowEscrowWorkspace(false);
+        setEscrowSection("marketplace");
+      }
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [showEscrowWorkspace]);
   const loadMore = () => {
     setLoadingMore(true);
     window.setTimeout(() => { setVisibleCount((count) => count + 6); setLoadingMore(false); }, 320);
@@ -1637,14 +1655,21 @@ function EscrowView({ walletAddress, arcBalance, onConnect, onRefresh }: { walle
   ] : [];
 
   return <section className="escrow-view">
-    <div className="view-heading escrow-market-heading"><div><span className="section-tag">REFUNDPROTOCOL · ARC TESTNET</span><h1>Escrow Marketplace</h1><p>Post protected work, accept verified jobs, and settle completed work onchain.</p><div className="escrow-heading-guide"><span><b>1</b> Post the scope and budget</span><i/><span><b>2</b> A verified worker accepts</span><i/><span><b>3</b> Fund, verify, and settle</span></div></div><div className="escrow-live-actions"><button className="escrow-workspace-link" onClick={() => setEscrowSection("mine")}><BriefcaseBusiness size={15}/><span><b>My escrows</b><small>{activeEscrows.length} active · {historyEscrows.length} completed</small></span></button><button className="neon-button" onClick={() => walletAddress ? setShowCreateModal(true) : onConnect()}><Plus size={15}/> {walletAddress ? "Post a job" : "Connect wallet"}</button></div></div>
+    <div className="view-heading escrow-market-heading"><div><span className="section-tag">PROTECTED WORK · ARC TESTNET</span><h1>Escrow Marketplace</h1><p>Discover clearly scoped work with protected funding, verifiable delivery, and onchain settlement.</p><div className="escrow-heading-guide"><span><b>1</b> Review the scope</span><i/><span><b>2</b> Accept protected work</span><i/><span><b>3</b> Deliver and settle</span></div></div><div className="escrow-live-actions"><button className="escrow-workspace-link" onClick={() => { setEscrowSection("mine"); setShowEscrowWorkspace(true); }}><LayoutDashboard size={16}/><span><b>My Escrows</b><small>{activeEscrows.length} active · {historyEscrows.length} completed</small></span></button><button className="neon-button" onClick={() => walletAddress ? setShowCreateModal(true) : onConnect()}><Plus size={15}/> {walletAddress ? "Post a Job" : "Connect Wallet"}</button></div></div>
 
     <div className="escrow-stats-grid"><article className="escrow-stat-card"><small><Globe2 size={13}/> OPEN JOBS</small><b>{marketplaceEscrows.length} <em>LISTINGS</em></b><p>Public jobs ready for verified workers</p></article><article className="escrow-stat-card"><small><Lock size={13}/> ACTIVE VALUE</small><b>{displayMoney(tvl)} <em>USDC</em></b><p>Funds secured in active agreements</p></article><article className="escrow-stat-card"><small><Scale size={13}/> SETTLED VALUE</small><b>{displayMoney(settled)} <em>USDC</em></b><p>Confirmed beneficiary wallet payouts</p></article><article className="escrow-stat-card"><small><Zap size={13}/> TESTNET WALLET</small><b>{arcBalance === null ? "Not available" : displayMoney(arcBalance)} <em>USDC</em></b><p>Connected balance available for funding</p></article></div>
 
       {configuration && (!configuration.configured || !configuration.ai.configured) && <div className="escrow-setup-banner"><ShieldAlert size={18}/><div><b>Live escrow setup is incomplete</b><p>Add {configuration.missing.join(", ")}{!configuration.ai.configured ? ` and ${configuration.ai.missing.join(", ")}` : ""} to Vercel. AI validator: {configuration.ai.provider} · {configuration.ai.model}.</p></div></div>}
     {actionError && <div className="escrow-action-error"><CircleAlert size={15}/><span><b>Escrow action stopped</b>{actionError}</span><button onClick={() => setActionError("")}><X size={13}/></button></div>}
 
-    <div className="escrow-market-panel"><div className="escrow-market-toolbar"><div className="escrow-section-tabs"><button className={escrowSection === "marketplace" ? "active" : ""} onClick={() => setEscrowSection("marketplace")}><Globe2 size={14}/> Marketplace <span>{marketplaceEscrows.length}</span></button><button className={escrowSection === "mine" ? "active" : ""} onClick={() => setEscrowSection("mine")}><BriefcaseBusiness size={14}/> My active <span>{activeEscrows.length}</span></button><button className={escrowSection === "history" ? "active" : ""} onClick={() => setEscrowSection("history")}><Clock size={14}/> History <span>{historyEscrows.length}</span></button></div><button className="escrow-panel-refresh" onClick={() => { void loadEscrows(); onRefresh(); }}><RefreshCw size={13}/> Refresh</button></div><div className="escrow-market-intro"><div><span className="section-tag">{escrowSection === "marketplace" ? "PUBLIC JOB BOARD" : escrowSection === "mine" ? "YOUR WORKSPACE" : "SETTLEMENT HISTORY"}</span><h2>{escrowSection === "marketplace" ? "Find protected work" : escrowSection === "mine" ? "Manage active escrows" : "Completed agreements"}</h2><p>{escrowSection === "marketplace" ? "Review clear scopes and budgets before accepting a job." : escrowSection === "mine" ? "Track jobs you posted or accepted through every settlement step." : "Open final records, receipts, transaction hashes, and audit trails."}</p></div>{sectionEscrows.length > 0 && <span className="escrow-list-count">SHOWING {Math.min(visibleCount, sectionEscrows.length)} OF {sectionEscrows.length}</span>}</div>
+    {showEscrowWorkspace && (
+      <button className="escrow-workspace-backdrop" aria-label="Close My Escrows" onClick={() => { setShowEscrowWorkspace(false); setEscrowSection("marketplace"); }}/>
+    )}
+    <div className={`escrow-market-panel ${showEscrowWorkspace ? "escrow-workspace-modal" : ""}`}>
+      <div className="escrow-market-toolbar">
+        {showEscrowWorkspace ? <><div className="escrow-workspace-title"><span><LayoutDashboard size={16}/></span><div><b>My Escrows</b><small>Manage protected work and review completed settlements</small></div></div><div className="escrow-section-tabs"><button className={escrowSection === "mine" ? "active" : ""} onClick={() => setEscrowSection("mine")}><BriefcaseBusiness size={14}/> Active <span>{activeEscrows.length}</span></button><button className={escrowSection === "history" ? "active" : ""} onClick={() => setEscrowSection("history")}><Clock size={14}/> History <span>{historyEscrows.length}</span></button></div><button className="modal-x escrow-workspace-close" onClick={() => { setShowEscrowWorkspace(false); setEscrowSection("marketplace"); }} aria-label="Close My Escrows"><X size={17}/></button></> : <><div className="escrow-market-label"><span><Globe2 size={16}/></span><div><b>Public Marketplace</b><small>Open work available to verified OffGrid users</small></div></div><button className="escrow-panel-refresh" onClick={() => { void loadEscrows(); onRefresh(); }}><RefreshCw size={13}/> Refresh Jobs</button></>}
+      </div>
+      <div className="escrow-market-intro"><div><span className="section-tag">{escrowSection === "marketplace" ? "OPEN OPPORTUNITIES" : escrowSection === "mine" ? "ACTIVE WORK" : "SETTLEMENT RECORDS"}</span><h2>{escrowSection === "marketplace" ? "Protected work, ready to claim" : escrowSection === "mine" ? "Escrows that need your attention" : "Your completed agreements"}</h2><p>{escrowSection === "marketplace" ? "Compare scope, deliverables, and budget before accepting a listing." : escrowSection === "mine" ? "Continue each agreement from acceptance through funding and delivery." : "Review final status, transaction proofs, and protocol audit trails."}</p></div>{sectionEscrows.length > 0 && <span className="escrow-list-count">SHOWING {Math.min(visibleCount, sectionEscrows.length)} OF {sectionEscrows.length}</span>}</div>
       {loading ? <div className="escrow-loading-state"><div className="escrow-loader-mark"><Scale size={22}/><i/><i/></div><span className="section-tag">SYNCING MARKETPLACE</span><h3>Loading protected work</h3><p>Checking listings, active agreements, and settlement state.</p><div className="escrow-loader-lines"><i/><i/><i/></div></div> : sectionEscrows.length === 0 ? <div className="escrow-empty-state"><div className="escrow-empty-icon">{escrowSection === "marketplace" ? <BriefcaseBusiness size={28}/> : escrowSection === "mine" ? <Scale size={28}/> : <Clock size={28}/>}</div><h3>{escrowSection === "marketplace" ? "No public jobs right now" : escrowSection === "mine" ? "No active escrows" : "No completed escrows"}</h3><p>{escrowSection === "marketplace" ? "Post the first job or check again later." : escrowSection === "mine" ? "Post a job or accept one from the marketplace." : "Completed and refunded agreements will appear here."}</p>{escrowSection !== "history" && <button className="neon-button" onClick={() => walletAddress ? setShowCreateModal(true) : onConnect()}><Plus size={15}/> {walletAddress ? "Post a job" : "Connect wallet"}</button>}</div> : <><div className={`escrow-cards-grid ${escrowSection}`}>{visibleEscrows.map((item) => <article key={item.id} className={`escrow-item-card ${item.status} ${item.visibility || "private"}`}>
         <div className="escrow-card-head"><span className={`escrow-category-badge ${item.category}`}>{item.category === "code" ? <FileCode size={12}/> : item.category === "api_key" ? <Bot size={12}/> : <FileCheck size={12}/>}{item.category.toUpperCase().replace("_", " ")}</span><span className={`escrow-status-pill ${item.status}`}><i/>{escrowSection === "marketplace" ? "OPEN" : item.status.replaceAll("_", " ").toUpperCase()}</span></div>
         <div className="escrow-card-copy"><h3 title={item.title}>{item.title}</h3><p className="escrow-specs-text" title={item.terms?.summary || item.specs}>{item.terms?.summary || item.specs}</p><div className={`escrow-task-strip ${item.terms?.tasks?.length ? "" : "empty"}`}><small>{item.terms?.tasks?.length ? `${item.terms.tasks.length} DELIVERABLE${item.terms.tasks.length === 1 ? "" : "S"}` : "FULL BRIEF"}</small><span title={item.terms?.tasks?.[0]?.description || "Open the inspector to read the complete scope and validation rules."}>{item.terms?.tasks?.[0]?.description || "Open the inspector to read the complete scope and validation rules."}</span></div></div>
