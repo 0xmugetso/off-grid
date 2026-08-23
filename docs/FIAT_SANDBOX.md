@@ -1,6 +1,6 @@
 # Fiat sandbox setup
 
-OffGrid's fiat rail uses Circle Mint sandbox for provider-shaped bank simulation and a developer-controlled settlement wallet for the final Arc Testnet transfer. Every completed fiat-to-Web3 session contains a Circle wire reference, a Circle transfer ID, a developer wallet transaction ID, and a testnet transaction hash.
+OffGrid's fiat rail uses Circle Mint sandbox for provider-shaped bank simulation and a pre-funded developer-controlled settlement wallet for the final Arc Testnet transfer. Every completed fiat-to-Web3 session contains a Circle wire reference, a Circle deposit ID, a developer wallet transaction ID, and a verified testnet transaction hash.
 
 ## What the sandbox can test
 
@@ -12,9 +12,9 @@ Circle Mint exposes production-shaped APIs at `https://api-sandbox.circle.com`. 
 2. A sandbox API key stored as `CIRCLE_MINT_API_KEY`.
 3. A sandbox wire bank account created in Circle Mint, with its ID stored as `CIRCLE_MINT_BANK_ACCOUNT_ID`.
 4. A dedicated developer-controlled SCA wallet on Arc Testnet. Store its values as `CIRCLE_SETTLEMENT_WALLET_ID` and `CIRCLE_SETTLEMENT_WALLET_ADDRESS`. The existing escrow agent wallet may be reused for a limited hackathon test.
-5. Add that settlement wallet as an Arc recipient address in Circle Mint. An account administrator must approve it in the Mint Console. Store its Circle address ID as `CIRCLE_MINT_SETTLEMENT_RECIPIENT_ADDRESS_ID`.
+5. Fund the settlement wallet with Arc Testnet USDC from the Circle faucet. Keep the balance small and disposable.
 6. Set `PAYMENT_SESSION_SANDBOX_MAX_USD` to a small amount such as `10`.
-7. An optional webhook verification secret. The session flow also refreshes provider status by polling.
+7. Configure Circle Wallets notifications at `https://YOUR_DOMAIN/api/webhooks/circle`. The participant views also reconcile status by polling.
 
 Copy `.env.example` to `.env.local`, fill the Circle Mint API key and wire bank account ID, optionally add a webhook secret, restart the dev server, then check `GET /api/fiat/status` while signed in.
 
@@ -22,12 +22,25 @@ Copy `.env.example` to `.env.local`, fill the Circle Mint API key and wire bank 
 
 1. The payer starts a clearly labeled simulated bank payment. No card or bank account is charged.
 2. Circle creates a sandbox mock wire and returns a tracking reference.
-3. OffGrid waits until the corresponding amount is available in the Circle Mint sandbox master balance.
-4. Circle transfers the USDC to the pre-approved platform settlement wallet and returns a transfer ID and onchain hash.
-5. The developer-controlled settlement wallet sends real Arc Testnet USDC to the receiver's bound wallet.
-6. Both participants receive the same invoice with the final ArcScan transaction.
+3. OffGrid queries Circle's deposit API until it finds the matching tracking reference, amount, timestamp, and a `complete` deposit status. It persists the unique Circle deposit ID and resulting master balance.
+4. The pre-funded developer-controlled settlement wallet sends real Arc Testnet USDC to the receiver's bound wallet.
+5. OffGrid persists the Circle Wallets transaction ID and waits for Circle to report it complete.
+6. OffGrid independently reads the Arc Testnet receipt and verifies the expected USDC `Transfer` event, amount, source, destination, block number, and block hash.
+7. Both participants receive the same invoice with the final ArcScan transaction.
 
-This is a sponsor-funded product demonstration. It must never be described as a real user bank payment. The amount cap prevents anonymous users from draining the funded test wallet.
+This is a sponsor-funded product demonstration. Circle's deposit record proves the sandbox bank simulation. The Arc receipt proves the testnet payout. The two liquidity pools are intentionally separate, so this must never be described as a real user bank payment or production conversion. The amount cap limits abuse of the funded test wallet.
+
+## Proofs persisted for every completed session
+
+- Circle mock wire tracking reference and submission status
+- Circle business-account deposit ID, amount, status, tracking reference, and timestamps
+- Circle Mint balance after the confirmed sandbox deposit
+- Developer settlement wallet address and its balance before payout
+- Circle Wallets transaction ID and terminal state
+- Arc Testnet transaction hash, block number, and block hash
+- Independent verification that the USDC transfer log matches the expected sender, receiver, and amount
+
+A UI label never advances settlement. Every completed stage is backed by a provider response stored in the payment session record. The final invoice is created only after the onchain receipt passes verification.
 
 ## Receiving fiat in sandbox
 

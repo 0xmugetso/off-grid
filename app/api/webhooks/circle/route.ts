@@ -53,11 +53,28 @@ export async function POST(request: Request) {
         item.releaseTransactionId,
         item.refundTransactionId,
       ].includes(notification.id));
-      if (!escrow) return;
-      escrow.circleTransactionState = notification.state || escrow.circleTransactionState;
-      escrow.contractAddress = notification.contractAddress || escrow.contractAddress;
-      escrow.lastError = notification.errorReason || escrow.lastError;
-      escrow.updatedAt = new Date().toISOString();
+      const now = new Date().toISOString();
+      if (escrow) {
+        escrow.circleTransactionState = notification.state || escrow.circleTransactionState;
+        escrow.contractAddress = notification.contractAddress || escrow.contractAddress;
+        escrow.lastError = notification.errorReason || escrow.lastError;
+        escrow.updatedAt = now;
+      }
+      const session = database.paymentSessions.find((item) => item.fiatSettlement?.receiverTransferId === notification.id);
+      if (session?.fiatSettlement) {
+        session.fiatSettlement.receiverTransferState = notification.state || session.fiatSettlement.receiverTransferState;
+        session.fiatSettlement.receiverTxHash = notification.txHash || session.fiatSettlement.receiverTxHash;
+        session.fiatSettlement.error = notification.errorReason || null;
+        session.fiatSettlement.updatedAt = now;
+        session.auditProof = {
+          ...session.auditProof,
+          circleWalletNotificationId: notification.id,
+          receiverTransferState: notification.state,
+          receiverTxHash: notification.txHash,
+          circleWalletNotificationAt: now,
+        };
+        session.updatedAt = now;
+      }
     });
     return NextResponse.json({ received: true });
   } catch (error) {

@@ -1,7 +1,19 @@
 import "server-only";
 
 import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
+import { createPublicClient, decodeEventLog, getAddress, http, parseUnits } from "viem";
+import { arcTestnet } from "viem/chains";
 import { ARC } from "@/lib/arc/config";
+
+const transferEvent = [{
+  type: "event",
+  name: "Transfer",
+  inputs: [
+    { name: "from", type: "address", indexed: true },
+    { name: "to", type: "address", indexed: true },
+    { name: "value", type: "uint256", indexed: false },
+  ],
+}] as const;
 
 function config() {
   const apiKey = process.env.CIRCLE_API_KEY?.trim() || "";
@@ -51,7 +63,12 @@ export async function createSettlementWalletTransfer(input: {
   });
   const transaction = response.data;
   if (!transaction?.id) throw new Error("Circle did not return a settlement transaction ID");
-  return { id: transaction.id, state: transaction.state || "INITIATED" };
+  return {
+    id: transaction.id,
+    state: transaction.state || "INITIATED",
+    sourceAddress: values.address,
+    sourceBalanceBefore: usdc.amount || "0",
+  };
 }
 
 export async function getSettlementWalletTransfer(id: string) {
@@ -64,4 +81,35 @@ export async function getSettlementWalletTransfer(id: string) {
     txHash: transaction.txHash || null,
     errorReason: transaction.errorReason || null,
   };
+}
+
+export async function verifySettlementWalletTransfer(input: {
+  txHash: `0x${string}`;
+  destinationAddress: `0x${string}`;
+  amount: string;
+}) {
+  const { values } = client();
+  const publicClient = createPublicClient({
+    chain: arcTestnet,
+    transport: http(ARC.rpcUrl, { retryCount: 3, timeout: 15_000 }),
+  });
+  const receipt = await publicClient.getTransactionReceipt({ hash: input.txHash });
+  if (receipt.status !== "success") throw new Error("The Arc Testnet settlement transaction reverted");
+  const expectedFrom = getAddress(values.address);
+  const expectedTo = getAddress(input.destinationAddress);
+  const expectedAmount = parseUnits(input.amount, ARC.usdcDecimals);
+  const matchedTransfer = receipt.logs.some((log) => {
+    if (log.address.toLowerCase() !== ARC.contracts.usdc.toLowerCase()) return false;
+    try {
+      const decoded = decodeEventLog({ abi: transferEvent, data: log.data, topics: log.topics });
+      return decoded.eventName === "Transfer"
+        && getAddress(decoded.args.from) === expectedFrom
+        && getAddress(decoded.args.to) === expectedTo
+        && decoded.args.value === expectedAmount;
+    } catch {
+      return false;
+    }
+  });
+  if (!matchedTransfer) throw new Error("The testnet transaction did not contain the expected USDC transfer");
+  return { blockNumber: receipt.blockNumber.toString(), blockHash: receipt.blockHash };
 }

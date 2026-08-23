@@ -1,5 +1,7 @@
 import "server-only";
 
+import { parseUsdc } from "@/lib/money";
+
 export interface CircleMintPayoutInput {
   idempotencyKey: string;
   bankAccountId: string;
@@ -56,13 +58,28 @@ export interface CircleMintTransferRecord {
   };
 }
 
+export interface CircleMintDepositRecord {
+  id?: string;
+  destination?: { type?: string; id?: string };
+  amount?: { amount?: string; currency?: string };
+  status?: string;
+  riskEvaluation?: { decision?: string; reason?: string };
+  customerExternalRef?: string;
+  createDate?: string;
+  updateDate?: string;
+  source?: { type?: string; id?: string; name?: string };
+  fromAmount?: { amount?: string; currency?: string };
+  fees?: { amount?: string; currency?: string };
+  externalRef?: string;
+  trackingRef?: string;
+}
+
 const sandboxBaseUrl = "https://api-sandbox.circle.com";
 
 export function circleMintSandboxStatus() {
   const checks = [
     { key: "apiKey", label: "Circle Mint sandbox API key", configured: Boolean(process.env.CIRCLE_MINT_API_KEY) },
     { key: "bankAccount", label: "Sandbox linked wire bank account ID", configured: Boolean(process.env.CIRCLE_MINT_BANK_ACCOUNT_ID) },
-    { key: "settlementRecipient", label: "Approved settlement wallet in Circle Mint", configured: Boolean(process.env.CIRCLE_MINT_SETTLEMENT_RECIPIENT_ADDRESS_ID) },
     { key: "settlementWallet", label: "Developer settlement wallet", configured: Boolean(
       process.env.CIRCLE_API_KEY
       && process.env.CIRCLE_ENTITY_SECRET
@@ -74,11 +91,45 @@ export function circleMintSandboxStatus() {
   return {
     provider: "circle_mint_sandbox" as const,
     mode: "sandbox" as const,
-    configured: checks.slice(0, 4).every((check) => check.configured),
+    configured: checks.slice(0, 3).every((check) => check.configured),
     checks,
     baseUrl: process.env.CIRCLE_MINT_BASE_URL ?? sandboxBaseUrl,
     simulated: true,
   };
+}
+
+export async function listCircleMintWireDeposits(input?: { from?: string; pageSize?: number }) {
+  const apiKey = process.env.CIRCLE_MINT_API_KEY;
+  if (!apiKey) throw new Error("Circle Mint sandbox API key is not configured");
+  const query = new URLSearchParams({ type: "wire", pageSize: String(input?.pageSize ?? 50) });
+  if (input?.from) query.set("from", input.from);
+  const response = await fetch(`${process.env.CIRCLE_MINT_BASE_URL ?? sandboxBaseUrl}/v1/businessAccount/deposits?${query}`, {
+    method: "GET",
+    headers: { authorization: `Bearer ${apiKey}` },
+    cache: "no-store",
+  });
+  const body = await response.json() as { code?: number; message?: string; data?: CircleMintDepositRecord[] };
+  if (!response.ok) throw mintError("Circle Mint deposit lookup", response, body);
+  return body.data ?? [];
+}
+
+export async function findCircleMintWireDeposit(input: {
+  trackingRef: string;
+  amount: string;
+  submittedAfter: string;
+  excludedIds?: string[];
+}) {
+  const deposits = await listCircleMintWireDeposits({ from: input.submittedAfter, pageSize: 50 });
+  const excluded = new Set(input.excludedIds ?? []);
+  return deposits.find((deposit) => {
+    if (!deposit.id || excluded.has(deposit.id)) return false;
+    if (deposit.trackingRef !== input.trackingRef || deposit.amount?.currency !== "USD" || !deposit.amount.amount) return false;
+    try {
+      return parseUsdc(deposit.amount.amount) === parseUsdc(input.amount);
+    } catch {
+      return false;
+    }
+  }) ?? null;
 }
 
 function mintError(operation: string, response: Response, data: { code?: number; message?: string }) {

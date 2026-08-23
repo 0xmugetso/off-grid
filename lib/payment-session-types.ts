@@ -43,13 +43,22 @@ export interface PaymentSessionView {
   fiatSettlement?: {
     mode: "fiat_to_web3" | "web3_to_fiat" | "fiat_to_fiat";
     stage: string;
+    wireSubmittedAt?: string | null;
     mockWireTrackingRef: string | null;
+    circleDepositId?: string | null;
+    circleDepositStatus?: string | null;
+    circleDepositAmount?: string | null;
+    circleDepositCreateDate?: string | null;
+    circleBalanceAfterDeposit?: string | null;
     circleTransferId: string | null;
     circleTransferStatus: string | null;
     circleTransferTxHash: string | null;
     receiverTransferId: string | null;
     receiverTransferState: string | null;
     receiverTxHash: string | null;
+    settlementWalletAddress?: string | null;
+    settlementWalletBalanceBefore?: string | null;
+    arcBlockNumber?: string | null;
     error: string | null;
     updatedAt: string;
   } | null;

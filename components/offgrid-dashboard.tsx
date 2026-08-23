@@ -94,6 +94,7 @@ interface InvoiceData {
   fundingMethod: FundingMethod;
   sourceChain?: string;
   protocol?: "send" | "gateway" | "cctp" | "fiat";
+  paymentSessionId?: string | null;
   bridgeSteps?: Array<{ name: string; txHash?: string; explorerUrl?: string }>;
   txHash: string;
   explorerUrl: string;
@@ -511,6 +512,11 @@ type LedgerEntry = {
     bankAccountId?: string | null;
     sourceWalletId?: string | null;
     trackingRef?: string | null;
+    circleDepositId?: string | null;
+    circleDepositStatus?: string | null;
+    circleDepositAmount?: string | null;
+    receiverTransferId?: string | null;
+    arcBlockNumber?: string | null;
   };
 };
 
@@ -520,9 +526,10 @@ function proofSteps(entry: LedgerEntry): Array<{ label: string; detail: string; 
   if (entry.kind === "fiat") {
     return sandboxTransfer
       ? [
-          { label: "Transfer request", detail: "A sandbox fiat transfer was submitted against the local ledger.", tone: "muted" as const },
-          { label: "Transfer ID", detail: entry.txHash, txHash: entry.txHash, tone: "good" as const },
-          { label: "Balance update", detail: `${statusLabel} · the sender and recipient fiat balances were updated in OffGrid.`, tone: "good" as const },
+          { label: "Mock wire", detail: entry.meta?.trackingRef ? `Circle tracking reference ${entry.meta.trackingRef}` : "Circle sandbox wire reference unavailable", tone: entry.meta?.trackingRef ? "good" as const : "warning" as const },
+          { label: "Circle deposit", detail: entry.meta?.circleDepositId ? `${entry.meta.circleDepositId} · ${entry.meta.circleDepositStatus ?? "unknown"}${entry.meta.circleDepositAmount ? ` · ${entry.meta.circleDepositAmount} USD` : ""}` : "Circle deposit proof unavailable", txHash: entry.meta?.circleDepositId ?? undefined, tone: entry.meta?.circleDepositId ? "good" as const : "warning" as const },
+          { label: "Wallet payout", detail: entry.meta?.receiverTransferId ?? "Developer wallet transaction ID unavailable", txHash: entry.meta?.receiverTransferId ?? undefined, tone: entry.meta?.receiverTransferId ? "good" as const : "warning" as const },
+          { label: "Onchain receipt", detail: `${statusLabel}${entry.meta?.arcBlockNumber ? ` · Arc block ${entry.meta.arcBlockNumber}` : ""}`, txHash: entry.txHash, explorerUrl: entry.explorerUrl, tone: "good" as const },
         ]
       : [
           { label: "Payout request", detail: "The sandbox bank payout was submitted from the live session.", tone: "muted" as const },
@@ -554,7 +561,7 @@ function proofSteps(entry: LedgerEntry): Array<{ label: string; detail: string; 
   ];
 }
 
-function HistoryView({ invoices, deposit, cctpOperations, fiatPayouts, recovering, recoveryNote, onRecover, onRefreshCctp, onRefreshFiat, onSelectEntry }: { invoices: InvoiceData[]; deposit: DepositNotice | null; cctpOperations: CctpOperation[]; fiatPayouts: FiatPayout[]; recovering: boolean; recoveryNote: string; onRecover: () => void; onRefreshCctp: () => void; onRefreshFiat: () => void; onSelectEntry: (entry: LedgerEntry) => void }) {
+function HistoryView({ invoices, paymentSessions, deposit, cctpOperations, fiatPayouts, recovering, recoveryNote, onRecover, onRefreshCctp, onRefreshFiat, onSelectEntry }: { invoices: InvoiceData[]; paymentSessions: PaymentSessionView[]; deposit: DepositNotice | null; cctpOperations: CctpOperation[]; fiatPayouts: FiatPayout[]; recovering: boolean; recoveryNote: string; onRecover: () => void; onRefreshCctp: () => void; onRefreshFiat: () => void; onSelectEntry: (entry: LedgerEntry) => void }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | LedgerEntry["kind"]>("all");
   const [sort, setSort] = useState<"newest" | "oldest" | "amount_high" | "amount_low">("newest");
@@ -565,12 +572,14 @@ function HistoryView({ invoices, deposit, cctpOperations, fiatPayouts, recoverin
   const [manualRecoveryNote, setManualRecoveryNote] = useState("");
 
   const entries = useMemo<LedgerEntry[]>(() => {
-    const payments = invoices.map((item): LedgerEntry => ({
+    const payments = invoices.map((item): LedgerEntry => {
+      const settlement = item.paymentSessionId ? paymentSessions.find((session) => session.id === item.paymentSessionId)?.fiatSettlement : null;
+      return {
       id: item.id,
-      activity: item.fundingMethod === "fiat_bank" ? `Sandbox fiat transfer to ${item.recipientLabel}` : `Payment to ${item.recipientLabel}`,
+      activity: item.fundingMethod === "fiat_bank" ? `Verified sandbox payout to ${item.recipientLabel}` : `Payment to ${item.recipientLabel}`,
       detail: item.memo || `${fundingLabel(item.fundingMethod)} settlement`,
       kind: item.fundingMethod === "cctp_bridge" ? "cctp" : item.fundingMethod === "unified_balance" ? "gateway" : item.fundingMethod === "fiat_bank" ? "fiat" : "transfer",
-      rail: item.fundingMethod === "cctp_bridge" ? "CCTP V2" : item.fundingMethod === "unified_balance" ? "Gateway spend" : item.fundingMethod === "fiat_bank" ? "Sandbox fiat balance" : "Direct transfer",
+      rail: item.fundingMethod === "cctp_bridge" ? "CCTP V2" : item.fundingMethod === "unified_balance" ? "Gateway spend" : item.fundingMethod === "fiat_bank" ? "Circle sandbox + Arc Testnet" : "Direct transfer",
       amount: item.amount,
       txHash: item.txHash,
       explorerUrl: item.explorerUrl,
@@ -580,9 +589,23 @@ function HistoryView({ invoices, deposit, cctpOperations, fiatPayouts, recoverin
       logs: item.bridgeSteps?.length
         ? item.bridgeSteps.map((step) => ({ name: step.name, txHash: step.txHash, explorerUrl: step.explorerUrl }))
         : item.fundingMethod === "fiat_bank"
-          ? [{ name: "Sandbox debit", txHash: item.txHash }, { name: "Sandbox credit", txHash: item.txHash }]
+          ? [
+              { name: `Circle wire ${settlement?.mockWireTrackingRef ?? "proof unavailable"}` },
+              { name: `Circle deposit ${settlement?.circleDepositId ?? "proof unavailable"}` },
+              { name: `Wallet payout ${settlement?.receiverTransferId ?? "proof unavailable"}` },
+              { name: "Verified USDC transfer", txHash: item.txHash, explorerUrl: item.explorerUrl },
+            ]
           : [{ name: item.protocol === "gateway" ? "Gateway settlement" : "Direct settlement", txHash: item.txHash, explorerUrl: item.explorerUrl }],
-    }));
+      meta: item.fundingMethod === "fiat_bank" ? {
+        trackingRef: settlement?.mockWireTrackingRef,
+        circleDepositId: settlement?.circleDepositId,
+        circleDepositStatus: settlement?.circleDepositStatus,
+        circleDepositAmount: settlement?.circleDepositAmount,
+        receiverTransferId: settlement?.receiverTransferId,
+        arcBlockNumber: settlement?.arcBlockNumber,
+      } : undefined,
+    };
+    });
     const pendingCctp = cctpOperations.filter((operation) => isSubmittedCctpOperation(operation) && (!operation.invoiceId || !invoices.some((invoice) => invoice.id === operation.invoiceId))).map((operation): LedgerEntry => ({
       id: `cctp-${operation.id}`,
       activity: `CCTP to ${operation.recipientLabel}`,
@@ -632,7 +655,7 @@ function HistoryView({ invoices, deposit, cctpOperations, fiatPayouts, recoverin
       createdAt: deposit.createdAt,
       logs: [{ name: `Gateway deposit ${deposit.state}`, txHash: deposit.txHash, explorerUrl: deposit.explorerUrl }],
     }, ...ledger];
-  }, [cctpOperations, deposit, fiatPayouts, invoices]);
+  }, [cctpOperations, deposit, fiatPayouts, invoices, paymentSessions]);
 
   const visibleEntries = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -2576,7 +2599,7 @@ export function OffGridDashboard() {
               </section>
             </>
           )}
-          </div> : activeView === "history" ? walletAddress ? <HistoryView invoices={activity} deposit={depositNotice} cctpOperations={cctpOperations} fiatPayouts={fiatPayouts} recovering={cctpRecovering} recoveryNote={cctpRecoveryNote} onRecover={() => void recoverCctpOperations()} onRefreshCctp={() => void refreshCctpOperations()} onRefreshFiat={() => void refreshFiatPayouts()} onSelectEntry={setSelectedProofEntry} /> : <div className="unified-empty"><Receipt size={30} /><h2>Connect a wallet to view history.</h2><p>Transaction activity and receipts stay hidden until your wallet is connected.</p><button className="neon-button" onClick={beginWalletConnection}><Wallet size={15} /> Connect wallet</button></div> : activeView === "unified" ? <UnifiedBalanceView walletAddress={walletAddress} walletOnArc={walletOnArc} arcBalance={arcBalance} unifiedBalance={unifiedBalance} pendingBalance={pendingBalance} chainBalances={gatewayChainBalances} gatewayError={gatewayError} gatewayStale={gatewayStale} gatewayLoading={gatewayLoading} solanaAddress={solanaAddress} solanaWalletName={solanaWalletName} solanaUsdcBalance={solanaUsdcBalance} solanaBusy={solanaBusy} onRefresh={() => loadBalances()} onDeposit={() => { setDepositError(""); setShowFunding(true); }} onConnect={beginWalletConnection} onConnectSolana={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} /> : activeView === "mass" ? <MassPaymentView walletAddress={walletAddress} directBalance={arcBalance} unifiedBalance={unifiedBalance} onConnect={beginWalletConnection} onExecute={executeMassPayroll} /> : activeView === "escrow" ? <EscrowView walletAddress={displayWalletAddress} arcBalance={arcBalance} onConnect={beginWalletConnection} onRefresh={() => loadBalances()} /> : <section className="agent-soon-view"><div className="agent-orbit"><Sparkles size={27} /><i /><i /><i /></div><span className="section-tag">AUTONOMOUS SETTLEMENT · SOON</span><h1>Agent Payments</h1><p>Policy-controlled wallets, programmable limits, approvals, and auditable payments initiated by trusted agents.</p><div className="agent-soon-grid"><span><ShieldCheck size={16} /><b>Policy engine</b><small>Limits, allowlists, and human approval gates</small></span><span><Network size={16} /><b>Any-to-any rails</b><small>Circle Gateway, CCTP, and fiat routing</small></span><span><Receipt size={16} /><b>Agent audit trail</b><small>Intent, reasoning reference, and transaction proof</small></span></div><em>IN DEVELOPMENT</em></section>}
+          </div> : activeView === "history" ? walletAddress ? <HistoryView invoices={activity} paymentSessions={paymentSessionsList} deposit={depositNotice} cctpOperations={cctpOperations} fiatPayouts={fiatPayouts} recovering={cctpRecovering} recoveryNote={cctpRecoveryNote} onRecover={() => void recoverCctpOperations()} onRefreshCctp={() => void refreshCctpOperations()} onRefreshFiat={() => void refreshFiatPayouts()} onSelectEntry={setSelectedProofEntry} /> : <div className="unified-empty"><Receipt size={30} /><h2>Connect a wallet to view history.</h2><p>Transaction activity and receipts stay hidden until your wallet is connected.</p><button className="neon-button" onClick={beginWalletConnection}><Wallet size={15} /> Connect wallet</button></div> : activeView === "unified" ? <UnifiedBalanceView walletAddress={walletAddress} walletOnArc={walletOnArc} arcBalance={arcBalance} unifiedBalance={unifiedBalance} pendingBalance={pendingBalance} chainBalances={gatewayChainBalances} gatewayError={gatewayError} gatewayStale={gatewayStale} gatewayLoading={gatewayLoading} solanaAddress={solanaAddress} solanaWalletName={solanaWalletName} solanaUsdcBalance={solanaUsdcBalance} solanaBusy={solanaBusy} onRefresh={() => loadBalances()} onDeposit={() => { setDepositError(""); setShowFunding(true); }} onConnect={beginWalletConnection} onConnectSolana={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} /> : activeView === "mass" ? <MassPaymentView walletAddress={walletAddress} directBalance={arcBalance} unifiedBalance={unifiedBalance} onConnect={beginWalletConnection} onExecute={executeMassPayroll} /> : activeView === "escrow" ? <EscrowView walletAddress={displayWalletAddress} arcBalance={arcBalance} onConnect={beginWalletConnection} onRefresh={() => loadBalances()} /> : <section className="agent-soon-view"><div className="agent-orbit"><Sparkles size={27} /><i /><i /><i /></div><span className="section-tag">AUTONOMOUS SETTLEMENT · SOON</span><h1>Agent Payments</h1><p>Policy-controlled wallets, programmable limits, approvals, and auditable payments initiated by trusted agents.</p><div className="agent-soon-grid"><span><ShieldCheck size={16} /><b>Policy engine</b><small>Limits, allowlists, and human approval gates</small></span><span><Network size={16} /><b>Any-to-any rails</b><small>Circle Gateway, CCTP, and fiat routing</small></span><span><Receipt size={16} /><b>Agent audit trail</b><small>Intent, reasoning reference, and transaction proof</small></span></div><em>IN DEVELOPMENT</em></section>}
         </section>
       </div>
 

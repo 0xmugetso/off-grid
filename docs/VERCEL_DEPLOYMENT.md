@@ -23,6 +23,11 @@ Add these variables to the environments you want to test:
 | `CIRCLE_MINT_BASE_URL` | Optional | Keep the sandbox URL while testing fiat flows. |
 | `CIRCLE_MINT_API_KEY` | Optional | Server-only Circle Mint sandbox credential. |
 | `CIRCLE_MINT_BANK_ACCOUNT_ID` | Optional | Sandbox linked bank account. |
+| `CIRCLE_API_KEY` | Required for verified sandbox payouts | Server-only Circle Wallets API key. |
+| `CIRCLE_ENTITY_SECRET` | Required for verified sandbox payouts | Registered developer-wallet entity secret. |
+| `CIRCLE_SETTLEMENT_WALLET_ID` | Required for verified sandbox payouts | Pre-funded developer-controlled Arc Testnet wallet ID. |
+| `CIRCLE_SETTLEMENT_WALLET_ADDRESS` | Required for verified sandbox payouts | Address belonging to the settlement wallet ID. |
+| `PAYMENT_SESSION_SANDBOX_MAX_USD` | Recommended | Keep the sponsor-funded demo cap small, for example `10`. |
 | `PAYOUT_WEBHOOK_SECRET` | Optional | Secret used by `/api/payouts/webhook`. |
 | `STRIPE_SECRET_KEY` | Optional | Server-only Stripe Crypto On-Ramp key. |
 | `STRIPE_ONRAMP_PUBLISHABLE_KEY` | Optional | Stripe client key returned to the on-ramp UI. |

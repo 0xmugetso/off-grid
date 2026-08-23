@@ -101,9 +101,11 @@ export interface ReceiverBankDetails {
 export type FiatSettlementStage =
   | "not_started"
   | "wire_submitted"
+  | "circle_deposit_confirmed"
   | "circle_balance_funded"
   | "circle_transfer_submitted"
   | "settlement_wallet_funded"
+  | "receiver_transfer_creating"
   | "receiver_transfer_submitted"
   | "complete"
   | "failed";
@@ -112,13 +114,22 @@ export interface StoredFiatSettlement {
   mode: "fiat_to_web3" | "web3_to_fiat" | "fiat_to_fiat";
   stage: FiatSettlementStage;
   startingCircleBalance: string | null;
+  wireSubmittedAt?: string | null;
   mockWireTrackingRef: string | null;
+  circleDepositId?: string | null;
+  circleDepositStatus?: string | null;
+  circleDepositAmount?: string | null;
+  circleDepositCreateDate?: string | null;
+  circleBalanceAfterDeposit?: string | null;
   circleTransferId: string | null;
   circleTransferStatus: string | null;
   circleTransferTxHash: string | null;
   receiverTransferId: string | null;
   receiverTransferState: string | null;
   receiverTxHash: string | null;
+  settlementWalletAddress?: string | null;
+  settlementWalletBalanceBefore?: string | null;
+  arcBlockNumber?: string | null;
   wireIdempotencyKey: string;
   circleTransferIdempotencyKey: string;
   receiverTransferIdempotencyKey: string;
