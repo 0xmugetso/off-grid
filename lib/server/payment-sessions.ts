@@ -8,6 +8,9 @@ export function sessionView(session: StoredPaymentSession, users: StoredUser[], 
   const creator = users.find((user) => user.id === session.creatorId);
   const counterparty = users.find((user) => user.id === session.counterpartyId);
   const parties = paymentParties(session);
+  const role = currentUserId === session.creatorId ? "creator" : currentUserId === session.counterpartyId ? "counterparty" : "invitee";
+  const actionRole = currentUserId === parties.payerId ? "payer" : currentUserId === parties.receiverId ? "receiver" : session.creatorIntent === "pay" ? "receiver" : "payer";
+  const { nextAction, nextActionLabel } = sessionAction(session, role, actionRole);
   return {
     id: session.id,
     creator: creator ? participantView(creator) : null,
@@ -21,8 +24,10 @@ export function sessionView(session: StoredPaymentSession, users: StoredUser[], 
     status: session.status,
     invoiceId: session.invoiceId,
     createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
     expiresAt: session.expiresAt,
     inviteTokenHash: session.inviteTokenHash,
+    sessionPath: session.inviteToken ? `/session/${session.inviteToken}` : null,
     payerInputRail: session.payerInputRail,
     receiverOutputRail: session.receiverOutputRail,
     receiverBankDetails: session.receiverBankDetails ?? null,
@@ -30,11 +35,31 @@ export function sessionView(session: StoredPaymentSession, users: StoredUser[], 
     receiverRailStatus: session.receiverRailStatus,
     clearingStatus: session.clearingStatus,
     arcEscrowTxHash: session.arcEscrowTxHash,
-    role: currentUserId === session.creatorId ? "creator" : currentUserId === session.counterpartyId ? "counterparty" : "invitee",
-    actionRole: currentUserId === parties.payerId ? "payer" : currentUserId === parties.receiverId ? "receiver" : session.creatorIntent === "pay" ? "receiver" : "payer",
+    role,
+    actionRole,
     payerRail: parties.payerRail,
     receiverRail: parties.receiverRail,
+    nextAction,
+    nextActionLabel,
   };
+}
+
+function sessionAction(
+  session: StoredPaymentSession,
+  role: PaymentSessionView["role"],
+  actionRole: PaymentSessionView["actionRole"],
+): Pick<PaymentSessionView, "nextAction" | "nextActionLabel"> {
+  const parties = paymentParties(session);
+  if (session.status === "complete") return { nextAction: "receipt", nextActionLabel: "Open the shared receipt" };
+  if (["archived", "cancelled", "expired"].includes(session.status)) return { nextAction: "closed", nextActionLabel: "No action required" };
+  if (session.status === "open") {
+    return role === "creator"
+      ? { nextAction: "share", nextActionLabel: "Share the private session link" }
+      : { nextAction: "choose", nextActionLabel: `Choose how you want to ${actionRole === "payer" ? "pay" : "receive"}` };
+  }
+  return actionRole === "payer"
+    ? { nextAction: "pay", nextActionLabel: parties.payerRail === "web3_usdc" && parties.receiverRail === "web3_usdc" ? "Review and submit the payment" : "Complete the provider settlement steps" }
+    : { nextAction: "wait", nextActionLabel: "Waiting for the payer to complete settlement" };
 }
 
 function participantView(user: StoredUser): PaymentParticipant {

@@ -33,8 +33,10 @@ export interface PaymentSessionView {
   status: "open" | "ready" | "complete" | "cancelled" | "archived" | "expired";
   invoiceId: string | null;
   createdAt: string;
+  updatedAt: string;
   expiresAt: string;
   inviteTokenHash?: string;
+  sessionPath?: string | null;
   payerInputRail?: string | null;
   receiverOutputRail?: string | null;
   receiverBankDetails?: ReceiverBankDetails | null;
@@ -46,4 +48,6 @@ export interface PaymentSessionView {
   actionRole: "payer" | "receiver";
   payerRail: PaymentRail | null;
   receiverRail: PaymentRail | null;
+  nextAction: "share" | "choose" | "pay" | "wait" | "receipt" | "closed";
+  nextActionLabel: string;
 }

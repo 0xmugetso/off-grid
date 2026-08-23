@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     const session: StoredPaymentSession = {
       id: randomUUID(),
       inviteTokenHash: hashInviteToken(token),
+      inviteToken: token,
       creatorId: current.id,
       counterpartyId: null,
       creatorIntent: body.intent,

@@ -1,11 +1,10 @@
 "use client";
 
-import { ArrowRight, Banknote, Check, CircleAlert, Copy, ExternalLink, LoaderCircle, LockKeyhole, Network, Radio, ShieldCheck, Wallet, Zap } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowRight, Banknote, Bell, Check, CircleAlert, Copy, ExternalLink, LoaderCircle, LockKeyhole, Radio, ShieldCheck, Wallet, X, Zap } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { AuthScreen } from "@/components/offgrid-dashboard";
 import type { DatabaseUserView, PaymentRail, PaymentSessionView } from "@/lib/payment-session-types";
 import { discoverBrowserWallets, ensureArcTestnet, requestWalletAccount } from "@/lib/arc/browser-wallet";
-import { ArcPayrollClient } from "@/lib/arc/app-kit-client";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -83,19 +82,44 @@ export function PaymentSessionWindow({ token }: { token: string }) {
   const [session, setSession] = useState<PaymentSessionView | null>(null);
   const [rail, setRail] = useState<PaymentRail>("web3_usdc");
   const [busy, setBusy] = useState(false);
-  const [fiatBusy, setFiatBusy] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
   const [error, setError] = useState("");
-  const [fiatError, setFiatError] = useState("");
   const [copied, setCopied] = useState(false);
-  const [fiatPayout, setFiatPayout] = useState<{ id: string; status: string; trackingRef?: string | null; circlePayoutId?: string | null } | null>(null);
   const [fiatStatus, setFiatStatus] = useState<{ configured: boolean; checks: Array<{ key: string; label: string; configured: boolean }> } | null>(null);
+  const [liveNotice, setLiveNotice] = useState<{ title: string; detail: string } | null>(null);
+  const sessionSnapshotRef = useRef<string | null>(null);
 
   useEffect(() => { request<{ user: DatabaseUserView | null }>("/api/auth/me").then(({ user }) => setUser(user)).finally(() => setBooting(false)); }, []);
   useEffect(() => {
     if (!user) return;
-    request<{ session: PaymentSessionView }>(`/api/payment-sessions/${token}`).then(({ session }) => setSession(session)).catch((cause) => setError(cause instanceof Error ? cause.message : "Unable to open payment session"));
+    let cancelled = false;
+    const sync = async () => {
+      if (document.hidden) return;
+      try {
+        const response = await request<{ session: PaymentSessionView }>(`/api/payment-sessions/${token}`);
+        if (cancelled) return;
+        const snapshot = `${response.session.status}:${response.session.updatedAt}:${response.session.nextAction}`;
+        if (sessionSnapshotRef.current && sessionSnapshotRef.current !== snapshot) {
+          setLiveNotice({
+            title: response.session.status === "ready" ? "Both payment choices are locked" : response.session.status === "complete" ? "Settlement confirmed" : "Payment session updated",
+            detail: response.session.nextActionLabel,
+          });
+        }
+        sessionSnapshotRef.current = snapshot;
+        setSession(response.session);
+      } catch (cause) {
+        if (!session && !cancelled) setError(cause instanceof Error ? cause.message : "Unable to open payment session");
+      }
+    };
+    void sync();
+    const interval = window.setInterval(sync, 4_000);
+    document.addEventListener("visibilitychange", sync);
+    return () => { cancelled = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", sync); };
   }, [token, user]);
+  useEffect(() => {
+    if (!liveNotice) return;
+    const timeout = window.setTimeout(() => setLiveNotice(null), 7_000);
+    return () => window.clearTimeout(timeout);
+  }, [liveNotice]);
   useEffect(() => {
     if (session?.status !== "ready" || (session.payerRail !== "fiat_bank" && session.receiverRail !== "fiat_bank")) return;
     request<{ configured: boolean; checks: Array<{ key: string; label: string; configured: boolean }> }>("/api/fiat/status").then(setFiatStatus).catch(() => setFiatStatus(null));
@@ -145,72 +169,6 @@ export function PaymentSessionWindow({ token }: { token: string }) {
     } finally { setBusy(false); }
   }
 
-  async function createSandboxBankPayout() {
-    if (!session) return;
-    setFiatBusy(true); setFiatError("");
-    try {
-      const response = await request<{ payout: { id: string; status: string; trackingRef?: string | null; circlePayoutId?: string | null } }>("/api/fiat/payouts", {
-        method: "POST",
-        body: JSON.stringify({
-          amount: session.amount,
-          reference: session.memo || session.id,
-          paymentSessionToken: token,
-        }),
-      });
-      setFiatPayout(response.payout);
-      setSession((current) => current ? { ...current, status: "complete" } : current);
-      await request<{ payouts: unknown[] }>("/api/fiat/payouts").catch(() => undefined);
-    } catch (cause) {
-      setFiatError(cause instanceof Error ? cause.message : "Unable to create sandbox bank payout");
-    } finally {
-      setFiatBusy(false);
-    }
-  }
-
-  async function executeBankWirePayout() {
-    if (!session) return;
-    setFiatBusy(true);
-    setIsClearing(true);
-    setFiatError("");
-    try {
-      // 1. Connect wallet and prompt USDC transfer on Arc Testnet (default)
-      const wallets = await discoverBrowserWallets();
-      if (!wallets.length) throw new Error("No EVM wallet detected. Install MetaMask, Rabby, or Coinbase Wallet.");
-      const wallet = wallets[0];
-      await requestWalletAccount(wallet.provider);
-      await ensureArcTestnet(wallet.provider);
-
-      const client = new ArcPayrollClient();
-      const adapter = await client.connectEvmWallet(wallet.provider);
-
-      // 2. Sign and send USDC to the explicitly configured settlement address.
-      // Never fall back to a demo address: a missing deployment must stop before signing.
-      const escrowRecipient = process.env.NEXT_PUBLIC_ARC_SETTLEMENT_ADDRESS;
-      if (!escrowRecipient || !/^0x[a-fA-F0-9]{40}$/.test(escrowRecipient)) {
-        throw new Error("Crypto-to-fiat settlement is not configured: set NEXT_PUBLIC_ARC_SETTLEMENT_ADDRESS to the audited settlement contract");
-      }
-      await client.sendArcUsdc(adapter, escrowRecipient, session.amount);
-
-      // 3. Trigger Circle Mint Sandbox Wire Off-Ramp Payout
-      const response = await request<{ payout: { id: string; status: string; trackingRef?: string | null; circlePayoutId?: string | null } }>("/api/fiat/payouts", {
-        method: "POST",
-        body: JSON.stringify({
-          amount: session.amount,
-          reference: session.memo || `SESSION-${session.id.slice(0, 8)}`,
-          paymentSessionToken: token,
-        }),
-      });
-      setFiatPayout(response.payout);
-      setSession((current) => current ? { ...current, status: "complete" } : current);
-      await request<{ payouts: unknown[] }>("/api/fiat/payouts").catch(() => undefined);
-    } catch (cause) {
-      setFiatError(cause instanceof Error ? cause.message : "Unable to execute bank wire payout");
-    } finally {
-      setFiatBusy(false);
-      setIsClearing(false);
-    }
-  }
-
   async function copyLink() {
     await navigator.clipboard.writeText(window.location.href);
     setCopied(true);
@@ -232,7 +190,7 @@ export function PaymentSessionWindow({ token }: { token: string }) {
             <div className="session-window-head"><div><span>PAYMENT SESSION</span><b>{session.id.slice(0, 8).toUpperCase()}</b></div><strong className={session.status}><i />{session.status}</strong></div>
             
             {/* Dynamic Animated Progress Pipeline */}
-            <SessionProgressBar session={session} isClearing={isClearing} />
+            <SessionProgressBar session={session} isClearing={session.clearingStatus === "clearing_on_arc"} />
 
             <div className="session-value"><small>AGREED AMOUNT</small><b>{Number(session.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}<em> USDC / USD</em></b>{session.memo && <p>{session.memo}</p>}</div>
             <div className="session-parties">
@@ -252,6 +210,7 @@ export function PaymentSessionWindow({ token }: { token: string }) {
                   <button type="button" className={rail === "web3_usdc" ? "active" : ""} onClick={() => setRail("web3_usdc")}><Wallet size={19} /><span><b>Web3 USDC</b><small>Direct, Gateway, or CCTP</small></span>{rail === "web3_usdc" ? <Check size={15} /> : null}</button>
                   <button type="button" className={rail === "fiat_bank" ? "active" : ""} onClick={() => setRail("fiat_bank")}><Banknote size={19} /><span><b>Bank / fiat</b><small>Circle Mint wire settlement</small></span>{rail === "fiat_bank" ? <Check size={15} /> : null}</button>
                 </div>
+                {rail === "fiat_bank" && <div className="session-rail-advisory"><CircleAlert size={14} /><p><b>Provider-orchestrated rail</b><span>This choice locks the bank side of the route. It does not report settlement until Circle returns proof for each required stage.</span></p></div>}
 
                 {rail === "fiat_bank" && session.actionRole === "receiver" && (
                   <div className="receiver-bank-inputs" style={{ display: "flex", flexDirection: "column", gap: "8px", margin: "12px 0", textAlign: "left" }}>
@@ -295,41 +254,17 @@ export function PaymentSessionWindow({ token }: { token: string }) {
                 {/* Case A: Crypto-to-Fiat */}
                 {session.payerRail === "web3_usdc" && session.receiverRail === "fiat_bank" ? (
                   <>
-                    <p>
-                      {session.actionRole === "payer"
-                        ? "Payer signs USDC from a Web3 wallet to the configured settlement contract. Circle Mint can wire fiat only after the provider and compliance workflow are configured."
-                        : "Waiting for the payer to sign the USDC transfer. Circle Mint will wire fiat directly to your bank account."}
-                    </p>
-                    {session.actionRole === "payer" && (
-                      <div className="fiat-action-row" style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", marginTop: "14px" }}>
-                        <button className="session-cta session-cta-primary" onClick={executeBankWirePayout} disabled={fiatBusy}>
-                          {fiatBusy ? <LoaderCircle className="spin" size={16} /> : <Zap size={16} />}
-                          <span>{fiatBusy ? "Clearing USDC and wiring fiat..." : "Sign USDC and execute bank payout"}</span>
-                        </button>
-                      </div>
-                    )}
-                    {fiatError && <p className="inline-error"><CircleAlert size={13} />{fiatError}</p>}
+                    <p>USDC must first reach a Circle Mint deposit address and confirm in the business balance. Only then can Circle redeem it to a linked and verified bank account.</p>
+                    <ProviderRouteStatus status={fiatStatus} label="Web3 to fiat" />
                   </>
                 ) : session.payerRail === "fiat_bank" && session.receiverRail === "web3_usdc" ? (
-                  /* Case B: Fiat-to-Crypto */
                   <>
-                    <p>
-                      {session.actionRole === "payer"
-                        ? "Payer sends a fiat wire or card deposit to Circle Mint Sandbox. Circle Mint mints USDC on Arc Testnet directly into the receiver's Web3 wallet address."
-                        : "Waiting for the payer to complete bank wire deposit. USDC will be minted on Arc Testnet directly to your Web3 wallet."}
-                    </p>
-                    {session.actionRole === "payer" && (
-                      <div className="fiat-action-row" style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", marginTop: "14px" }}>
-                        <button className="session-cta session-cta-primary" onClick={createSandboxBankPayout} disabled={fiatBusy}>
-                          {fiatBusy ? <LoaderCircle className="spin" size={16} /> : <Banknote size={16} />}
-                          <span>{fiatBusy ? "Processing Fiat Deposit & Minting USDC..." : "Confirm Fiat Payment Sent 🏦"}</span>
-                        </button>
-                      </div>
-                    )}
-                    {fiatError && <p className="inline-error"><CircleAlert size={13} />{fiatError}</p>}
+                    <p>A bank wire must settle into Circle Mint before Circle can submit an onchain USDC transfer to the receiver. A payout request is not a fiat deposit and no longer marks this session complete.</p>
+                    <ProviderRouteStatus status={fiatStatus} label="Fiat to Web3" />
                   </>
+                ) : session.payerRail === "fiat_bank" && session.receiverRail === "fiat_bank" ? (
+                  <><p>The payer deposit must settle in Circle Mint before a separate redemption can be sent to the receiver's linked and verified bank account.</p><ProviderRouteStatus status={fiatStatus} label="Fiat to fiat" /></>
                 ) : session.actionRole === "payer" ? (
-                  /* Case C: Web3 to Web3 */
                   <>
                     <p>The recipient and amount are locked. Proceed to execution console.</p>
                     <a className="neon-button" href={`/?session=${encodeURIComponent(token)}`}><Zap size={15} /> Execute payment <ArrowRight size={14} /></a>
@@ -341,11 +276,16 @@ export function PaymentSessionWindow({ token }: { token: string }) {
             )}
 
             {session.status === "complete" && session.invoiceId && <div className="session-action complete"><Check size={26} /><span className="section-tag">PAYMENT FINALIZED</span><h2>Your shared receipt is ready.</h2><a className="neon-button" href={`/invoice/${session.invoiceId}`}>Open verified invoice <ExternalLink size={14} /></a></div>}
-            {session.status === "complete" && !session.invoiceId && hasFiatLeg && <div className="session-action complete"><Check size={26} /><span className="section-tag">CIRCLE MINT WIRE PAYOUT</span><h2>Bank transaction submitted.</h2><p>{fiatPayout ? `Circle returned payout ${fiatPayout.circlePayoutId ?? fiatPayout.id}. Track status in History.` : "The Circle Mint sandbox wire payout request was accepted. Track the bank transfer in History."}</p>{fiatPayout?.trackingRef && <div className="session-created-link"><LockKeyhole size={15} /><span>{fiatPayout.trackingRef}</span></div>}<a className="neon-button" href="/"><ArrowRight size={14} /> Back to dashboard</a></div>}
+            {session.status === "complete" && !session.invoiceId && hasFiatLeg && <div className="session-action complete"><Check size={26} /><span className="section-tag">PROVIDER SETTLEMENT</span><h2>Provider settlement recorded.</h2><p>Open History to verify the provider ID, current status, and every available settlement proof.</p><a className="neon-button" href="/"><ArrowRight size={14} /> Back to dashboard</a></div>}
             <footer><ShieldCheck size={12} /> Authenticated participants · immutable server terms · invite expires {new Date(session.expiresAt).toLocaleDateString()}</footer>
           </article>
         )}
       </section>
+      {liveNotice && <div className="session-live-notice" role="status"><span><Bell size={15} /></span><div><b>{liveNotice.title}</b><p>{liveNotice.detail}</p></div><button type="button" onClick={() => setLiveNotice(null)} aria-label="Dismiss notification"><X size={13} /></button></div>}
     </main>
   );
+}
+
+function ProviderRouteStatus({ status, label }: { status: { configured: boolean; checks: Array<{ key: string; label: string; configured: boolean }> } | null; label: string }) {
+  return <div className="provider-route-status"><div><Banknote size={15} /><span><small>{label.toUpperCase()}</small><b>{status?.configured ? "Provider configured, orchestration pending" : "Provider setup required"}</b></span></div><p>OffGrid will not report success until every deposit, conversion, transfer, and payout stage has a provider ID or transaction proof.</p>{status && <div className="fiat-checks">{status.checks.map((check) => <span className={check.configured ? "done" : ""} key={check.key}><i>{check.configured ? <Check size={9} /> : "!"}</i>{check.label}</span>)}</div>}</div>;
 }

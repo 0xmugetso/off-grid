@@ -41,6 +41,15 @@ async function refreshPayouts(ownerId: string) {
       if (typeof data?.destination?.name === "string") target.destinationName = data.destination.name;
       if (typeof data?.sourceWalletId === "string") target.sourceWalletId = data.sourceWalletId;
       target.updatedAt = new Date().toISOString();
+      if (target.status === "confirmed" && target.paymentSessionId) {
+        const session = database.paymentSessions.find((entry) => entry.id === target.paymentSessionId);
+        if (session) {
+          session.status = "complete";
+          session.clearingStatus = "settled";
+          session.receiverRailStatus = "settled";
+          session.updatedAt = target.updatedAt;
+        }
+      }
     }
     return database.fiatPayouts.filter((entry) => entry.ownerId === ownerId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   });
@@ -81,7 +90,8 @@ export async function POST(request: Request) {
       if (session.status !== "ready" && session.status !== "complete") throw new Error("Payment session is not ready");
       const parties = paymentParties(session);
       if (current.id !== parties.payerId && current.id !== parties.receiverId) throw new Error("Only a session participant can create this payout");
-      if (parties.payerRail !== "fiat_bank" && parties.receiverRail !== "fiat_bank") throw new Error("This payment session does not include a bank rail");
+      if (parties.receiverRail !== "fiat_bank") throw new Error("This payment session does not have a bank payout destination");
+      if (session.auditProof?.circleMintDepositStatus !== "confirmed") throw new Error("Circle Mint has not confirmed the source deposit for this session");
       if (parseUsdc(session.amount) !== parseUsdc(amount)) throw new Error("Amount does not match the payment session");
       paymentSessionId = session.id;
       sessionReference = sessionReference || session.memo || `SESSION-${session.id.slice(0, 8)}`;
@@ -124,7 +134,8 @@ export async function POST(request: Request) {
       if (paymentSessionId) {
         const session = database.paymentSessions.find((entry) => entry.id === paymentSessionId);
         if (session && session.status === "ready") {
-          session.status = "complete";
+          session.clearingStatus = "clearing_on_arc";
+          session.receiverRailStatus = "payout_dispatching";
           session.updatedAt = now;
         }
       }

@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   BadgeCheck,
   Banknote,
+  Bell,
   Blocks,
   Bot,
   BriefcaseBusiness,
@@ -1534,6 +1535,7 @@ export function OffGridDashboard() {
   const [activeSession, setActiveSession] = useState<PaymentSessionView | null>(null);
   const [activeSessionToken, setActiveSessionToken] = useState("");
   const [sessionModalTab, setSessionModalTab] = useState<"open" | "ready" | "completed" | "archived">("open");
+  const [sessionNotice, setSessionNotice] = useState<{ id: string; title: string; detail: string } | null>(null);
   const providerRef = useRef<BrowserWallet["provider"] | null>(null);
   const adapterRef = useRef<BrowserViemAdapter | null>(null);
   const solanaAdapterRef = useRef<BrowserSolanaAdapter | null>(null);
@@ -1545,6 +1547,7 @@ export function OffGridDashboard() {
   const activeCctpFormRef = useRef<string | null>(null);
   const knownCctpInvoicesRef = useRef(new Set<string>());
   const autoReconnectAttemptedRef = useRef(false);
+  const sessionSnapshotRef = useRef<Map<string, string> | null>(null);
   const walletMenuRef = useRef<HTMLDivElement>(null);
   const hasLiveSession = paymentSessionsList.some((session) => session.status === "open" || session.status === "ready");
   const hasPendingCctp = cctpOperations.some((operation) => operation.status !== "confirmed" && operation.status !== "failed");
@@ -1639,6 +1642,21 @@ export function OffGridDashboard() {
   async function refreshPaymentSessions() {
     try {
       const { sessions } = await api<{ sessions: PaymentSessionView[] }>("/api/payment-sessions");
+      const previous = sessionSnapshotRef.current;
+      if (previous) {
+        const changed = sessions.find((session) => {
+          const snapshot = `${session.status}:${session.updatedAt}:${session.nextAction}`;
+          return previous.has(session.id) && previous.get(session.id) !== snapshot;
+        });
+        if (changed) {
+          setSessionNotice({
+            id: changed.id,
+            title: changed.status === "complete" ? "Payment session completed" : changed.status === "ready" ? "Both payment choices are locked" : "Payment session updated",
+            detail: changed.nextActionLabel,
+          });
+        }
+      }
+      sessionSnapshotRef.current = new Map(sessions.map((session) => [session.id, `${session.status}:${session.updatedAt}:${session.nextAction}`]));
       setPaymentSessionsList(sessions);
     } catch {
       // Best effort
@@ -1668,13 +1686,18 @@ export function OffGridDashboard() {
       void refreshPaymentSessions();
     };
     sync();
-    const interval = window.setInterval(sync, hasLiveSession || hasPendingFiat ? 15_000 : 45_000);
+    const interval = window.setInterval(sync, hasLiveSession || hasPendingFiat ? 5_000 : 30_000);
     document.addEventListener("visibilitychange", sync);
     return () => {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", sync);
     };
   }, [user, hasLiveSession, hasPendingFiat]);
+  useEffect(() => {
+    if (!sessionNotice) return;
+    const timeout = window.setTimeout(() => setSessionNotice(null), 7_000);
+    return () => window.clearTimeout(timeout);
+  }, [sessionNotice]);
   useEffect(() => {
     if (!user) return;
     const sync = () => { if (!document.hidden) void refreshCctpOperations(); };
@@ -1698,6 +1721,12 @@ export function OffGridDashboard() {
       setActiveSession(session); setActiveSessionToken(token);
       setRecipient({ id: receiver.id, username: receiver.username, displayName: receiver.displayName, walletAddress: receiver.walletAddress });
       setRecipientQuery(`@${receiver.username}`); setAmount(session.amount); setMemo(session.memo); setPaymentEstimate(null); setGatewayMintRetry(null); setStep("amount");
+      window.setTimeout(() => {
+        const consoleElement = document.getElementById("payment-console");
+        consoleElement?.scrollIntoView({ behavior: "smooth", block: "start" });
+        consoleElement?.classList.add("session-guided-focus");
+        window.setTimeout(() => consoleElement?.classList.remove("session-guided-focus"), 1800);
+      }, 180);
     }).catch((cause) => setPaymentError(cause instanceof Error ? cause.message : "Unable to load payment session"));
   }, [user]);
   useEffect(() => {
@@ -2125,6 +2154,8 @@ export function OffGridDashboard() {
       const response = await api<{ session: PaymentSessionView; inviteToken: string }>("/api/payment-sessions", { method: "POST", body: JSON.stringify({ intent: sessionIntent, rail: sessionRail, amount: sessionAmount, memo: sessionMemo }) });
       const link = `${window.location.origin}/session/${response.inviteToken}`;
       setCreatedSessionLink(link);
+      setPaymentSessionsList((current) => [response.session, ...current.filter((session) => session.id !== response.session.id)]);
+      sessionSnapshotRef.current = new Map([[response.session.id, `${response.session.status}:${response.session.updatedAt}:${response.session.nextAction}`], ...Array.from(sessionSnapshotRef.current?.entries() ?? [])]);
     } catch (cause) {
       setSessionError(cause instanceof Error ? cause.message : "Unable to create payment session");
     } finally { setSessionBusy(false); }
@@ -2497,7 +2528,7 @@ export function OffGridDashboard() {
                 <button className="gateway-status-close" onClick={() => { depositPollRef.current += 1; setDepositNotice(null); }} aria-label="Dismiss deposit status"><X size={13} /></button>
               </section>}
 
-              <section className="pay-console">
+              <section className="pay-console" id="payment-console">
                 <div className="console-head"><div><span className="section-tag">NEW PAYMENT</span><h2>Send with zero ambiguity.</h2></div><div className="stepper">{["recipient","amount","review"].map((item,index) => <span key={item} className={step === item || (step === "processing" && index === 2) ? "active" : ""}><i>{index + 1}</i>{item}</span>)}</div></div>
                 {activeSession && <div className="locked-session-banner"><LockKeyhole size={15} /><div><small>LOCKED PAYMENT SESSION · {activeSession.id.slice(0, 8).toUpperCase()}</small><b>{activeSession.creator?.displayName} and {activeSession.counterparty?.displayName} agreed to {activeSession.amount} USDC</b></div><ShieldCheck size={16} /></div>}
 
@@ -2698,7 +2729,7 @@ export function OffGridDashboard() {
 
       {showSolanaWallets && <div className="overlay"><article className="wallet-picker solana-wallet-picker"><button className="modal-x" onClick={() => setShowSolanaWallets(false)}><X size={18} /></button><span className="section-tag">SOLANA DEVNET SIGNER</span><h2>Choose your Solana wallet</h2><p>This signer can deposit USDC into Circle Gateway, fund unified payments, and bridge to Arc Testnet through CCTP.</p>{solanaWallets.map((wallet) => <button className="wallet-choice" key={wallet.id} onClick={() => void connectSolanaSource(wallet)}><ChainLogo chain="Solana_Devnet" size={27}/><span><b>{wallet.name}</b><small>SOLANA DEVNET · SELF-CUSTODY</small></span><ArrowRight size={16} /></button>)}</article></div>}
 
-      {showSessionCreator && <div className="overlay"><article className="session-create-modal"><button className="modal-x" onClick={() => setShowSessionCreator(false)}><X size={18} /></button><span className="section-tag">PRIVATE PAYMENT SESSION</span>{createdSessionLink ? <><h2>Your payment window is live.</h2><p>Send this capability link to exactly one person. The first authenticated account to accept becomes the counterparty.</p><div className="created-session-link"><LockKeyhole size={15} /><span>{createdSessionLink}</span></div><button className="neon-button" onClick={copyCreatedSession}><Copy size={15} />{sessionLinkCopied ? "Link copied" : "Copy secure link"}</button><a className="open-session-link" href={createdSessionLink}>Open payment window <ExternalLink size={12} /></a></> : <><h2>Who moves the money?</h2><p>Set immutable starting terms. The other participant chooses their own rail after opening the link.</p><label>Your role<div className="intent-options"><button className={sessionIntent === "pay" ? "active" : ""} onClick={() => setSessionIntent("pay")}><ArrowUpRight size={15} /><span><b>I want to pay</b><small>The invitee receives</small></span>{sessionIntent === "pay" && <Check size={14} />}</button><button className={sessionIntent === "receive" ? "active" : ""} onClick={() => setSessionIntent("receive")}><ArrowDownToLine size={15} /><span><b>I want to receive</b><small>The invitee pays</small></span>{sessionIntent === "receive" && <Check size={14} />}</button></div></label><label>Your preferred rail<div className="intent-options"><button className={sessionRail === "web3_usdc" ? "active" : ""} onClick={() => setSessionRail("web3_usdc")}><Wallet size={15} /><span><b>Web3 USDC</b><small>Direct · Gateway · CCTP</small></span>{sessionRail === "web3_usdc" && <Check size={14} />}</button><button className={sessionRail === "fiat_bank" ? "active" : ""} onClick={() => setSessionRail("fiat_bank")}><Banknote size={15} /><span><b>Bank / fiat</b><small>Sandbox setup required</small></span>{sessionRail === "fiat_bank" && <Check size={14} />}</button></div></label><label>Amount<div className="fund-amount"><input value={sessionAmount} onChange={(event) => setSessionAmount(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" /><span>USDC / USD</span></div></label><label>Memo <em>OPTIONAL</em><input className="session-memo-input" value={sessionMemo} onChange={(event) => setSessionMemo(event.target.value)} maxLength={180} placeholder="August payroll, design retainer…" /></label>{sessionError && <p className="inline-error"><CircleAlert size={13} />{sessionError}</p>}<button className="neon-button" onClick={createPaymentSession} disabled={sessionBusy}>{sessionBusy ? <LoaderCircle className="spin" size={15} /> : <LockKeyhole size={15} />} Create immutable session</button></>}</article></div>}
+      {showSessionCreator && <div className="overlay"><article className="session-create-modal"><button className="modal-x" onClick={() => setShowSessionCreator(false)}><X size={18} /></button><span className="section-tag">PRIVATE PAYMENT SESSION</span>{createdSessionLink ? <><h2>Your payment window is live.</h2><p>Send this capability link to exactly one person. The first authenticated account to accept becomes the counterparty.</p><div className="created-session-link"><LockKeyhole size={15} /><span>{createdSessionLink}</span></div><button className="neon-button" onClick={copyCreatedSession}><Copy size={15} />{sessionLinkCopied ? "Link copied" : "Copy secure link"}</button><a className="open-session-link" href={createdSessionLink}>Open payment window <ExternalLink size={12} /></a></> : <><h2>Who moves the money?</h2><p>Set immutable starting terms. The other participant chooses their own rail after opening the link.</p><label>Your role<div className="intent-options"><button className={sessionIntent === "pay" ? "active" : ""} onClick={() => setSessionIntent("pay")}><ArrowUpRight size={15} /><span><b>I want to pay</b><small>The invitee receives</small></span>{sessionIntent === "pay" && <Check size={14} />}</button><button className={sessionIntent === "receive" ? "active" : ""} onClick={() => setSessionIntent("receive")}><ArrowDownToLine size={15} /><span><b>I want to receive</b><small>The invitee pays</small></span>{sessionIntent === "receive" && <Check size={14} />}</button></div></label><label>Your preferred rail<div className="intent-options"><button className={sessionRail === "web3_usdc" ? "active" : ""} onClick={() => setSessionRail("web3_usdc")}><Wallet size={15} /><span><b>Web3 USDC</b><small>Direct · Gateway · CCTP</small></span>{sessionRail === "web3_usdc" && <Check size={14} />}</button><button className={sessionRail === "fiat_bank" ? "active" : ""} onClick={() => setSessionRail("fiat_bank")}><Banknote size={15} /><span><b>Bank / fiat</b><small>Sandbox provider stages</small></span>{sessionRail === "fiat_bank" && <Check size={14} />}</button></div></label>{sessionRail === "fiat_bank" && <div className="session-rail-advisory"><CircleAlert size={14} /><p><b>Provider-orchestrated rail</b><span>A session stays pending until Circle records every deposit, transfer, or payout stage. Choosing fiat cannot create an instant local balance.</span></p></div>}<label>Amount<div className="fund-amount"><input value={sessionAmount} onChange={(event) => setSessionAmount(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" /><span>USDC / USD</span></div></label><label>Memo <em>OPTIONAL</em><input className="session-memo-input" value={sessionMemo} onChange={(event) => setSessionMemo(event.target.value)} maxLength={180} placeholder="August payroll, design retainer…" /></label>{sessionError && <p className="inline-error"><CircleAlert size={13} />{sessionError}</p>}<button className="neon-button" onClick={createPaymentSession} disabled={sessionBusy}>{sessionBusy ? <LoaderCircle className="spin" size={15} /> : <LockKeyhole size={15} />} Create immutable session</button></>}</article></div>}
 
       {showLiveSessionsModal && (
         <div className="overlay">
@@ -2771,7 +2802,7 @@ export function OffGridDashboard() {
                       </div>
                     ) : (
                       displayedSessions.map((sess) => {
-                        const inviteUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/?session=${sess.inviteTokenHash}`;
+                        const inviteUrl = sess.sessionPath && typeof window !== "undefined" ? `${window.location.origin}${sess.sessionPath}` : null;
                         return (
                           <div className="live-session-card" key={sess.id}>
                             <div className="session-card-header">
@@ -2869,14 +2900,14 @@ export function OffGridDashboard() {
                             <div className="session-card-share-bar">
                               <div className="link-text-box">
                                 <LockKeyhole size={13} />
-                                <span>{inviteUrl}</span>
+                                <span>{inviteUrl ?? "Original capability link unavailable for this legacy session"}</span>
                               </div>
                               <div style={{ display: "flex", gap: "8px" }}>
                                 <a
-                                  href={`/session/${sess.inviteTokenHash}`}
+                                  href={inviteUrl ?? undefined}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="neon-button-sm primary-cta"
+                                  className={`neon-button-sm primary-cta ${inviteUrl ? "" : "disabled"}`}
                                   style={{ textDecoration: "none" }}
                                 >
                                   <ExternalLink size={13} /> Open Session
@@ -2885,10 +2916,11 @@ export function OffGridDashboard() {
                                   type="button"
                                   className="neon-button-sm secondary-ghost"
                                   onClick={() => {
-                                    if (typeof window !== "undefined") {
+                                    if (inviteUrl && typeof window !== "undefined") {
                                       navigator.clipboard.writeText(inviteUrl);
                                     }
                                   }}
+                                  disabled={!inviteUrl}
                                 >
                                   <Copy size={13} /> Copy Link
                                 </button>
@@ -2906,6 +2938,14 @@ export function OffGridDashboard() {
           </article>
         </div>
       )}
+
+      {hasLiveSession && (() => {
+        const current = paymentSessionsList.find((session) => session.nextAction === "pay") ?? paymentSessionsList.find((session) => session.status === "ready") ?? paymentSessionsList.find((session) => session.status === "open");
+        if (!current) return null;
+        return <button type="button" className="session-status-dock" onClick={() => { setSessionModalTab(current.status === "ready" ? "ready" : "open"); setShowLiveSessionsModal(true); }}><span><Radio size={14} /></span><div><small>LIVE PAYMENT SESSION · {current.id.slice(0, 8).toUpperCase()}</small><b>{current.nextActionLabel}</b><em>{current.amount} USD · {current.status.toUpperCase()}</em></div><ArrowRight size={15} /></button>;
+      })()}
+
+      {sessionNotice && <div className="session-notice-toast" role="status"><span><Bell size={15} /></span><div><b>{sessionNotice.title}</b><p>{sessionNotice.detail}</p></div><button type="button" onClick={() => setSessionNotice(null)} aria-label="Dismiss notification"><X size={13} /></button></div>}
 
       {showFunding && <div className="overlay"><article className="funding-modal"><button className="modal-x" onClick={() => setShowFunding(false)}><X size={18} /></button><span className="section-tag">CIRCLE GATEWAY</span><h2>Fund unified balance</h2><p>Deposit USDC from an EVM testnet or Solana Devnet. App Kit handles authorization and the Gateway deposit.</p><div className="modal-chain-field"><span>Source network</span><ChainSelect value={depositChain} chains={SOURCE_CHAINS} onChange={(chain) => { setDepositChain(chain); setDepositError(""); }} /></div>{depositChain === "Solana_Devnet" && <div className={`solana-deposit-wallet ${solanaAddress ? "connected" : ""}`}><ChainLogo chain="Solana_Devnet" size={25}/><div><small>{solanaAddress ? `${solanaWalletName.toUpperCase()} · SOURCE WALLET` : "SOLANA SIGNER REQUIRED"}</small><b>{solanaAddress ? `${solanaUsdcBalance === null ? "-" : displayMoney(solanaUsdcBalance)} USDC` : "Phantom · Solflare · Backpack"}</b>{solanaAddress && <em>{shortAddress(solanaAddress, 6)}</em>}</div><button onClick={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={13}/> : solanaAddress ? <RefreshCw size={13}/> : <Wallet size={13}/>} {solanaAddress ? "Refresh" : "Connect"}</button></div>}<label>Amount<div className="fund-amount"><input value={depositAmount} onChange={(event) => { setDepositAmount(event.target.value.replace(/[^0-9.]/g, "")); setDepositError(""); }} inputMode="decimal" /><span>USDC</span></div></label><div className="gateway-diagram"><ChainName chain={depositChain} size={20}/><i><ArrowRight size={16} /></i><span>Gateway</span><i><ArrowRight size={16} /></i><span>Unified</span></div><button className="neon-button" onClick={depositToGateway} disabled={depositBusy || !walletAddress || !(Number(depositAmount) > 0) || (depositChain === "Solana_Devnet" && !solanaAddress)}>{depositBusy ? <LoaderCircle className="spin" size={17} /> : <ArrowDownToLine size={17} />} {depositBusy ? "Confirm in wallet…" : "Review deposit in wallet"}</button>{depositError && <p className="inline-error"><CircleAlert size={13} />{depositError}</p>}{solanaError && <p className="inline-error"><CircleAlert size={13} />{solanaError}</p>}<small><ShieldCheck size={12} /> Testnet transaction. App Kit switches to the source chain; OffGrid keeps reading the destination balance independently.</small></article></div>}
 

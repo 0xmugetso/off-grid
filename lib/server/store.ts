@@ -101,6 +101,7 @@ export interface ReceiverBankDetails {
 export interface StoredPaymentSession {
   id: string;
   inviteTokenHash: string;
+  inviteToken?: string | null;
   creatorId: string;
   counterpartyId: string | null;
   creatorIntent: "pay" | "receive";

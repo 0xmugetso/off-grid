@@ -5,7 +5,7 @@ import { sessionView } from "@/lib/server/payment-sessions";
 import { mutateDatabase, queryDatabase, type PaymentRail } from "@/lib/server/store";
 
 function validToken(token: string) {
-  return /^[A-Za-z0-9_-]{43}$/.test(token);
+  return /^[A-Za-z0-9_-]{43}$/.test(token) || /^[a-f0-9]{64}$/i.test(token);
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
