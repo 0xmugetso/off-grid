@@ -101,7 +101,7 @@ export function PaymentSessionWindow({ token }: { token: string }) {
       try {
         const response = await request<{ session: PaymentSessionView }>(`/api/payment-sessions/${token}`);
         if (cancelled) return;
-        const snapshot = `${response.session.status}:${response.session.updatedAt}:${response.session.nextAction}`;
+        const snapshot = `${response.session.status}:${response.session.nextAction}:${response.session.invoiceId ?? ""}`;
         if (sessionSnapshotRef.current && sessionSnapshotRef.current !== snapshot) {
           setLiveNotice({
             title: response.session.status === "ready" ? "Both payment choices are locked" : response.session.status === "complete" ? "Settlement confirmed" : "Payment session updated",

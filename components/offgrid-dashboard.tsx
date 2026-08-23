@@ -229,6 +229,40 @@ function normalizeProtocolEvent(payload: unknown): ProtocolEvent | null {
   return { name, state, explorerUrl };
 }
 
+function sessionEventSnapshot(session: PaymentSessionView) {
+  return [session.status, session.nextAction, session.invoiceId ?? ""].join(":");
+}
+
+function readShownSessionEvents() {
+  if (typeof window === "undefined") return new Set<string>();
+  try {
+    const value = JSON.parse(window.sessionStorage.getItem("offgrid-shown-session-events") || "[]");
+    return new Set<string>(Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function persistShownSessionEvents(events: Set<string>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem("offgrid-shown-session-events", JSON.stringify(Array.from(events).slice(-120)));
+  } catch {
+    // Notification deduplication is best effort only.
+  }
+}
+
+function fiatProofEvents(session: PaymentSessionView): ProtocolEvent[] {
+  const settlement = session.fiatSettlement;
+  if (!settlement) return [{ name: "Preparing provider proof route", state: "pending" }];
+  return [
+    { name: settlement.mockWireTrackingRef ? `Sandbox wire accepted · ${settlement.mockWireTrackingRef}` : "Submitting sandbox wire", state: settlement.mockWireTrackingRef ? "confirmed" : "pending" },
+    { name: settlement.circleDepositId ? `Circle deposit verified · ${settlement.circleDepositId}` : "Waiting for Circle deposit", state: settlement.circleDepositStatus && /fail|denied|cancel/i.test(settlement.circleDepositStatus) ? "failed" : settlement.circleDepositId ? "confirmed" : "pending" },
+    { name: settlement.receiverTransferId ? `Wallet payout submitted · ${settlement.receiverTransferId}` : "Preparing testnet USDC delivery", state: settlement.receiverTransferId ? (settlement.receiverTxHash ? "confirmed" : "pending") : "pending" },
+    { name: settlement.receiverTxHash ? `USDC verified onchain · ${shortAddress(settlement.receiverTxHash, 8)}` : "Waiting for onchain receipt", state: settlement.arcBlockNumber ? "confirmed" : "pending", explorerUrl: settlement.receiverTxHash ? `https://testnet.arcscan.app/tx/${settlement.receiverTxHash}` : undefined },
+  ];
+}
+
 function bridgeFeeSummary(estimate: { fees?: Array<{ amount?: string | null; token?: string }> }) {
   const fees = estimate.fees?.filter((fee) => fee.amount && Number(fee.amount) > 0) ?? [];
   if (!fees.length) return "No CCTP protocol fee on standard transfer";
@@ -405,7 +439,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
         <div className="auth-grid" />
         <div className="auth-orbit orbit-one"><span>BASE</span><i /></div>
         <div className="auth-orbit orbit-two"><span>SOL</span><i /></div>
-        <div className="auth-center"><Logo /><b>OG</b><small>PAYMENT NETWORK</small></div>
+        <div className="auth-center"><Logo /><b>offgrid</b><small>PAYMENT NETWORK</small></div>
         <div className="auth-copy">
           <span className="signal-pill"><Radio size={12} /> TESTNET MODE</span>
           <h1>Money without<br /><em>borders.</em></h1>
@@ -1586,6 +1620,7 @@ export function OffGridDashboard() {
   const knownCctpInvoicesRef = useRef(new Set<string>());
   const autoReconnectAttemptedRef = useRef(false);
   const sessionSnapshotRef = useRef<Map<string, string> | null>(null);
+  const shownSessionEventsRef = useRef<Set<string>>(new Set());
   const walletMenuRef = useRef<HTMLDivElement>(null);
   const hasLiveSession = paymentSessionsList.some((session) => session.status === "open" || session.status === "ready");
   const hasPendingCctp = cctpOperations.some((operation) => operation.status !== "confirmed" && operation.status !== "failed");
@@ -1683,10 +1718,14 @@ export function OffGridDashboard() {
       const previous = sessionSnapshotRef.current;
       if (previous) {
         const changed = sessions.find((session) => {
-          const snapshot = `${session.status}:${session.updatedAt}:${session.nextAction}`;
-          return previous.has(session.id) && previous.get(session.id) !== snapshot;
+          const snapshot = sessionEventSnapshot(session);
+          const eventKey = `${session.id}:${snapshot}`;
+          return previous.has(session.id) && previous.get(session.id) !== snapshot && !shownSessionEventsRef.current.has(eventKey);
         });
         if (changed) {
+          const eventKey = `${changed.id}:${sessionEventSnapshot(changed)}`;
+          shownSessionEventsRef.current.add(eventKey);
+          persistShownSessionEvents(shownSessionEventsRef.current);
           setSessionNotice({
             id: changed.id,
             title: changed.status === "complete" ? "Payment session completed" : changed.status === "ready" ? "Both payment choices are locked" : "Payment session updated",
@@ -1694,7 +1733,7 @@ export function OffGridDashboard() {
           });
         }
       }
-      sessionSnapshotRef.current = new Map(sessions.map((session) => [session.id, `${session.status}:${session.updatedAt}:${session.nextAction}`]));
+      sessionSnapshotRef.current = new Map(sessions.map((session) => [session.id, sessionEventSnapshot(session)]));
       setPaymentSessionsList(sessions);
     } catch {
       // Best effort
@@ -1716,6 +1755,9 @@ export function OffGridDashboard() {
     }
   }
 
+  useEffect(() => {
+    shownSessionEventsRef.current = readShownSessionEvents();
+  }, []);
   useEffect(() => {
     if (!user) return;
     const sync = () => {
@@ -1776,16 +1818,15 @@ export function OffGridDashboard() {
   const recipientAddress = recipient?.walletAddress ?? (isAddress(recipientQuery.trim()) ? recipientQuery.trim() : "");
   const requiresSolanaWallet = fundingMethod === "cctp_bridge" && bridgeSourceChain === "Solana_Devnet";
   const displayWalletAddress = walletAddress || user?.walletAddress || "";
-  const fiatBalance = null;
   const canReview = fundingMethod === "fiat_bank"
-    ? Boolean(recipientAddress && Number(amount) > 0 && fiatBalance !== null && Number(amount) <= Number(fiatBalance))
+    ? Boolean(recipient?.id && recipientAddress && Number(amount) >= 2 && Number(amount) <= 10)
     : Boolean(displayWalletAddress && chainReady && recipientAddress && Number(amount) > 0 && (!requiresSolanaWallet || solanaAddress));
-  const available = fundingMethod === "arc_wallet" ? arcBalance : fundingMethod === "unified_balance" ? unifiedBalance : fundingMethod === "fiat_bank" ? fiatBalance : null;
+  const available = fundingMethod === "arc_wallet" ? arcBalance : fundingMethod === "unified_balance" ? unifiedBalance : null;
   const insufficientBalance = available !== null && Number(amount) > Number(available);
   const reviewBlockReason = fundingMethod === "fiat_bank"
-    ? recipientQuery.trim() && !recipientAddress ? "Enter a valid recipient username or address"
-      : amount.trim() && !(Number(amount) > 0) ? "Enter an amount greater than zero"
-        : amount.trim() && insufficientBalance ? "Amount exceeds your sandbox fiat balance"
+    ? recipientQuery.trim() && !recipient?.id ? "Choose a registered OffGrid recipient"
+      : amount.trim() && Number(amount) < 2 ? "Circle sandbox bank payments require at least 2.00 USD"
+        : amount.trim() && Number(amount) > 10 ? "Sandbox payments are limited to 10.00 USD"
           : ""
     : !displayWalletAddress ? "Connect an EVM wallet first"
       : !chainReady ? "Add Arc Testnet first"
@@ -2193,7 +2234,7 @@ export function OffGridDashboard() {
       const link = `${window.location.origin}/session/${response.inviteToken}`;
       setCreatedSessionLink(link);
       setPaymentSessionsList((current) => [response.session, ...current.filter((session) => session.id !== response.session.id)]);
-      sessionSnapshotRef.current = new Map([[response.session.id, `${response.session.status}:${response.session.updatedAt}:${response.session.nextAction}`], ...Array.from(sessionSnapshotRef.current?.entries() ?? [])]);
+      sessionSnapshotRef.current = new Map([[response.session.id, sessionEventSnapshot(response.session)], ...Array.from(sessionSnapshotRef.current?.entries() ?? [])]);
     } catch (cause) {
       setSessionError(cause instanceof Error ? cause.message : "Unable to create payment session");
     } finally { setSessionBusy(false); }
@@ -2240,7 +2281,11 @@ export function OffGridDashboard() {
     setEstimateBusy(true); setPaymentPhase("estimate"); setPaymentError(""); setPaymentEstimate(null); setGatewayMintRetry(null); setProtocolEvents([]);
     try {
       if (fundingMethod === "fiat_bank") {
-        setPaymentEstimate({ title: "Sandbox fiat transfer", detail: "OffGrid will debit your sandbox fiat balance and credit the recipient immediately.", fees: "Sandbox ledger only · no chain fee" });
+        if (!recipient?.id) throw new Error("Choose a registered OffGrid recipient");
+        if (Number(amount) < 2 || Number(amount) > 10) throw new Error("Circle sandbox payments must be between 2.00 and 10.00 USD");
+        const status = await api<{ configured: boolean }>("/api/fiat/status");
+        if (!status.configured) throw new Error("Circle sandbox settlement is not configured");
+        setPaymentEstimate({ title: "Fiat to Web3 proof route", detail: "Circle records the sandbox wire and deposit before a developer wallet sends testnet USDC to the recipient.", fees: "No real fiat is charged" });
         return;
       }
       if (!recipientAddress || !user) throw new Error("Please select or enter a recipient address");
@@ -2300,22 +2345,34 @@ export function OffGridDashboard() {
     if (fundingMethod === "fiat_bank") {
       setStep("processing"); setPaymentPhase("settlement"); setPaymentError(""); setProtocolEvents([]);
       try {
-        const saved = await api<{ invoice: InvoiceData }>("/api/invoices", { method: "POST", body: JSON.stringify({
-          recipientUserId: recipient?.id ?? null,
+        if (!recipient?.id) throw new Error("Choose a registered OffGrid recipient");
+        const created = await api<{ session: PaymentSessionView; settlementToken: string }>("/api/payment-sessions/direct", { method: "POST", body: JSON.stringify({
+          recipientUserId: recipient.id,
           recipientAddress,
-          recipientLabel: recipient?.displayName ?? shortAddress(recipientAddress),
           amount,
-          fundingMethod: "fiat_bank",
           memo,
-          paymentSessionToken: activeSessionToken || undefined,
         }) });
+        setActiveSession(created.session);
+        setActiveSessionToken(created.settlementToken);
+        setPaymentSessionsList((current) => [created.session, ...current.filter((entry) => entry.id !== created.session.id)]);
+        let settled = created.session;
+        for (let attempt = 0; attempt < 90 && settled.status !== "complete"; attempt += 1) {
+          const response = await api<{ session: PaymentSessionView }>(`/api/payment-sessions/${encodeURIComponent(created.settlementToken)}/settlement`, { method: "POST", body: "{}" });
+          settled = response.session;
+          setActiveSession(settled);
+          setPaymentSessionsList((current) => current.map((entry) => entry.id === settled.id ? settled : entry));
+          setProtocolEvents(fiatProofEvents(settled));
+          if (settled.status !== "complete") await new Promise((resolve) => window.setTimeout(resolve, 3_000));
+        }
+        if (settled.status !== "complete" || !settled.invoiceId) throw new Error("The provider route is still settling. It remains saved in your payment sessions and can continue safely.");
+        const saved = await api<{ invoice: InvoiceData }>(`/api/invoices/${settled.invoiceId}`);
         setPaymentPhase("receipt");
         setInvoice(saved.invoice);
         setStep("complete");
         await refreshCurrentUser();
         await loadBalances();
       } catch (error) {
-        setPaymentError(error instanceof Error ? error.message : "Fiat sandbox transfer failed");
+        setPaymentError(error instanceof Error ? error.message : "Fiat to Web3 settlement failed");
         setPaymentEstimate(null);
         setStep("review");
       }
@@ -2579,14 +2636,14 @@ export function OffGridDashboard() {
 
                     <label className="field-label"><span>02</span> HOW MUCH?</label>
                     <div className="amount-field"><i>$</i><input value={amount} readOnly={Boolean(activeSession)} onChange={(event) => { setAmount(event.target.value.replace(/[^0-9.]/g, "")); setPaymentEstimate(null); setGatewayMintRetry(null); setStep("amount"); }} placeholder="0.00" inputMode="decimal" /><b>USDC</b></div>
-                    <div className="available-line"><span>{fundingMethod === "cctp_bridge" ? <><b>Source-chain USDC</b> · validated by App Kit</> : fundingMethod === "fiat_bank" ? <><b>Circle Mint balance</b> · provider credentials required</> : available === null ? <><b>Balance not loaded</b> · App Kit will validate</> : <>Available: <b>{displayMoney(available)} USDC</b></>}</span>{fundingMethod !== "cctp_bridge" && <button onClick={() => { if (available) setAmount(available); setGatewayMintRetry(null); setPaymentEstimate(null); }}>MAX</button>}</div>
+                    <div className="available-line"><span>{fundingMethod === "cctp_bridge" ? <><b>Source-chain USDC</b> · validated by App Kit</> : fundingMethod === "fiat_bank" ? <><b>Circle sandbox route</b> · 2.00 to 10.00 USD · no real fiat charged</> : available === null ? <><b>Balance not loaded</b> · App Kit will validate</> : <>Available: <b>{displayMoney(available)} USDC</b></>}</span>{fundingMethod !== "cctp_bridge" && fundingMethod !== "fiat_bank" && <button onClick={() => { if (available) setAmount(available); setGatewayMintRetry(null); setPaymentEstimate(null); }}>MAX</button>}</div>
 
                     <label className="field-label"><span>03</span> FUND FROM</label>
                     <div className="funding-options">
                       <button className={fundingMethod === "arc_wallet" ? "active" : ""} onClick={() => { setFundingMethod("arc_wallet"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Wallet size={16} /><span><b>Direct wallet</b><small>App Kit send</small></span>{fundingMethod === "arc_wallet" && <Check size={14} />}</button>
                       <button className={fundingMethod === "unified_balance" ? "active" : ""} onClick={() => { setFundingMethod("unified_balance"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Network size={16} /><span><b>Unified balance</b><small>Gateway auto-allocation</small></span>{fundingMethod === "unified_balance" && <Check size={14} />}</button>
                       <button className={fundingMethod === "cctp_bridge" ? "active" : ""} onClick={() => { setFundingMethod("cctp_bridge"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Blocks size={16} /><span><b>CCTP bridge</b><small>Cross-chain to Arc Testnet</small></span>{fundingMethod === "cctp_bridge" && <Check size={14} />}</button>
-                      <button className={fundingMethod === "fiat_bank" ? "active" : ""} onClick={() => { setFundingMethod("fiat_bank"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Banknote size={16} /><span><b>Sandbox fiat</b><small>Local balance transfer</small></span>{fundingMethod === "fiat_bank" && <Check size={14} />}</button>
+                      <button className={fundingMethod === "fiat_bank" ? "active" : ""} onClick={() => { setFundingMethod("fiat_bank"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Banknote size={16} /><span><b>Fiat to Web3</b><small>Circle sandbox + testnet USDC</small></span>{fundingMethod === "fiat_bank" && <Check size={14} />}</button>
                     </div>
                     {fundingMethod === "cctp_bridge" && <><div className="cctp-config"><div className="cctp-source-card"><span className="cctp-card-label">SOURCE CHAIN</span><ChainSelect className="cctp-chain-select" value={bridgeSourceChain} chains={CCTP_SOURCE_CHAINS} eyebrow="PAY FROM" onChange={(chain) => { setBridgeSourceChain(chain as CctpSourceChain); setPaymentEstimate(null); }} /><p>USDC balance and native source-chain gas required.</p></div><div className="cctp-route-card"><div className="cctp-protocol-head"><span><Blocks size={15} /></span><div><small>BRIDGE PROTOCOL</small><b>CCTP V2</b></div><em>FORWARDED</em></div><div className="cctp-mini-route"><ChainName chain={bridgeSourceChain} size={15}/><i><ArrowRight size={12} /></i><ChainName chain="Arc_Testnet" size={15}/></div><p><Check size={11} /> Circle Forwarder <i /> fee shown in estimate</p></div></div>{bridgeSourceChain === "Solana_Devnet" && <div className={`solana-source ${solanaAddress ? "connected" : ""}`}><span><ChainLogo chain="Solana_Devnet" size={22}/></span><div><b>{solanaAddress ? `${solanaWalletName} connected` : "Solana signer required"}</b><small>{solanaAddress ? `${shortAddress(solanaAddress, 6)} · ${solanaUsdcBalance === null ? "balance unavailable" : `${displayMoney(solanaUsdcBalance)} USDC`}` : "Phantom · Solflare · Backpack"}</small></div>{solanaAddress ? <Check size={15} /> : <button onClick={() => void beginSolanaConnection()} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={13} /> : "Connect"}</button>}</div>}{solanaError && <p className="inline-error"><CircleAlert size={13} />{solanaError}</p>}</>}
 
@@ -2596,17 +2653,17 @@ export function OffGridDashboard() {
 
                   <aside className="route-panel">
                     <span className="section-tag">LIVE ROUTE</span><h3>Settlement path</h3>
-                    <div className="route-node ready"><span className={fundingMethod === "cctp_bridge" || fundingMethod === "arc_wallet" || fundingMethod === "fiat_bank" ? "chain-logo-only" : ""}>{fundingMethod === "cctp_bridge" ? <ChainLogo chain={bridgeSourceChain} size={24}/> : fundingMethod === "arc_wallet" ? <ChainLogo chain="Arc_Testnet" size={24}/> : fundingMethod === "fiat_bank" ? <Banknote size={16} /> : <Network size={16} />}</span><div><small>SOURCE</small><b>{fundingMethod === "arc_wallet" ? "Direct wallet" : fundingMethod === "unified_balance" ? "Gateway balance" : fundingMethod === "fiat_bank" ? "Sandbox fiat balance" : CHAIN_LABELS[bridgeSourceChain]}</b><em>{fundingMethod === "cctp_bridge" ? "Connected source signer" : fundingMethod === "fiat_bank" ? `OffGrid sandbox ledger · ${available === null ? "balance loading" : `${displayMoney(available)} USD available`}` : available === null ? "Balance loading" : `${displayMoney(available)} USDC available`}</em></div><Check size={14} /></div>
+                    <div className="route-node ready"><span className={fundingMethod === "cctp_bridge" || fundingMethod === "arc_wallet" || fundingMethod === "fiat_bank" ? "chain-logo-only" : ""}>{fundingMethod === "cctp_bridge" ? <ChainLogo chain={bridgeSourceChain} size={24}/> : fundingMethod === "arc_wallet" ? <ChainLogo chain="Arc_Testnet" size={24}/> : fundingMethod === "fiat_bank" ? <Banknote size={16} /> : <Network size={16} />}</span><div><small>SOURCE</small><b>{fundingMethod === "arc_wallet" ? "Direct wallet" : fundingMethod === "unified_balance" ? "Gateway balance" : fundingMethod === "fiat_bank" ? "Sandbox bank payment" : CHAIN_LABELS[bridgeSourceChain]}</b><em>{fundingMethod === "cctp_bridge" ? "Connected source signer" : fundingMethod === "fiat_bank" ? "Circle Mint test wire" : available === null ? "Balance loading" : `${displayMoney(available)} USDC available`}</em></div><Check size={14} /></div>
                     <i className="route-line"><b /></i>
-                    <div className="route-node arc"><span>{fundingMethod === "cctp_bridge" ? <Blocks size={16} /> : fundingMethod === "fiat_bank" ? <Banknote size={16} /> : <ChainLogo chain="Arc_Testnet" size={24}/>}</span><div><small>SETTLEMENT</small><b>{fundingMethod === "cctp_bridge" ? "Circle CCTP V2" : fundingMethod === "fiat_bank" ? "Sandbox fiat transfer" : "Arc Testnet"}</b><em>{fundingMethod === "cctp_bridge" ? "Burn · attest · Forwarder mint" : fundingMethod === "fiat_bank" ? "Debit · credit · receipt" : "Network confirmation"}</em></div><Zap size={14} /></div>
+                    <div className="route-node arc"><span>{fundingMethod === "cctp_bridge" ? <Blocks size={16} /> : fundingMethod === "fiat_bank" ? <Banknote size={16} /> : <ChainLogo chain="Arc_Testnet" size={24}/>}</span><div><small>SETTLEMENT</small><b>{fundingMethod === "cctp_bridge" ? "Circle CCTP V2" : fundingMethod === "fiat_bank" ? "Provider verified route" : "Arc Testnet"}</b><em>{fundingMethod === "cctp_bridge" ? "Burn · attest · Forwarder mint" : fundingMethod === "fiat_bank" ? "Wire · deposit · wallet · receipt" : "Network confirmation"}</em></div><Zap size={14} /></div>
                     <i className="route-line"><b /></i>
                     <div className={`route-node ${recipientAddress ? "ready" : "waiting"}`}><span><UserRound size={16} /></span><div><small>DESTINATION</small><b>{recipient?.displayName ?? (recipientAddress ? "External wallet" : "Waiting for recipient")}</b><em>{recipientAddress ? shortAddress(recipientAddress) : "Enter a username or address"}</em></div>{recipientAddress ? <Check size={14} /> : <Radio size={14} />}</div>
-                    <dl><div><dt>Asset</dt><dd>{fundingMethod === "fiat_bank" ? "USD" : "USDC"}</dd></div><div><dt>Protocol</dt><dd>{fundingMethod === "cctp_bridge" ? "CCTP V2" : fundingMethod === "unified_balance" ? "Gateway" : fundingMethod === "fiat_bank" ? "Sandbox fiat" : "App Kit send"}</dd></div><div><dt>Destination</dt><dd>{fundingMethod === "fiat_bank" ? "OffGrid sandbox ledger" : "Arc Testnet"}</dd></div><div><dt>Signing</dt><dd>{fundingMethod === "fiat_bank" ? "App auth" : "Your wallet"}</dd></div></dl>
+                    <dl><div><dt>Asset</dt><dd>{fundingMethod === "fiat_bank" ? "USD → USDC" : "USDC"}</dd></div><div><dt>Protocol</dt><dd>{fundingMethod === "cctp_bridge" ? "CCTP V2" : fundingMethod === "unified_balance" ? "Gateway" : fundingMethod === "fiat_bank" ? "Circle sandbox" : "App Kit send"}</dd></div><div><dt>Destination</dt><dd>{fundingMethod === "fiat_bank" ? "Receiver Arc wallet" : "Arc Testnet"}</dd></div><div><dt>Proof</dt><dd>{fundingMethod === "fiat_bank" ? "Provider + onchain" : "Your wallet"}</dd></div></dl>
                     {paymentIssue && <div className="payment-issue" role="alert"><span><CircleAlert size={15} /></span><div><b>{paymentIssue.title}</b><p>{paymentIssue.detail}</p></div><div className="payment-issue-actions">{fundingMethod === "cctp_bridge" && <button type="button" onClick={useGatewayFallback}><Network size={12} /> Use Gateway</button>}{paymentIssue.retryable && step === "review" && (gatewayMintRetry ? <button type="button" disabled={gatewayMintBusy} onClick={() => void retryGatewayMint()}><RefreshCw className={gatewayMintBusy ? "spin" : ""} size={12} /> {gatewayMintBusy ? "Recovering Arc mint…" : "Retry Arc mint"}</button> : <button type="button" disabled={estimateBusy} onClick={() => { setPaymentError(""); setPaymentEstimate(null); void estimatePayment(); }}><RefreshCw className={estimateBusy ? "spin" : ""} size={12} /> {fundingMethod === "cctp_bridge" ? "Retry CCTP" : fundingMethod === "unified_balance" ? "Retry Gateway" : "Retry route"}</button>)}</div></div>}
                     {step === "review" ? <>
                       {paymentEstimate && <div className="route-estimate"><span><CircleCheck size={14} /></span><div><b>{paymentEstimate.title}</b><small>{paymentEstimate.detail}</small><em>{paymentEstimate.fees}</em></div></div>}
-                      <button className={`neon-button pay-now ${estimateBusy || gatewayMintBusy ? "is-loading" : ""}`} onClick={gatewayMintRetry ? retryGatewayMint : paymentEstimate ? pay : estimatePayment} disabled={estimateBusy || gatewayMintBusy}><span className="pay-now-leading">{estimateBusy || gatewayMintBusy ? <LoaderCircle className="spin" size={17} /> : gatewayMintRetry ? <RefreshCw size={17} /> : paymentEstimate ? <Zap size={17} /> : <Network size={17} />}</span><span className="pay-now-label">{estimateBusy ? fundingMethod === "fiat_bank" ? "Checking sandbox balance…" : "Checking live route…" : gatewayMintBusy ? "Recovering Arc mint…" : gatewayMintRetry ? "Retry Arc mint" : paymentEstimate ? fundingMethod === "fiat_bank" ? "Confirm sandbox transfer" : "Confirm in wallet" : "Get live estimate"}</span><ArrowRight size={16} /></button>
-                    </> : step === "processing" ? <><div className="protocol-progress">{(fundingMethod === "fiat_bank" ? [["estimate","Sandbox balance"],["settlement","Ledger transfer"],["receipt","Updated balances"]] : [["estimate","Live estimate"],["signature","Wallet signature"],["settlement",fundingMethod === "cctp_bridge" ? "CCTP lifecycle" : "Network confirmation"],["receipt","Create receipt"]]).map(([phase,label], index, phases) => { const current = phases.findIndex(([name]) => name === paymentPhase); return <span key={phase} className={index <= current ? "active" : ""}><i>{index < current ? <Check size={9} /> : index + 1}</i>{label}</span>; })}</div>{protocolEvents.length > 0 && <div className="protocol-stream">{protocolEvents.map((event) => <span className={event.state} key={event.name}><i />{event.name}<b>{event.state}</b></span>)}</div>}<button className="neon-button pay-now is-loading" disabled><span className="pay-now-leading"><LoaderCircle className="spin" size={17} /></span><span className="pay-now-label">{paymentPhase === "estimate" ? fundingMethod === "fiat_bank" ? "Checking sandbox balance…" : "Estimating with App Kit…" : paymentPhase === "signature" ? "Confirm in your wallet…" : paymentPhase === "settlement" ? fundingMethod === "fiat_bank" ? "Updating sandbox balances…" : fundingMethod === "cctp_bridge" ? "Burning, attesting & minting…" : "Waiting for confirmation…" : "Creating verified receipt…"}</span><span className="pay-now-end" /></button></> : <><button className="neon-button pay-now" disabled={!canReview || insufficientBalance} onClick={() => { setPaymentEstimate(null); setPaymentError(""); setStep("review"); }}><span className="pay-now-leading"><Send size={17} /></span><span className="pay-now-label">{fundingMethod === "fiat_bank" ? "Review sandbox transfer" : "Review payment"}</span><ArrowRight size={16} /></button>{reviewBlockReason && <p className="review-blocker"><CircleAlert size={11} /> {reviewBlockReason}</p>}{available === null && canReview && fundingMethod !== "fiat_bank" && <p className="review-warning"><Radio size={11} /> {fundingMethod === "cctp_bridge" ? "App Kit validates source USDC and gas before CCTP execution." : "Balance unavailable in UI; App Kit will check it during estimation."}</p>}</>}
+                      <button className={`neon-button pay-now ${estimateBusy || gatewayMintBusy ? "is-loading" : ""}`} onClick={gatewayMintRetry ? retryGatewayMint : paymentEstimate ? pay : estimatePayment} disabled={estimateBusy || gatewayMintBusy}><span className="pay-now-leading">{estimateBusy || gatewayMintBusy ? <LoaderCircle className="spin" size={17} /> : gatewayMintRetry ? <RefreshCw size={17} /> : paymentEstimate ? <Zap size={17} /> : <Network size={17} />}</span><span className="pay-now-label">{estimateBusy ? fundingMethod === "fiat_bank" ? "Checking provider route…" : "Checking live route…" : gatewayMintBusy ? "Recovering Arc mint…" : gatewayMintRetry ? "Retry Arc mint" : paymentEstimate ? fundingMethod === "fiat_bank" ? "Start verified settlement" : "Confirm in wallet" : "Get live estimate"}</span><ArrowRight size={16} /></button>
+                    </> : step === "processing" ? <><div className="protocol-progress">{(fundingMethod === "fiat_bank" ? [["estimate","Route check"],["settlement","Provider proofs"],["receipt","Onchain receipt"]] : [["estimate","Live estimate"],["signature","Wallet signature"],["settlement",fundingMethod === "cctp_bridge" ? "CCTP lifecycle" : "Network confirmation"],["receipt","Create receipt"]]).map(([phase,label], index, phases) => { const current = phases.findIndex(([name]) => name === paymentPhase); return <span key={phase} className={index <= current ? "active" : ""}><i>{index < current ? <Check size={9} /> : index + 1}</i>{label}</span>; })}</div>{protocolEvents.length > 0 && <div className="protocol-stream">{protocolEvents.map((event) => <span className={event.state} key={event.name}><i />{event.name}<b>{event.state}</b></span>)}</div>}<button className="neon-button pay-now is-loading" disabled><span className="pay-now-leading"><LoaderCircle className="spin" size={17} /></span><span className="pay-now-label">{paymentPhase === "estimate" ? fundingMethod === "fiat_bank" ? "Checking provider route…" : "Estimating with App Kit…" : paymentPhase === "signature" ? "Confirm in your wallet…" : paymentPhase === "settlement" ? fundingMethod === "fiat_bank" ? "Verifying Circle and onchain proofs…" : fundingMethod === "cctp_bridge" ? "Burning, attesting & minting…" : "Waiting for confirmation…" : "Creating verified receipt…"}</span><span className="pay-now-end" /></button></> : <><button className="neon-button pay-now" disabled={!canReview || insufficientBalance} onClick={() => { setPaymentEstimate(null); setPaymentError(""); setStep("review"); }}><span className="pay-now-leading"><Send size={17} /></span><span className="pay-now-label">{fundingMethod === "fiat_bank" ? "Review fiat to Web3" : "Review payment"}</span><ArrowRight size={16} /></button>{reviewBlockReason && <p className="review-blocker"><CircleAlert size={11} /> {reviewBlockReason}</p>}{available === null && canReview && fundingMethod !== "fiat_bank" && <p className="review-warning"><Radio size={11} /> {fundingMethod === "cctp_bridge" ? "App Kit validates source USDC and gas before CCTP execution." : "Balance unavailable in UI; App Kit will check it during estimation."}</p>}</>}
                     <p className="self-custody"><ShieldCheck size={12} /> OffGrid never holds your keys or signs for you.</p>
                     <button className="view-all-activity" onClick={() => setActiveView("history")}>View all activities <ArrowRight size={12} /></button>
                   </aside>

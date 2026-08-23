@@ -81,7 +81,7 @@ html.theme-transitioning .theme-toggle,html.theme-transitioning .theme-toggle *,
 .auth-center::before { inset: -37px; }
 .auth-center::after { inset: -78px; }
 .auth-center .og-logo { transform: scale(1.25); }
-.auth-center b { font: 700 22px var(--mono); letter-spacing: .15em; }
+.auth-center b { font: 650 19px var(--display); letter-spacing: .025em; }
 .auth-center small { color: var(--acid); font: 7px var(--mono); letter-spacing: .13em; }
 .auth-orbit { position: absolute; width: 46px; height: 46px; display: grid; place-items: center; border: 1px solid var(--line-bright); background: #0f120d; border-radius: 50%; color: var(--muted); font: 8px var(--mono); }
 .auth-orbit i { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: var(--acid); box-shadow: 0 0 10px var(--acid); }
@@ -3699,3 +3699,36 @@ html[data-theme="light"] .escrow-route-line,html[data-theme="light"] .escrow-evi
   .escrow-route-line { grid-template-columns:1fr; }.escrow-route-arrow { display:none; }
   .escrow-decision-row { grid-template-columns:1fr; }
 }
+
+/* Readability pass. Layout dimensions stay unchanged while the small type
+   scale gains enough contrast and size for desktop and hosted use. */
+.product-shell :is(.section-tag,.field-label,.locked-session-banner small,.session-launch-copy>span) { font-size: 8px; }
+.product-shell :is(.command-rail nav button,.logout-button,.faucet-button,.connect-wallet,.connected-wallet,.solana-wallet-button,.user-menu) { font-size: 10px; }
+.product-shell :is(.rail-user b,.funding-options b,.route-node b,.route-estimate b,.selected-recipient b,.recipient-results b) { font-size: 10px; }
+.product-shell :is(.rail-user small,.funding-options small,.route-node em,.route-node small,.route-estimate small,.route-estimate em,.selected-recipient em,.recipient-results small,.available-line,.review-blocker,.review-warning,.self-custody,.view-all-activity) { font-size: 8px; }
+.product-shell :is(.route-panel dt,.route-panel dd,.protocol-progress span,.protocol-stream span) { font-size: 8px; }
+.product-shell .protocol-stream span b { font-size: 7px; }
+.product-shell .console-head h2 { font-size: 20px; }
+.product-shell .workspace-head p { font-size: 13px; }
+.product-shell .balance-intro p,.product-shell .session-launch-copy>p { font-size: 10px; }
+
+.history-view .history-stats small { font-size: 8px; }
+.history-view .history-stats b em,.history-view .history-stats p { font-size: 9px; }
+.history-view .ledger-toolbar>div:first-child b { font-size: 12px; }
+.history-view .ledger-toolbar>div:first-child small { font-size: 8px; }
+.history-view .ledger-search input { font-size: 10px; }
+.history-view .ledger-select span { font-size: 7px; }
+.history-view .ledger-select select { font-size: 9px; }
+.history-view .ledger-table th { font-size: 7px; }
+.history-view .ledger-status,.history-view .route-badge,.history-view .tx-not-submitted { font-size: 8px; }
+.history-view .ledger-activity>b { font-size: 10px; }
+.history-view .ledger-activity>small { font-size: 8px; }
+.history-view .ledger-activity summary,.history-view .ledger-activity details span { font-size: 7px; }
+.history-view .ledger-proof-button { min-height: 28px; font-size: 8px; }
+.history-proof-modal>p { font-size: 11px; }
+.history-proof-summary small,.history-proof-meta small { font-size: 8px; }
+.history-proof-summary b,.history-proof-step b { font-size: 10px; }
+.history-proof-step p,.history-proof-meta b,.ledger-proof-link,.history-proof-refresh { font-size: 9px; }
+.history-proof-step code { font-size: 8px; }
+.session-notice-toast b,.session-live-notice b { font-size: 10px; }
+.session-notice-toast p,.session-live-notice p { font-size: 9px; }
