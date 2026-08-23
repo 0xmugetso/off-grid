@@ -64,6 +64,7 @@ import { FiatOnRampModal } from "@/components/fiat-onramp-modal";
 import { isSubmittedCctpOperation } from "@/lib/cctp-operations";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ReceiptCodeRain } from "@/components/receipt-code-rain";
+import { gatewayExplorerUrl } from "@/lib/gateway-explorer";
 
 interface User {
   id: string;
@@ -689,6 +690,26 @@ function gatewayDepositDetail(deposit: GatewayDeposit) {
   return gatewayDepositPresentation(deposit).detail;
 }
 
+function gatewayDepositLedgerEntry(deposit: GatewayDeposit): LedgerEntry {
+  const explorerUrl = gatewayExplorerUrl(deposit.sourceChain as SourceChain, deposit.txHash);
+  return {
+    id: `deposit-${deposit.id}`,
+    activity: "Fund Unified Balance",
+    detail: gatewayDepositDetail(deposit),
+    kind: "deposit",
+    rail: `${CHAIN_LABELS[deposit.sourceChain as SourceChain] ?? deposit.sourceChain} → Gateway`,
+    amount: deposit.amount,
+    txHash: deposit.txHash,
+    explorerUrl,
+    status: deposit.status === "source_confirmed" || deposit.status === "indexing" || deposit.status === "submitted" ? "pending" : deposit.status,
+    createdAt: deposit.createdAt,
+    logs: [
+      { name: "Gateway Source Transaction", txHash: deposit.txHash, explorerUrl },
+      { name: deposit.status === "confirmed" ? "Circle Gateway Balance Credited" : gatewayDepositPresentation(deposit).label },
+    ],
+  };
+}
+
 function HistoryView({ invoices, paymentSessions, deposits, walletAddress, cctpOperations, fiatPayouts, recovering, recoveryNote, onRecover, onRefreshCctp, onRefreshGateway, onRefreshFiat, onSelectEntry }: { invoices: InvoiceData[]; paymentSessions: PaymentSessionView[]; deposits: GatewayDeposit[]; walletAddress: string; cctpOperations: CctpOperation[]; fiatPayouts: FiatPayout[]; recovering: boolean; recoveryNote: string; onRecover: () => void; onRefreshCctp: () => void; onRefreshGateway: () => void; onRefreshFiat: () => void; onSelectEntry: (entry: LedgerEntry) => void }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | LedgerEntry["kind"]>("all");
@@ -785,22 +806,7 @@ function HistoryView({ invoices, paymentSessions, deposits, walletAddress, cctpO
       },
     }));
     const ledger = [...fiatEntries, ...allPayments];
-    return [...deposits.map((deposit): LedgerEntry => ({
-      id: `deposit-${deposit.id}`,
-      activity: "Fund Unified Balance",
-      detail: gatewayDepositDetail(deposit),
-      kind: "deposit",
-      rail: `${CHAIN_LABELS[deposit.sourceChain as SourceChain] ?? deposit.sourceChain} → Gateway`,
-      amount: deposit.amount,
-      txHash: deposit.txHash,
-      explorerUrl: deposit.explorerUrl ?? "",
-      status: deposit.status === "source_confirmed" || deposit.status === "indexing" || deposit.status === "submitted" ? "pending" : deposit.status,
-      createdAt: deposit.createdAt,
-      logs: [
-        { name: "Gateway source transaction", txHash: deposit.txHash, explorerUrl: deposit.explorerUrl ?? undefined },
-        { name: deposit.status === "confirmed" ? "Circle Gateway Balance Credited" : gatewayDepositPresentation(deposit).label },
-      ],
-    })), ...ledger];
+    return [...deposits.map(gatewayDepositLedgerEntry), ...ledger];
   }, [cctpOperations, deposits, fiatPayouts, invoices, paymentSessions]);
 
   const visibleEntries = useMemo(() => {
@@ -844,7 +850,7 @@ function HistoryView({ invoices, paymentSessions, deposits, walletAddress, cctpO
     event.preventDefault();
     setGatewayRecoveryBusy(true); setGatewayRecoveryNote("");
     try {
-      await api("/api/gateway-deposits", { method: "POST", body: JSON.stringify({ sourceAddress: walletAddress, sourceChain: gatewayRecoveryChain, amount: gatewayRecoveryAmount, txHash: gatewayRecoveryHash, explorerUrl: `${gatewayRecoveryChain === "Base_Sepolia" ? "https://sepolia.basescan.org" : gatewayRecoveryChain === "Arbitrum_Sepolia" ? "https://sepolia.arbiscan.io" : gatewayRecoveryChain === "Ethereum_Sepolia" ? "https://sepolia.etherscan.io" : "https://testnet.arcscan.app"}/tx/${gatewayRecoveryHash}` }) });
+      await api("/api/gateway-deposits", { method: "POST", body: JSON.stringify({ sourceAddress: walletAddress, sourceChain: gatewayRecoveryChain, amount: gatewayRecoveryAmount, txHash: gatewayRecoveryHash, explorerUrl: gatewayExplorerUrl(gatewayRecoveryChain, gatewayRecoveryHash) }) });
       setGatewayRecoveryNote("Deposit proof restored. Circle and the source chain will keep updating it in History.");
       setGatewayRecoveryHash(""); setGatewayRecoveryAmount("");
       onRefreshGateway();
@@ -2727,8 +2733,8 @@ export function OffGridDashboard() {
                   const presentation = gatewayDepositPresentation(deposit);
                   return <article className={`gateway-status ${deposit.status} ${presentation.delayed ? "delayed" : ""}`} key={deposit.id}>
                     <span className="gateway-status-icon">{deposit.status === "confirmed" ? <CircleCheck size={19} /> : deposit.status === "failed" || presentation.delayed ? <Clock size={19} /> : <LoaderCircle className="spin" size={19} />}</span>
-                    <div><small>{presentation.label.toUpperCase()} <em>{presentation.elapsed}</em></small><b>{displayMoney(deposit.amount)} USDC from {SOURCE_CHAINS.includes(deposit.sourceChain as SourceChain) ? <ChainName chain={deposit.sourceChain as SourceChain} size={17}/> : deposit.sourceChain}</b><p>{presentation.detail}</p></div>
-                    <div className="gateway-status-actions">{deposit.explorerUrl && <a href={deposit.explorerUrl} target="_blank" rel="noreferrer">Source Proof <ExternalLink size={12} /></a>}<button onClick={() => setActiveView("history")}><Receipt size={12} /> History</button></div>
+                    <div><small>{presentation.label.toUpperCase()} <em>{presentation.elapsed}</em></small><b>{displayMoney(deposit.amount)} USDC from {SOURCE_CHAINS.includes(deposit.sourceChain as SourceChain) ? <ChainName chain={deposit.sourceChain as SourceChain} size={17}/> : deposit.sourceChain}</b><code className="gateway-tracking-hash">TX {shortAddress(deposit.txHash, 7)}</code><p>{presentation.detail}</p></div>
+                    <div className="gateway-status-actions"><a href={gatewayExplorerUrl(deposit.sourceChain as SourceChain, deposit.txHash)} target="_blank" rel="noreferrer">Source Proof <ExternalLink size={12} /></a><button onClick={() => { setActiveView("history"); setSelectedProofEntry(gatewayDepositLedgerEntry(deposit)); }}><Receipt size={12} /> History</button></div>
                   </article>;
                 })}
               </section>}

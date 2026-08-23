@@ -275,6 +275,7 @@ html.theme-transitioning .theme-toggle,html.theme-transitioning .theme-toggle *,
 .gateway-status.delayed .gateway-status-icon { color: #ffb547; background: rgba(255,181,71,.08); }
 .gateway-status > div:nth-child(2) { min-width: 0; display: flex; flex-direction: column; }.gateway-status small { color: var(--cyan); font: 6px var(--mono); letter-spacing: .1em; }.gateway-status.confirmed small { color: var(--acid); }.gateway-status b { margin-top: 4px; font-size: 9px; }.gateway-status p { margin: 4px 0 0; color: var(--muted); font-size: 7px; line-height: 1.4; }
 .gateway-status.delayed small { color: #ffb547; }.gateway-status small em { margin-left: 7px; color: var(--faint); font-style: normal; letter-spacing: .04em; }
+.gateway-tracking-hash { width: fit-content; margin-top: 4px; color: var(--faint); font: 6px var(--mono); letter-spacing: .035em; }
 .gateway-status-actions { display: flex; align-items: center; gap: 6px; }.gateway-status-actions a, .gateway-status-actions button { height: 29px; padding: 0 9px; border: 1px solid var(--line-bright); border-radius: 4px; background: rgba(0,0,0,.18); color: #aeb6a7; display: flex; align-items: center; gap: 5px; font-size: 7px; text-decoration: none; cursor: pointer; }
 .gateway-status-close { position: absolute; right: 9px; top: 9px; border: 0; background: none; color: var(--faint); cursor: pointer; }
 

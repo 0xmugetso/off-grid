@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isAddress } from "viem";
 import { CCTP_TESTNET_DOMAINS, SOURCE_CHAINS, type SourceChain } from "@/lib/arc/config";
+import { gatewayExplorerUrl } from "@/lib/gateway-explorer";
 import { parseUsdc } from "@/lib/money";
 import { getCurrentUser } from "@/lib/server/auth";
 import { mutateDatabase, queryDatabase, type StoredGatewayDeposit } from "@/lib/server/store";
@@ -81,6 +82,7 @@ async function reconcile(ownerId: string) {
     for (const observation of receipts) {
       const operation = database.gatewayDeposits.find((entry) => entry.id === observation.id && entry.ownerId === ownerId);
       if (!operation) continue;
+      operation.explorerUrl = gatewayExplorerUrl(operation.sourceChain as SourceChain, operation.txHash);
       const receipt = observation.receipt;
       if (receipt?.status === "0x0") {
         operation.status = "failed";
@@ -139,10 +141,13 @@ export async function POST(request: Request) {
     if (parseUsdc(amount) <= 0n) throw new Error("Deposit amount must be greater than zero");
     const confirmedBefore = body.confirmedBefore == null ? null : String(body.confirmedBefore);
     if (confirmedBefore != null && (!Number.isFinite(Number(confirmedBefore)) || Number(confirmedBefore) < 0)) throw new Error("Invalid starting Gateway balance");
-    const explorerUrl = typeof body.explorerUrl === "string" && /^https:\/\//.test(body.explorerUrl) ? body.explorerUrl.slice(0, 300) : null;
+    const explorerUrl = gatewayExplorerUrl(sourceChain, txHash);
     const deposit = await mutateDatabase((database) => {
       const existing = database.gatewayDeposits.find((entry) => entry.ownerId === current.id && entry.txHash.toLowerCase() === txHash.toLowerCase());
-      if (existing) return existing;
+      if (existing) {
+        existing.explorerUrl = explorerUrl;
+        return existing;
+      }
       const queuedTarget = database.gatewayDeposits
         .filter((entry) => entry.ownerId === current.id && entry.sourceDomain === CCTP_TESTNET_DOMAINS[sourceChain] && entry.sourceAddress.toLowerCase() === sourceAddress.toLowerCase() && entry.status !== "failed")
         .reduce((highest, entry) => Math.max(highest, Number(entry.expectedConfirmed ?? 0)), 0);
