@@ -30,6 +30,17 @@ Copy `.env.example` to `.env.local`, fill the Circle Mint API key and wire bank 
 
 This is a sponsor-funded product demonstration. Circle's deposit record proves the sandbox bank simulation. The Arc receipt proves the testnet payout. The two liquidity pools are intentionally separate, so this must never be described as a real user bank payment or production conversion. The amount cap limits abuse of the funded test wallet.
 
+## Web3 to fiat proof sequence
+
+1. OffGrid requests or reuses the Circle Mint business account's Arc USDC deposit address.
+2. The payer signs an exact Arc Testnet USDC transfer from the wallet bound to their account.
+3. OffGrid independently verifies the successful receipt and matching USDC `Transfer` event before accepting the transaction hash.
+4. OffGrid polls Circle Mint until its inbound transfer record matches the transaction hash and amount and reaches `complete`.
+5. OffGrid creates a Circle Mint sandbox wire payout to `CIRCLE_MINT_BANK_ACCOUNT_ID` and persists its provider payout ID.
+6. OffGrid polls the payout until Circle reports `complete`, then stores the tracking reference and creates the shared invoice.
+
+The payer transfer is real testnet USDC. The bank payout is a Circle sandbox simulation. The interface shows both facts and keeps the Arc transaction hash, Circle inbound transfer ID, Circle payout ID, payout status, and bank tracking reference as separate proofs.
+
 ## Proofs persisted for every completed session
 
 - Circle mock wire tracking reference and submission status

@@ -89,13 +89,22 @@ export async function verifySettlementWalletTransfer(input: {
   amount: string;
 }) {
   const { values } = client();
+  return verifyArcUsdcTransfer({ ...input, sourceAddress: values.address as `0x${string}` });
+}
+
+export async function verifyArcUsdcTransfer(input: {
+  txHash: `0x${string}`;
+  sourceAddress: `0x${string}`;
+  destinationAddress: `0x${string}`;
+  amount: string;
+}) {
   const publicClient = createPublicClient({
     chain: arcTestnet,
     transport: http(ARC.rpcUrl, { retryCount: 3, timeout: 15_000 }),
   });
   const receipt = await publicClient.getTransactionReceipt({ hash: input.txHash });
   if (receipt.status !== "success") throw new Error("The Arc Testnet settlement transaction reverted");
-  const expectedFrom = getAddress(values.address);
+  const expectedFrom = getAddress(input.sourceAddress);
   const expectedTo = getAddress(input.destinationAddress);
   const expectedAmount = parseUnits(input.amount, ARC.usdcDecimals);
   const matchedTransfer = receipt.logs.some((log) => {

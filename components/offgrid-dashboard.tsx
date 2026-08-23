@@ -517,12 +517,16 @@ type LedgerEntry = {
     circleDepositAmount?: string | null;
     receiverTransferId?: string | null;
     arcBlockNumber?: string | null;
+    fiatMode?: "fiat_to_web3" | "web3_to_fiat" | "fiat_to_fiat";
+    payerTransferTxHash?: string | null;
+    circleInboundTransferId?: string | null;
+    circleInboundTransferStatus?: string | null;
   };
 };
 
 function proofSteps(entry: LedgerEntry): Array<{ label: string; detail: string; tone: "muted" | "good" | "warning"; txHash?: string; explorerUrl?: string }> {
   const statusLabel = entry.status === "confirmed" ? "Confirmed" : entry.status === "failed" ? "Failed" : entry.status === "submitted" ? "Submitted" : "Pending";
-  const sandboxTransfer = /sandbox fiat transfer/i.test(entry.activity) || /sandbox fiat balance/i.test(entry.rail);
+  const sandboxTransfer = entry.meta?.fiatMode === "fiat_to_web3" || /sandbox fiat transfer/i.test(entry.activity) || /sandbox fiat balance/i.test(entry.rail);
   if (entry.kind === "fiat") {
     return sandboxTransfer
       ? [
@@ -532,7 +536,8 @@ function proofSteps(entry: LedgerEntry): Array<{ label: string; detail: string; 
           { label: "Onchain receipt", detail: `${statusLabel}${entry.meta?.arcBlockNumber ? ` · Arc block ${entry.meta.arcBlockNumber}` : ""}`, txHash: entry.txHash, explorerUrl: entry.explorerUrl, tone: "good" as const },
         ]
       : [
-          { label: "Payout request", detail: "The sandbox bank payout was submitted from the live session.", tone: "muted" as const },
+          { label: "Payer deposit", detail: entry.meta?.payerTransferTxHash ? "The exact Arc Testnet USDC transfer was verified." : "Verified payer deposit unavailable", txHash: entry.meta?.payerTransferTxHash ?? undefined, explorerUrl: entry.meta?.payerTransferTxHash ? `https://testnet.arcscan.app/tx/${entry.meta.payerTransferTxHash}` : undefined, tone: entry.meta?.payerTransferTxHash ? "good" as const : "warning" as const },
+          { label: "Circle inbound", detail: entry.meta?.circleInboundTransferId ? `${entry.meta.circleInboundTransferId} · ${entry.meta.circleInboundTransferStatus ?? "unknown"}` : "Circle inbound transfer proof unavailable", txHash: entry.meta?.circleInboundTransferId ?? undefined, tone: entry.meta?.circleInboundTransferId ? "good" as const : "warning" as const },
           { label: "Circle payout ID", detail: entry.meta?.circlePayoutId ?? entry.txHash, txHash: (entry.meta?.circlePayoutId ?? entry.txHash) || undefined, explorerUrl: entry.explorerUrl || undefined, tone: "good" as const },
           { label: "Bank route", detail: `${entry.meta?.bankAccountId ?? "Linked Circle Mint bank account"} · ${statusLabel}${entry.meta?.trackingRef ? ` · tracking ${entry.meta.trackingRef}` : ""}`, tone: entry.status === "failed" ? "warning" as const : "good" as const },
         ];
@@ -589,7 +594,12 @@ function HistoryView({ invoices, paymentSessions, deposit, cctpOperations, fiatP
       logs: item.bridgeSteps?.length
         ? item.bridgeSteps.map((step) => ({ name: step.name, txHash: step.txHash, explorerUrl: step.explorerUrl }))
         : item.fundingMethod === "fiat_bank"
-          ? [
+          ? settlement?.mode === "web3_to_fiat" ? [
+              { name: "Payer USDC deposit", txHash: settlement.payerTransferTxHash ?? undefined, explorerUrl: settlement.payerTransferTxHash ? `https://testnet.arcscan.app/tx/${settlement.payerTransferTxHash}` : undefined },
+              { name: `Circle inbound ${settlement.circleInboundTransferId ?? "proof unavailable"}` },
+              { name: `Circle payout ${settlement.circlePayoutId ?? "proof unavailable"}` },
+              { name: `Bank tracking ${settlement.circlePayoutTrackingRef ?? "pending"}` },
+            ] : [
               { name: `Circle wire ${settlement?.mockWireTrackingRef ?? "proof unavailable"}` },
               { name: `Circle deposit ${settlement?.circleDepositId ?? "proof unavailable"}` },
               { name: `Wallet payout ${settlement?.receiverTransferId ?? "proof unavailable"}` },
@@ -597,12 +607,17 @@ function HistoryView({ invoices, paymentSessions, deposit, cctpOperations, fiatP
             ]
           : [{ name: item.protocol === "gateway" ? "Gateway settlement" : "Direct settlement", txHash: item.txHash, explorerUrl: item.explorerUrl }],
       meta: item.fundingMethod === "fiat_bank" ? {
-        trackingRef: settlement?.mockWireTrackingRef,
         circleDepositId: settlement?.circleDepositId,
         circleDepositStatus: settlement?.circleDepositStatus,
         circleDepositAmount: settlement?.circleDepositAmount,
         receiverTransferId: settlement?.receiverTransferId,
         arcBlockNumber: settlement?.arcBlockNumber,
+        fiatMode: settlement?.mode,
+        payerTransferTxHash: settlement?.payerTransferTxHash,
+        circleInboundTransferId: settlement?.circleInboundTransferId,
+        circleInboundTransferStatus: settlement?.circleInboundTransferStatus,
+        circlePayoutId: settlement?.circlePayoutId,
+        trackingRef: settlement?.circlePayoutTrackingRef ?? settlement?.mockWireTrackingRef,
       } : undefined,
     };
     });

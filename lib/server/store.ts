@@ -100,6 +100,11 @@ export interface ReceiverBankDetails {
 
 export type FiatSettlementStage =
   | "not_started"
+  | "awaiting_web3_deposit"
+  | "web3_deposit_submitted"
+  | "circle_inbound_confirmed"
+  | "fiat_payout_creating"
+  | "fiat_payout_submitted"
   | "wire_submitted"
   | "circle_deposit_confirmed"
   | "circle_balance_funded"
@@ -130,6 +135,17 @@ export interface StoredFiatSettlement {
   settlementWalletAddress?: string | null;
   settlementWalletBalanceBefore?: string | null;
   arcBlockNumber?: string | null;
+  circleDepositAddressId?: string | null;
+  circleDepositAddress?: string | null;
+  payerTransferTxHash?: string | null;
+  payerTransferBlockNumber?: string | null;
+  circleInboundTransferId?: string | null;
+  circleInboundTransferStatus?: string | null;
+  circlePayoutId?: string | null;
+  circlePayoutStatus?: string | null;
+  circlePayoutTrackingRef?: string | null;
+  circlePayoutDestinationName?: string | null;
+  payoutIdempotencyKey?: string;
   wireIdempotencyKey: string;
   circleTransferIdempotencyKey: string;
   receiverTransferIdempotencyKey: string;

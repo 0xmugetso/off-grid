@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { parseUsdc } from "@/lib/money";
 
 export interface CircleMintPayoutInput {
@@ -55,7 +56,18 @@ export interface CircleMintTransferRecord {
     errorCode?: string;
     createDate?: string;
     updateDate?: string;
+    source?: { type?: string; id?: string };
+    destination?: { type?: string; id?: string; address?: string; chain?: string };
+    amount?: { amount?: string; currency?: string };
   };
+}
+
+export interface CircleMintDepositAddress {
+  id?: string;
+  address?: string;
+  currency?: string;
+  chain?: string;
+  walletId?: string;
 }
 
 export interface CircleMintDepositRecord {
@@ -75,6 +87,45 @@ export interface CircleMintDepositRecord {
 }
 
 const sandboxBaseUrl = "https://api-sandbox.circle.com";
+
+function apiKey() {
+  const value = process.env.CIRCLE_MINT_API_KEY?.trim();
+  if (!value) throw new Error("Circle Mint sandbox API key is not configured");
+  return value;
+}
+
+export async function getOrCreateCircleMintArcDepositAddress() {
+  const base = process.env.CIRCLE_MINT_BASE_URL ?? sandboxBaseUrl;
+  const headers = { authorization: `Bearer ${apiKey()}` };
+  const listResponse = await fetch(`${base}/v1/businessAccount/wallets/addresses/deposit`, { headers, cache: "no-store" });
+  const listBody = await listResponse.json() as { code?: number; message?: string; data?: CircleMintDepositAddress[] };
+  if (!listResponse.ok) throw mintError("Circle Mint deposit address lookup", listResponse, listBody);
+  const existing = listBody.data?.find((entry) => entry.chain === "ARC" && entry.currency === "USD" && entry.address);
+  if (existing) return existing;
+  const createResponse = await fetch(`${base}/v1/businessAccount/wallets/addresses/deposit`, {
+    method: "POST",
+    headers: { ...headers, "content-type": "application/json" },
+    body: JSON.stringify({ idempotencyKey: randomUUID(), currency: "USD", chain: "ARC" }),
+  });
+  const createBody = await createResponse.json() as { code?: number; message?: string; data?: CircleMintDepositAddress };
+  if (!createResponse.ok) throw mintError("Circle Mint Arc deposit address creation", createResponse, createBody);
+  if (!createBody.data?.id || !createBody.data.address) throw new Error("Circle Mint did not return an Arc deposit address");
+  return createBody.data;
+}
+
+export async function findCircleMintInboundTransfer(input: { txHash: string; amount: string; submittedAfter: string }) {
+  const query = new URLSearchParams({ pageSize: "50", from: input.submittedAfter });
+  const response = await fetch(`${process.env.CIRCLE_MINT_BASE_URL ?? sandboxBaseUrl}/v1/businessAccount/transfers?${query}`, {
+    headers: { authorization: `Bearer ${apiKey()}` }, cache: "no-store",
+  });
+  const body = await response.json() as { code?: number; message?: string; data?: NonNullable<CircleMintTransferRecord["data"]>[] };
+  if (!response.ok) throw mintError("Circle Mint inbound transfer lookup", response, body);
+  return body.data?.find((entry) => {
+    if (entry.transactionHash?.toLowerCase() !== input.txHash.toLowerCase()) return false;
+    if (!entry.amount?.amount || entry.amount.currency !== "USD") return false;
+    try { return parseUsdc(entry.amount.amount) === parseUsdc(input.amount); } catch { return false; }
+  }) ?? null;
+}
 
 export function circleMintSandboxStatus() {
   const checks = [

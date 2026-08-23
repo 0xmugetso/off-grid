@@ -2,10 +2,13 @@
 
 import { ArrowRight, Banknote, Bell, Check, CircleAlert, Copy, ExternalLink, LoaderCircle, LockKeyhole, Radio, ShieldCheck, Wallet, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createWalletClient, custom, erc20Abi, getAddress, parseUnits } from "viem";
+import { arcTestnet } from "viem/chains";
 import { AuthScreen } from "@/components/offgrid-dashboard";
 import type { DatabaseUserView, PaymentRail, PaymentSessionView } from "@/lib/payment-session-types";
 import { discoverBrowserWallets, ensureArcTestnet, requestWalletAccount } from "@/lib/arc/browser-wallet";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ARC } from "@/lib/arc/config";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -161,11 +164,11 @@ export function PaymentSessionWindow({ token }: { token: string }) {
     setCopied(true);
   }
 
-  async function advanceSettlement(silent = false) {
+  async function advanceSettlement(silent = false, payload: { txHash?: string } = {}) {
     if (!silent) setSettlementBusy(true);
     setError("");
     try {
-      const response = await request<{ session: PaymentSessionView }>(`/api/payment-sessions/${token}/settlement`, { method: "POST", body: "{}" });
+      const response = await request<{ session: PaymentSessionView }>(`/api/payment-sessions/${token}/settlement`, { method: "POST", body: JSON.stringify(payload) });
       setSession(response.session);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to advance sandbox settlement");
@@ -174,11 +177,29 @@ export function PaymentSessionWindow({ token }: { token: string }) {
     }
   }
 
+  async function sendWeb3Deposit() {
+    const destination = session?.fiatSettlement?.circleDepositAddress;
+    if (!session || !destination) return;
+    setSettlementBusy(true); setError("");
+    try {
+      const wallets = await discoverBrowserWallets();
+      const selected = wallets.find(({ info }) => info.rdns === "io.metamask" || info.name === "MetaMask") ?? wallets[0];
+      if (!selected) throw new Error("No EVM wallet found");
+      const account = await requestWalletAccount(selected.provider);
+      if (user?.walletAddress && account.toLowerCase() !== user.walletAddress.toLowerCase()) throw new Error("Use the wallet bound to this OffGrid account");
+      await ensureArcTestnet(selected.provider);
+      const wallet = createWalletClient({ account, chain: arcTestnet, transport: custom(selected.provider) });
+      const txHash = await wallet.writeContract({ address: ARC.contracts.usdc, abi: erc20Abi, functionName: "transfer", args: [getAddress(destination), parseUnits(session.amount, ARC.usdcDecimals)] });
+      const response = await request<{ session: PaymentSessionView }>(`/api/payment-sessions/${token}/settlement`, { method: "POST", body: JSON.stringify({ txHash }) });
+      setSession(response.session);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to send the Circle deposit"); }
+    finally { setSettlementBusy(false); }
+  }
+
   useEffect(() => {
-    const active = session?.payerRail === "fiat_bank"
-      && session.receiverRail === "web3_usdc"
-      && Boolean(session.fiatSettlement)
-      && session.fiatSettlement?.stage !== "complete";
+    const active = Boolean(session?.fiatSettlement)
+      && (session?.payerRail === "fiat_bank" || session?.receiverRail === "fiat_bank")
+      && session?.fiatSettlement?.stage !== "complete";
     if (!active) return;
     const timer = window.setInterval(() => { if (!document.hidden) void advanceSettlement(true); }, 8_000);
     return () => window.clearInterval(timer);
@@ -261,8 +282,12 @@ export function PaymentSessionWindow({ token }: { token: string }) {
                 {/* Case A: Crypto-to-Fiat */}
                 {session.payerRail === "web3_usdc" && session.receiverRail === "fiat_bank" ? (
                   <>
-                    <p>USDC must first reach a Circle Mint deposit address and confirm in the business balance. Only then can Circle redeem it to a linked and verified bank account.</p>
-                    <ProviderRouteStatus status={fiatStatus} label="Web3 to fiat" />
+                    <p>The payer sends real Arc Testnet USDC to the Circle Mint deposit address below. OffGrid verifies the transaction, matches Circle's inbound transfer, then starts a sandbox wire payout. No real fiat moves.</p>
+                    <ProviderRouteStatus status={fiatStatus} label="Web3 to fiat" settlement={session.fiatSettlement} />
+                    {session.actionRole === "payer" && !session.fiatSettlement && <button className="neon-button" disabled={settlementBusy || !fiatStatus?.configured} onClick={() => advanceSettlement()}>{settlementBusy ? <LoaderCircle className="spin" size={15} /> : <Wallet size={15} />} Prepare Circle deposit</button>}
+                    {session.fiatSettlement?.circleDepositAddress && session.fiatSettlement.stage === "awaiting_web3_deposit" && <div className="sandbox-bank-destination"><span><Wallet size={16} /></span><div><small>CIRCLE ARC DEPOSIT ADDRESS</small><b title={session.fiatSettlement.circleDepositAddress}>{session.fiatSettlement.circleDepositAddress.slice(0, 12)}…{session.fiatSettlement.circleDepositAddress.slice(-8)}</b><p>Send exactly {session.amount} USDC from your connected payer wallet.</p></div><button type="button" onClick={() => navigator.clipboard.writeText(session.fiatSettlement!.circleDepositAddress!)} aria-label="Copy Circle deposit address"><Copy size={14} /></button></div>}
+                    {session.actionRole === "payer" && session.fiatSettlement?.stage === "awaiting_web3_deposit" && <button className="neon-button" disabled={settlementBusy} onClick={sendWeb3Deposit}>{settlementBusy ? <LoaderCircle className="spin" size={15} /> : <Zap size={15} />} Send {session.amount} USDC to Circle</button>}
+                    {session.fiatSettlement && !["awaiting_web3_deposit", "complete"].includes(session.fiatSettlement.stage) && <button className="session-cta session-cta-secondary" disabled={settlementBusy} onClick={() => advanceSettlement()}>{settlementBusy ? <LoaderCircle className="spin" size={13} /> : <Radio size={13} />} Refresh provider proof</button>}
                   </>
                 ) : session.payerRail === "fiat_bank" && session.receiverRail === "web3_usdc" ? (
                   <>
@@ -296,13 +321,21 @@ export function PaymentSessionWindow({ token }: { token: string }) {
 }
 
 function ProviderRouteStatus({ status, label, settlement }: { status: { configured: boolean; checks: Array<{ key: string; label: string; configured: boolean }> } | null; label: string; settlement?: PaymentSessionView["fiatSettlement"] }) {
-  const stages = [
+  const web3ToFiat = settlement?.mode === "web3_to_fiat" || label === "Web3 to fiat";
+  const stages = web3ToFiat ? [
+    { key: "awaiting_web3_deposit", label: "Circle address ready", proof: settlement?.circleDepositAddress, href: null },
+    { key: "web3_deposit_submitted", label: "USDC deposit verified", proof: settlement?.payerTransferTxHash, href: settlement?.payerTransferTxHash ? `https://testnet.arcscan.app/tx/${settlement.payerTransferTxHash}` : null },
+    { key: "circle_inbound_confirmed", label: "Circle inbound confirmed", proof: settlement?.circleInboundTransferId, href: null },
+    { key: "complete", label: "Sandbox wire completed", proof: settlement?.circlePayoutId, href: null },
+  ] : [
     { key: "wire_submitted", label: "Mock wire accepted", proof: settlement?.mockWireTrackingRef, href: null },
     { key: "circle_deposit_confirmed", label: "Circle deposit verified", proof: settlement?.circleDepositId, href: null },
     { key: "receiver_transfer_submitted", label: "Wallet payout submitted", proof: settlement?.receiverTransferId, href: null },
     { key: "complete", label: "USDC verified onchain", proof: settlement?.receiverTxHash, href: settlement?.receiverTxHash ? `https://testnet.arcscan.app/tx/${settlement.receiverTxHash}` : null },
   ];
-  const order = ["not_started", "wire_submitted", "circle_balance_funded", "circle_deposit_confirmed", "receiver_transfer_creating", "receiver_transfer_submitted", "complete", "failed"];
+  const order = web3ToFiat
+    ? ["awaiting_web3_deposit", "web3_deposit_submitted", "circle_inbound_confirmed", "fiat_payout_creating", "fiat_payout_submitted", "complete", "failed"]
+    : ["not_started", "wire_submitted", "circle_balance_funded", "circle_deposit_confirmed", "receiver_transfer_creating", "receiver_transfer_submitted", "complete", "failed"];
   const current = order.indexOf(settlement?.stage || "not_started");
-  return <div className="provider-route-status"><div><Banknote size={15} /><span><small>VERIFIED SANDBOX ROUTE · NO REAL FIAT CHARGED</small><b>{status?.configured ? label : "Provider setup required"}</b></span></div>{settlement ? <><div className="provider-proof-steps">{stages.map((stage, index) => { const done = current > order.indexOf(stage.key) || settlement.stage === stage.key || settlement.stage === "complete"; const proof = stage.proof ? `${stage.proof.slice(0, 10)}…${stage.proof.slice(-6)}` : null; return <span className={done ? "done" : current + 1 === order.indexOf(stage.key) ? "active" : ""} key={stage.key}><i>{done ? <Check size={9} /> : index + 1}</i><b>{stage.label}</b>{proof && (stage.href ? <a href={stage.href} target="_blank" rel="noreferrer" title={stage.proof || undefined}>{proof} <ExternalLink size={9} /></a> : <code title={stage.proof || undefined}>{proof}</code>)}</span>; })}</div>{settlement.circleDepositStatus && <p className="provider-proof-note">Circle deposit status: <b>{settlement.circleDepositStatus}</b>{settlement.circleDepositAmount ? ` · ${settlement.circleDepositAmount} USD` : ""}{settlement.arcBlockNumber ? ` · Arc block ${settlement.arcBlockNumber}` : ""}</p>}</> : <p>Start the simulation to receive a Circle wire reference, a Circle deposit ID, a developer wallet transaction ID, and a final testnet transaction hash.</p>}{settlement?.error && <p className="inline-error"><CircleAlert size={12} />{settlement.error}</p>}{!settlement && status && !status.configured && <div className="fiat-checks">{status.checks.map((check) => <span className={check.configured ? "done" : ""} key={check.key}><i>{check.configured ? <Check size={9} /> : "!"}</i>{check.label}</span>)}</div>}</div>;
+  return <div className="provider-route-status"><div><Banknote size={15} /><span><small>VERIFIED SANDBOX ROUTE · NO REAL FIAT CHARGED</small><b>{status?.configured ? label : "Provider setup required"}</b></span></div>{settlement ? <><div className="provider-proof-steps">{stages.map((stage, index) => { const done = current > order.indexOf(stage.key) || settlement.stage === stage.key || settlement.stage === "complete"; const proof = stage.proof ? `${stage.proof.slice(0, 10)}…${stage.proof.slice(-6)}` : null; return <span className={done ? "done" : current + 1 === order.indexOf(stage.key) ? "active" : ""} key={stage.key}><i>{done ? <Check size={9} /> : index + 1}</i><b>{stage.label}</b>{proof && (stage.href ? <a href={stage.href} target="_blank" rel="noreferrer" title={stage.proof || undefined}>{proof} <ExternalLink size={9} /></a> : <code title={stage.proof || undefined}>{proof}</code>)}</span>; })}</div>{web3ToFiat && settlement.circlePayoutStatus ? <p className="provider-proof-note">Circle payout status: <b>{settlement.circlePayoutStatus}</b>{settlement.circlePayoutTrackingRef ? ` · ${settlement.circlePayoutTrackingRef}` : ""}</p> : settlement.circleDepositStatus ? <p className="provider-proof-note">Circle deposit status: <b>{settlement.circleDepositStatus}</b>{settlement.circleDepositAmount ? ` · ${settlement.circleDepositAmount} USD` : ""}{settlement.arcBlockNumber ? ` · Arc block ${settlement.arcBlockNumber}` : ""}</p> : null}</> : <p>{web3ToFiat ? "Prepare the Circle deposit address, send the exact USDC amount, then watch the inbound transfer and sandbox payout proofs confirm." : "Start the simulated wire to receive a Circle wire reference, Circle deposit ID, developer wallet transaction ID, and final testnet hash."}</p>}{settlement?.error && <p className="inline-error"><CircleAlert size={12} />{settlement.error}</p>}{!settlement && status && !status.configured && <div className="fiat-checks">{status.checks.map((check) => <span className={check.configured ? "done" : ""} key={check.key}><i>{check.configured ? <Check size={9} /> : "!"}</i>{check.label}</span>)}</div>}</div>;
 }

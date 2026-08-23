@@ -59,6 +59,16 @@ export interface PaymentSessionView {
     settlementWalletAddress?: string | null;
     settlementWalletBalanceBefore?: string | null;
     arcBlockNumber?: string | null;
+    circleDepositAddressId?: string | null;
+    circleDepositAddress?: string | null;
+    payerTransferTxHash?: string | null;
+    payerTransferBlockNumber?: string | null;
+    circleInboundTransferId?: string | null;
+    circleInboundTransferStatus?: string | null;
+    circlePayoutId?: string | null;
+    circlePayoutStatus?: string | null;
+    circlePayoutTrackingRef?: string | null;
+    circlePayoutDestinationName?: string | null;
     error: string | null;
     updatedAt: string;
   } | null;
