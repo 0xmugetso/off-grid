@@ -458,23 +458,24 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
     <main className="auth-shell">
       <section className="auth-atmosphere">
         <div className="auth-grid" />
-        <div className="auth-orbit orbit-one"><span>BASE</span><i /></div>
-        <div className="auth-orbit orbit-two"><span>SOL</span><i /></div>
-        <div className="auth-center"><Logo /><b>offgrid</b><small>PAYMENT NETWORK</small></div>
+        <div className="auth-center">
+          <div className="auth-logo-stage"><Logo /></div>
+          <b>offgrid</b>
+          <small>GLOBAL PAYMENT PROTOCOL</small>
+        </div>
         <div className="auth-copy">
-          <span className="signal-pill"><Radio size={12} /> TESTNET MODE</span>
+          <span className="signal-pill"><Radio size={12} /> ONE PAYMENT NETWORK</span>
           <h1>Money without<br /><em>borders.</em></h1>
-          <p>Connect supported balances, pay another user, and track every real testnet transaction.</p>
-          <div className="auth-proof"><span><Zap size={15} /> Live settlement</span><span><ShieldCheck size={15} /> Self-custodial</span><span><Network size={15} /> Cross-chain</span></div>
+          <p>Pay with bank rails or multichain USDC. Settle to wallets, local accounts, or one unified balance with verifiable proof.</p>
+          <div className="auth-proof"><span><Zap size={15} /> Any-to-any payments</span><span><ShieldCheck size={15} /> Verifiable settlement</span><span><Network size={15} /> Self-custodial access</span></div>
         </div>
       </section>
       <section className="auth-panel">
-        <div className="auth-brand"><Logo /><b>offgrid</b><span>TESTNET v0.2.0</span></div>
         <div className="auth-form">
           <div className="auth-form-head">
             <span><Fingerprint size={16} /> {tab === "signin" ? "SECURE WALLET SIGN-IN" : "CREATE OFFGRID ACCOUNT"}</span>
             <h2>{tab === "signin" ? "Welcome back" : "Create your OffGrid ID"}</h2>
-            <p>{tab === "signin" ? "Sign in to your payment command center with your Web3 wallet." : "Set your display name and handle to bind with your Web3 wallet."}</p>
+            <p>{tab === "signin" ? "Open your balances, payment sessions, and verified transaction history." : "Create one identity for payments, payroll, escrow, and cross-chain settlement."}</p>
           </div>
           {tab === "register" && (
             <div className="auth-row">
@@ -503,7 +504,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
             </button>
           </p>
         </div>
-        <p className="auth-security"><LockKeyhole size={13} /> Zero password custody. Cryptographic signatures verify wallet ownership.</p>
+        <p className="auth-security"><LockKeyhole size={13} /> Your wallet signs in. OffGrid never stores passwords or private keys.</p>
       </section>
     </main>
   );
