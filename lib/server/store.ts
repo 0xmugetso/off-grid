@@ -285,6 +285,7 @@ export interface StoredEscrow {
 }
 
 export interface Database {
+  resetVersion: string;
   users: StoredUser[];
   invoices: StoredInvoice[];
   paymentSessions: StoredPaymentSession[];
@@ -293,6 +294,8 @@ export interface Database {
   gatewayDeposits: StoredGatewayDeposit[];
   escrows: StoredEscrow[];
 }
+
+const CURRENT_RESET_VERSION = "submission-clean-2026-08-24-v1";
 
 const dataDirectory = path.join(process.cwd(), ".data");
 const databasePath = path.join(dataDirectory, "offgrid.json");
@@ -320,7 +323,7 @@ function hostedSql() {
 }
 
 function emptyDatabase(): Database {
-  return { users: [], invoices: [], paymentSessions: [], cctpOperations: [], fiatPayouts: [], gatewayDeposits: [], escrows: [] };
+  return { resetVersion: CURRENT_RESET_VERSION, users: [], invoices: [], paymentSessions: [], cctpOperations: [], fiatPayouts: [], gatewayDeposits: [], escrows: [] };
 }
 
 function normalizeUser(user: Partial<StoredUser>): StoredUser {
@@ -345,8 +348,22 @@ function normalizeDatabase(value: unknown): Database {
     try { source = JSON.parse(source); } catch { source = null; }
   }
   const parsed = (source && typeof source === "object" ? source : {}) as Partial<Database>;
+  const users = Array.isArray(parsed.users) ? parsed.users.map((user) => normalizeUser(user as Partial<StoredUser>)) : [];
+  if (parsed.resetVersion !== CURRENT_RESET_VERSION) {
+    return {
+      resetVersion: CURRENT_RESET_VERSION,
+      users: users.map((user) => ({ ...user, sandboxFiatBalance: "0", sandboxFiatPending: "0" })),
+      invoices: [],
+      paymentSessions: [],
+      cctpOperations: [],
+      fiatPayouts: [],
+      gatewayDeposits: [],
+      escrows: [],
+    };
+  }
   return {
-    users: Array.isArray(parsed.users) ? parsed.users.map((user) => normalizeUser(user as Partial<StoredUser>)) : [],
+    resetVersion: CURRENT_RESET_VERSION,
+    users,
     invoices: Array.isArray(parsed.invoices) ? parsed.invoices : [],
     paymentSessions: Array.isArray(parsed.paymentSessions) ? parsed.paymentSessions : [],
     cctpOperations: Array.isArray(parsed.cctpOperations) ? parsed.cctpOperations : [],
@@ -362,6 +379,12 @@ async function ensureHostedStore() {
     hostedStoreReady = (async () => {
       await sql`CREATE TABLE IF NOT EXISTS offgrid_state (id integer PRIMARY KEY, revision bigint NOT NULL DEFAULT 0, data jsonb NOT NULL)`;
       await sql`INSERT INTO offgrid_state (id, revision, data) VALUES (1, 0, ${JSON.stringify(emptyDatabase())}::jsonb) ON CONFLICT (id) DO NOTHING`;
+      const rows = await sql`SELECT data FROM offgrid_state WHERE id = 1` as Array<{ data: unknown }>;
+      const raw = rows[0]?.data as { resetVersion?: string } | undefined;
+      if (raw?.resetVersion !== CURRENT_RESET_VERSION) {
+        const clean = normalizeDatabase(rows[0]?.data);
+        await sql`UPDATE offgrid_state SET revision = revision + 1, data = ${JSON.stringify(clean)}::jsonb WHERE id = 1 AND COALESCE(data->>'resetVersion', '') <> ${CURRENT_RESET_VERSION}`;
+      }
     })().catch((error) => {
       hostedStoreReady = null;
       throw error;
@@ -372,19 +395,10 @@ async function ensureHostedStore() {
 
 async function readDatabase(): Promise<Database> {
   try {
-    const parsed = JSON.parse(await readFile(databasePath, "utf8")) as Partial<Database>;
-    return {
-      users: Array.isArray(parsed.users) ? parsed.users.map((user) => normalizeUser(user as Partial<StoredUser>)) : [],
-      invoices: parsed.invoices ?? [],
-      paymentSessions: parsed.paymentSessions ?? [],
-      cctpOperations: parsed.cctpOperations ?? [],
-      fiatPayouts: parsed.fiatPayouts ?? [],
-      gatewayDeposits: parsed.gatewayDeposits ?? [],
-      escrows: parsed.escrows ?? [],
-    };
+    return normalizeDatabase(JSON.parse(await readFile(databasePath, "utf8")));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    return { users: [], invoices: [], paymentSessions: [], cctpOperations: [], fiatPayouts: [], gatewayDeposits: [], escrows: [] };
+    return emptyDatabase();
   }
 }
 
