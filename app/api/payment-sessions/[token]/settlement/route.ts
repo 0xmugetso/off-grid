@@ -269,7 +269,6 @@ export async function POST(_request: Request, { params }: { params: Promise<{ to
         .map((entry) => entry.fiatSettlement?.circleDepositId)
         .filter((id): id is string => Boolean(id)));
       const deposit = await findCircleMintWireDeposit({
-        trackingRef: settlement.mockWireTrackingRef,
         amount: session!.amount,
         submittedAfter: settlement.wireSubmittedAt || session!.createdAt,
         excludedIds: excludedDepositIds,
@@ -297,6 +296,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ to
           circleDepositTrackingRef: deposit.trackingRef,
           circleDepositAmount: deposit.amount,
           circleDepositCreateDate: deposit.createDate,
+          circleDepositMatch: "exact_amount_after_wire_submission",
           circleMintBalanceAfterDeposit: balances?.availableUsd,
         };
         target.updatedAt = now;

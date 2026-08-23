@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { parseUsdc } from "@/lib/money";
+import { selectCircleMintWireDeposit } from "@/lib/circle-mint-reconciliation";
 
 export interface CircleMintPayoutInput {
   idempotencyKey: string;
@@ -166,22 +167,15 @@ export async function listCircleMintWireDeposits(input?: { from?: string; pageSi
 }
 
 export async function findCircleMintWireDeposit(input: {
-  trackingRef: string;
   amount: string;
   submittedAfter: string;
   excludedIds?: string[];
 }) {
   const deposits = await listCircleMintWireDeposits({ from: input.submittedAfter, pageSize: 50 });
-  const excluded = new Set(input.excludedIds ?? []);
-  return deposits.find((deposit) => {
-    if (!deposit.id || excluded.has(deposit.id)) return false;
-    if (deposit.trackingRef !== input.trackingRef || deposit.amount?.currency !== "USD" || !deposit.amount.amount) return false;
-    try {
-      return parseUsdc(deposit.amount.amount) === parseUsdc(input.amount);
-    } catch {
-      return false;
-    }
-  }) ?? null;
+  // Circle's deposit-list response does not include the mock wire trackingRef.
+  // Reconcile against the exact amount and submission window, then reserve the
+  // earliest provider deposit that another payment session has not claimed.
+  return selectCircleMintWireDeposit(deposits, input);
 }
 
 function mintError(operation: string, response: Response, data: { code?: number; message?: string }) {
