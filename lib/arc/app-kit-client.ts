@@ -12,6 +12,7 @@ import { createSolanaAdapterFromProvider, type SolanaAdapter } from "@circle-fin
 import { Connection } from "@solana/web3.js";
 import { createPublicClient, fallback, getAddress, http, isAddress, type Chain } from "viem";
 import type { EIP1193Provider } from "viem";
+import { arbitrumSepolia, arcTestnet, baseSepolia, sepolia } from "viem/chains";
 import type { CctpSourceChain, EvmSourceChain, SourceChain } from "./config";
 import { ARC } from "./config";
 import type { SolanaWalletProvider } from "./solana-wallet";
@@ -103,6 +104,56 @@ function publicTransportFor(chain: Chain) {
   );
 }
 
+const VIEM_CHAIN_BY_ID = new Map<number, Chain>([
+  [baseSepolia.id, baseSepolia],
+  [arbitrumSepolia.id, arbitrumSepolia],
+  [sepolia.id, sepolia],
+  [arcTestnet.id, arcTestnet],
+]);
+
+// Browser wallets should remain the signer, not the source of truth for public
+// chain reads. Some wallets still ship an Ethereum Sepolia network backed by
+// sepolia.drpc.org, which no longer serves that chain on its free plan. App Kit
+// may request a nonce or fee through the wallet client while preparing an
+// approval or deposit, so route those read-only methods through the same
+// chain-specific fallback transport used by the App Kit public client.
+const PUBLIC_RPC_METHODS = new Set([
+  "eth_blockNumber",
+  "eth_call",
+  "eth_estimateGas",
+  "eth_feeHistory",
+  "eth_gasPrice",
+  "eth_getBalance",
+  "eth_getBlockByHash",
+  "eth_getBlockByNumber",
+  "eth_getCode",
+  "eth_getStorageAt",
+  "eth_getTransactionByHash",
+  "eth_getTransactionCount",
+  "eth_getTransactionReceipt",
+  "eth_maxPriorityFeePerGas",
+]);
+
+function withReliablePublicReads(provider: EIP1193Provider): EIP1193Provider {
+  return {
+    on: provider.on.bind(provider),
+    removeListener: provider.removeListener.bind(provider),
+    request: (async (request: { method: string; params?: unknown }) => {
+      if (!PUBLIC_RPC_METHODS.has(request.method)) {
+        return provider.request(request as Parameters<EIP1193Provider["request"]>[0]);
+      }
+
+      const currentChainId = await provider.request({ method: "eth_chainId" });
+      const numericChainId = typeof currentChainId === "string" ? Number.parseInt(currentChainId, 16) : Number(currentChainId);
+      const chain = VIEM_CHAIN_BY_ID.get(numericChainId);
+      if (!chain) return provider.request(request as Parameters<EIP1193Provider["request"]>[0]);
+
+      const publicClient = createPublicClient({ chain, transport: publicTransportFor(chain) });
+      return publicClient.request(request as Parameters<typeof publicClient.request>[0]);
+    }) as EIP1193Provider["request"],
+  };
+}
+
 export function validateMassPayouts(payouts: MassPayout[]) {
   if (!payouts.length) throw new Error("Add at least one team member");
   if (payouts.length > 50) throw new Error("A payroll run is limited to 50 recipients");
@@ -133,7 +184,7 @@ export class ArcPayrollClient {
 
   connectEvmWallet(provider: EIP1193Provider) {
     return createViemAdapterFromProvider({
-      provider,
+      provider: withReliablePublicReads(provider),
       // Public reads must stay chain-specific because App Kit can query several
       // chains without moving the wallet away from the user's signing chain.
       getPublicClient: ({ chain }) => createPublicClient({

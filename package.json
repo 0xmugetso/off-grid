@@ -21,9 +21,9 @@
     "escrow:compile": "node scripts/compile-refund-protocol.mjs"
   },
   "dependencies": {
-    "@circle-fin/adapter-solana": "1.6.4",
-    "@circle-fin/adapter-viem-v2": "1.14.1",
-    "@circle-fin/app-kit": "1.11.0",
+    "@circle-fin/adapter-solana": "1.7.0",
+    "@circle-fin/adapter-viem-v2": "1.16.0",
+    "@circle-fin/app-kit": "1.12.1",
     "@circle-fin/developer-controlled-wallets": "^4.7.0",
     "@circle-fin/smart-contract-platform": "^4.3.0",
     "@neondatabase/serverless": "^1.1.0",
