@@ -4200,15 +4200,26 @@ html[data-theme="light"] .arc-chain-logo { color:#111814; }
   display:block;
 }
 .command-rail-inner {
-  position:sticky;
+  position:fixed;
   top:68px;
-  height:calc(100dvh - 68px);
+  bottom:0;
+  left:0;
+  z-index:30;
+  width:246px;
+  height:auto;
+  box-sizing:border-box;
   padding:21px 14px 16px;
   display:flex;
   flex-direction:column;
   overflow:hidden;
 }
-.logout-button { min-height:42px; margin-top:auto; }
+.logout-button { min-height:42px; margin-top:auto; transition:color .18s ease,background .18s ease,border-color .18s ease; }
+.logout-button:hover {
+  color:#ff746b;
+  background:rgba(255,91,80,.07);
+  border-top-color:rgba(255,105,94,.28);
+}
+.logout-button:hover svg { color:#ff746b; }
 
 /* The escrow action uses the complete payment-session CTA, not only its color. */
 .escrow-live-actions .escrow-workspace-link { min-height:70px; }
@@ -4327,7 +4338,7 @@ html[data-theme="light"] .logout-confirm-modal { background:#f7f9f7; border-colo
 html[data-theme="light"] .quiet-confirm-button { background:#edf1ee; }
 
 @media(max-width:1100px) and (min-width:761px) {
-  .command-rail-inner { padding:16px 9px; }
+  .command-rail-inner { width:72px; padding:16px 9px; }
 }
 @media(max-width:760px) {
   .command-rail { display:none; }
