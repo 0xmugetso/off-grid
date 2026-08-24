@@ -724,7 +724,21 @@ function gatewayDepositLedgerEntry(deposit: GatewayDeposit): LedgerEntry {
   };
 }
 
-function HistoryView({ invoices, paymentSessions, deposits, walletAddress, cctpOperations, fiatPayouts, recovering, recoveryNote, onRecover, onRefreshCctp, onRefreshGateway, onRefreshFiat, onSelectEntry }: { invoices: InvoiceData[]; paymentSessions: PaymentSessionView[]; deposits: GatewayDeposit[]; walletAddress: string; cctpOperations: CctpOperation[]; fiatPayouts: FiatPayout[]; recovering: boolean; recoveryNote: string; onRecover: () => void; onRefreshCctp: () => void; onRefreshGateway: () => void; onRefreshFiat: () => void; onSelectEntry: (entry: LedgerEntry) => void }) {
+function historyLabelForViewer(value: string, viewer: User, walletAddress: string) {
+  const identities = [
+    viewer.displayName,
+    `@${viewer.username}`,
+    viewer.username,
+    viewer.walletAddress ?? "",
+    walletAddress,
+    viewer.walletAddress ? shortAddress(viewer.walletAddress) : "",
+    shortAddress(walletAddress),
+  ].filter((identity, index, all) => identity.length > 1 && all.indexOf(identity) === index).sort((a, b) => b.length - a.length);
+
+  return identities.reduce((label, identity) => label.replaceAll(identity, "You"), value);
+}
+
+function HistoryView({ invoices, paymentSessions, deposits, walletAddress, viewer, cctpOperations, fiatPayouts, recovering, recoveryNote, onRecover, onRefreshCctp, onRefreshGateway, onRefreshFiat, onSelectEntry }: { invoices: InvoiceData[]; paymentSessions: PaymentSessionView[]; deposits: GatewayDeposit[]; walletAddress: string; viewer: User; cctpOperations: CctpOperation[]; fiatPayouts: FiatPayout[]; recovering: boolean; recoveryNote: string; onRecover: () => void; onRefreshCctp: () => void; onRefreshGateway: () => void; onRefreshFiat: () => void; onSelectEntry: (entry: LedgerEntry) => void }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | LedgerEntry["kind"]>("all");
   const [sort, setSort] = useState<"newest" | "oldest" | "amount_high" | "amount_low">("newest");
@@ -846,11 +860,17 @@ function HistoryView({ invoices, paymentSessions, deposits, walletAddress, cctpO
     return entries
       .filter((entry) => filter === "all" || entry.kind === filter)
       .filter((entry) => !normalized || [entry.activity, entry.detail, entry.rail, entry.txHash].some((value) => value.toLowerCase().includes(normalized)))
+      .map((entry) => ({
+        ...entry,
+        activity: historyLabelForViewer(entry.activity, viewer, walletAddress),
+        detail: historyLabelForViewer(entry.detail, viewer, walletAddress),
+        logs: entry.logs.map((log) => ({ ...log, name: historyLabelForViewer(log.name, viewer, walletAddress) })),
+      }))
       .sort((a, b) => sort === "newest" ? Date.parse(b.createdAt) - Date.parse(a.createdAt)
         : sort === "oldest" ? Date.parse(a.createdAt) - Date.parse(b.createdAt)
           : sort === "amount_high" ? Number(b.amount) - Number(a.amount)
             : Number(a.amount) - Number(b.amount));
-  }, [entries, filter, query, sort]);
+  }, [entries, filter, query, sort, viewer, walletAddress]);
 
   const onchainEntries = entries.filter((entry) => entry.kind !== "fiat" && Boolean(entry.txHash) && entry.status !== "failed");
   const volume = onchainEntries.reduce((sum, entry) => sum + Number(entry.amount), 0);
@@ -932,7 +952,7 @@ function UnifiedBalanceView({ walletAddress, walletOnArc, arcBalance, unifiedBal
       <div className="unified-chain-head"><div><span className="section-tag">SOURCE ALLOCATION</span><h2>Balance by chain</h2><p>Live Gateway positions returned by Circle App Kit for this connected account.</p></div><span><i /> CONFIRMED <i /> PENDING</span></div>
       <div className="unified-chain-grid">{(chainBalances ?? SOURCE_CHAINS.map((chain) => ({ chain, confirmed: "0", pending: "0", queried: chain !== "Solana_Devnet" }))).map((position) => <article className={!position.queried ? "unlinked" : ""} key={position.chain}><div className="unified-chain-logo"><ChainLogo chain={position.chain} size={33}/></div><div><small>{CHAIN_LABELS[position.chain].toUpperCase()}</small><b>{position.queried ? displayMoney(position.confirmed) : "-"} <em>USDC</em></b><p>{!position.queried ? "Connect Solana wallet to query" : Number(position.pending) > 0 ? `${displayMoney(position.pending)} USDC pending` : "Gateway confirmed"}</p></div><span className={Number(position.pending) > 0 ? "pending" : "online"}><i />{Number(position.pending) > 0 ? "INDEXING" : position.queried ? "LIVE" : "UNLINKED"}</span></article>)}</div>
       <div className="unified-wallet-balance"><ChainLogo chain="Arc_Testnet" size={25}/><div><small>ARC TESTNET WALLET · OUTSIDE GATEWAY</small><b>{arcBalance === null ? "-" : displayMoney(arcBalance)} USDC</b></div><span>{walletOnArc ? "ARC TESTNET ACTIVE" : "CONNECTED ON ANOTHER CHAIN"}</span></div>
-      <div className={`unified-wallet-balance solana-wallet-balance ${solanaAddress ? "connected" : ""}`}><ChainLogo chain="Solana_Devnet" size={25}/><div><small>{solanaAddress ? `SOLANA DEVNET · ${solanaWalletName.toUpperCase()}` : "SOLANA DEVNET · SOURCE WALLET"}</small><b>{solanaAddress ? `${solanaUsdcBalance === null ? "-" : displayMoney(solanaUsdcBalance)} USDC` : "Connect to deposit or bridge"}</b>{solanaAddress && <em>{shortAddress(solanaAddress, 6)}</em>}</div><button onClick={onConnectSolana} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={12}/> : solanaAddress ? <RefreshCw size={12}/> : <Wallet size={12}/>} {solanaAddress ? "Refresh" : "Connect Solana"}</button></div>
+      <div className={`unified-wallet-balance solana-wallet-balance ${solanaAddress ? "connected" : ""}`}><ChainLogo chain="Solana_Devnet" size={25}/><div><small>{solanaAddress ? `SOLANA DEVNET · ${solanaWalletName.toUpperCase()}` : "SOLANA DEVNET · SOURCE WALLET"}</small><b className={solanaAddress ? "wallet-balance-value" : "wallet-balance-prompt"}>{solanaAddress ? `${solanaUsdcBalance === null ? "-" : displayMoney(solanaUsdcBalance)} USDC` : "Connect to deposit or bridge"}</b>{solanaAddress && <em>{shortAddress(solanaAddress, 6)}</em>}</div><button onClick={onConnectSolana} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={12}/> : solanaAddress ? <RefreshCw size={12}/> : <Wallet size={12}/>} {solanaAddress ? "Refresh" : "Connect Solana"}</button></div>
     </>}
   </section>;
 }
@@ -2862,7 +2882,7 @@ export function OffGridDashboard() {
               </section>
             </>
           )}
-          </div> : activeView === "history" ? walletAddress ? <HistoryView invoices={activity} paymentSessions={paymentSessionsList} deposits={gatewayDeposits} walletAddress={walletAddress} cctpOperations={cctpOperations} fiatPayouts={fiatPayouts} recovering={cctpRecovering} recoveryNote={cctpRecoveryNote} onRecover={() => void recoverCctpOperations()} onRefreshCctp={() => void refreshCctpOperations()} onRefreshGateway={() => void refreshGatewayDeposits()} onRefreshFiat={() => void refreshFiatPayouts()} onSelectEntry={setSelectedProofEntry} /> : <div className="unified-empty"><Receipt size={30} /><h2>Connect a wallet to view history.</h2><p>Transaction activity and receipts stay hidden until your wallet is connected.</p><button className="neon-button" onClick={beginWalletConnection}><Wallet size={15} /> Connect Wallet</button></div> : activeView === "unified" ? <UnifiedBalanceView walletAddress={walletAddress} walletOnArc={walletOnArc} arcBalance={arcBalance} unifiedBalance={unifiedBalance} pendingBalance={pendingBalance} chainBalances={gatewayChainBalances} gatewayError={gatewayError} gatewayStale={gatewayStale} gatewayLoading={gatewayLoading} solanaAddress={solanaAddress} solanaWalletName={solanaWalletName} solanaUsdcBalance={solanaUsdcBalance} solanaBusy={solanaBusy} onRefresh={() => loadBalances()} onDeposit={() => { setDepositError(""); setShowFunding(true); }} onConnect={beginWalletConnection} onConnectSolana={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} /> : activeView === "mass" ? <MassPaymentView walletAddress={walletAddress} directBalance={arcBalance} unifiedBalance={unifiedBalance} onConnect={beginWalletConnection} onExecute={executeMassPayroll} /> : activeView === "escrow" ? <EscrowView walletAddress={displayWalletAddress} arcBalance={arcBalance} onConnect={beginWalletConnection} onRefresh={() => loadBalances()} /> : <section className="agent-soon-view"><div className="agent-orbit"><Sparkles size={27} /><i /><i /><i /></div><span className="section-tag">AUTONOMOUS SETTLEMENT · SOON</span><h1>Agent Payments</h1><p>Policy-controlled wallets, programmable limits, approvals, and auditable payments initiated by trusted agents.</p><div className="agent-soon-grid"><span><ShieldCheck size={16} /><b>Policy engine</b><small>Limits, allowlists, and human approval gates</small></span><span><Network size={16} /><b>Any-to-any rails</b><small>Circle Gateway, CCTP, and fiat routing</small></span><span><Receipt size={16} /><b>Agent audit trail</b><small>Intent, reasoning reference, and transaction proof</small></span></div><em>IN DEVELOPMENT</em></section>}
+          </div> : activeView === "history" ? walletAddress ? <HistoryView invoices={activity} paymentSessions={paymentSessionsList} deposits={gatewayDeposits} walletAddress={walletAddress} viewer={user} cctpOperations={cctpOperations} fiatPayouts={fiatPayouts} recovering={cctpRecovering} recoveryNote={cctpRecoveryNote} onRecover={() => void recoverCctpOperations()} onRefreshCctp={() => void refreshCctpOperations()} onRefreshGateway={() => void refreshGatewayDeposits()} onRefreshFiat={() => void refreshFiatPayouts()} onSelectEntry={setSelectedProofEntry} /> : <div className="unified-empty"><Receipt size={30} /><h2>Connect a wallet to view history.</h2><p>Transaction activity and receipts stay hidden until your wallet is connected.</p><button className="neon-button" onClick={beginWalletConnection}><Wallet size={15} /> Connect Wallet</button></div> : activeView === "unified" ? <UnifiedBalanceView walletAddress={walletAddress} walletOnArc={walletOnArc} arcBalance={arcBalance} unifiedBalance={unifiedBalance} pendingBalance={pendingBalance} chainBalances={gatewayChainBalances} gatewayError={gatewayError} gatewayStale={gatewayStale} gatewayLoading={gatewayLoading} solanaAddress={solanaAddress} solanaWalletName={solanaWalletName} solanaUsdcBalance={solanaUsdcBalance} solanaBusy={solanaBusy} onRefresh={() => loadBalances()} onDeposit={() => { setDepositError(""); setShowFunding(true); }} onConnect={beginWalletConnection} onConnectSolana={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} /> : activeView === "mass" ? <MassPaymentView walletAddress={walletAddress} directBalance={arcBalance} unifiedBalance={unifiedBalance} onConnect={beginWalletConnection} onExecute={executeMassPayroll} /> : activeView === "escrow" ? <EscrowView walletAddress={displayWalletAddress} arcBalance={arcBalance} onConnect={beginWalletConnection} onRefresh={() => loadBalances()} /> : <section className="agent-soon-view"><div className="agent-orbit"><Sparkles size={27} /><i /><i /><i /></div><span className="section-tag">AUTONOMOUS SETTLEMENT · SOON</span><h1>Agent Payments</h1><p>Policy-controlled wallets, programmable limits, approvals, and auditable payments initiated by trusted agents.</p><div className="agent-soon-grid"><span><ShieldCheck size={16} /><b>Policy engine</b><small>Limits, allowlists, and human approval gates</small></span><span><Network size={16} /><b>Any-to-any rails</b><small>Circle Gateway, CCTP, and fiat routing</small></span><span><Receipt size={16} /><b>Agent audit trail</b><small>Intent, reasoning reference, and transaction proof</small></span></div><em>IN DEVELOPMENT</em></section>}
         </section>
       </div>
 

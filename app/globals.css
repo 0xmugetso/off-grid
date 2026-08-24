@@ -4162,3 +4162,24 @@ html[data-theme="light"] .escrow-workspace-tabs { background:#f7f9f7; }
   .escrow-wizard-modal.escrow-wizard-premium { width:calc(100vw - 16px); max-height:calc(100dvh - 16px); }
   .escrow-wizard-premium .premium-stepper .stepper-step:not(:last-child)::after { display:none; }
 }
+
+/* Activity copy stays compact while amount values retain their display face. */
+.history-view .ledger-table td { padding-block:10px; }
+.history-view .ledger-activity { gap:0; }
+.history-view .ledger-activity>b { font:650 11px/1.25 var(--sans); letter-spacing:-.01em; }
+.history-view .ledger-activity>small { margin-top:3px; font:450 8px/1.35 var(--sans); }
+.history-view .ledger-activity details { margin-top:4px; }
+.history-view .ledger-activity summary { font:600 7px/1.3 var(--mono); }
+.history-view .ledger-activity details>div { margin-top:3px; padding:4px 0 2px 7px; gap:2px; }
+.history-view .ledger-activity details span { gap:5px; font:500 7px/1.3 var(--sans); }
+.history-view .ledger-activity details em { font:500 7px/1.3 var(--mono); }
+
+.unified-view .unified-wallet-balance b.wallet-balance-prompt {
+  font-family:var(--sans);
+  font-weight:600;
+  font-variant-numeric:normal;
+  letter-spacing:0;
+}
+
+.arc-chain-logo { color:#f4f6f2; }
+html[data-theme="light"] .arc-chain-logo { color:#111814; }
