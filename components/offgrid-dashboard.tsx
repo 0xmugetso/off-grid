@@ -945,12 +945,50 @@ function UnifiedBalanceView({ walletAddress, walletOnArc, arcBalance, unifiedBal
   const confirmed = Number(unifiedBalance ?? 0);
   const pending = Number(pendingBalance ?? 0);
   const total = confirmed + pending;
+  const confirmedShare = total > 0 ? Math.min(100, (confirmed / total) * 100) : 0;
+  const pendingShare = total > 0 ? Math.min(100, (pending / total) * 100) : 0;
+  const positions = chainBalances ?? SOURCE_CHAINS.map((chain) => ({ chain, confirmed: "0", pending: "0", queried: chain !== "Solana_Devnet" }));
   return <section className="unified-view">
     <div className="view-heading"><div><span className="section-tag">CIRCLE GATEWAY</span><h1>Unified Balance</h1><p>One spendable USDC balance assembled from supported testnet chains.</p></div>{walletAddress && <button className="quiet-refresh" onClick={onRefresh}><RefreshCw size={13} /> Refresh Balances</button>}</div>
     {!walletAddress ? <div className="unified-empty"><Network size={30} /><h2>Connect a wallet to query Gateway.</h2><p>OffGrid will read only real confirmed and pending balances for your connected address.</p><button className="neon-button" onClick={onConnect}><Wallet size={15} /> Connect Wallet</button></div> : <>
-      <section className={`unified-hero ${gatewayStale ? "stale" : ""} ${gatewayLoading ? "loading" : ""}`}><div><span><Network size={18} /></span><small>TOTAL GATEWAY POSITION</small><b>{displayMoney(total)} <em>USDC</em></b><p>{gatewayLoading ? "Reading your live Circle Gateway position" : gatewayError || (unifiedBalance === null ? "Connect your wallet to load a live Gateway balance" : "Confirmed plus deposits currently indexing")}</p></div><div className="unified-breakdown"><span><small>SPENDABLE NOW</small><b>{displayMoney(confirmed)} USDC</b><i><em style={{ width: `${total > 0 ? (confirmed / total) * 100 : 0}%` }} /></i></span><span><small>PENDING INDEXING</small><b>{displayMoney(pending)} USDC</b><i className="pending"><em style={{ width: `${total > 0 ? (pending / total) * 100 : 0}%` }} /></i></span></div><button className="unified-deposit-cta" onClick={onDeposit}><span className="unified-deposit-icon"><ArrowDownToLine size={17} /></span><span><small>FUND YOUR BALANCE</small><b>Deposit USDC</b><em>From any supported chain</em></span><ArrowRight size={15} /></button></section>
+      <section className={`unified-hero ${gatewayStale ? "stale" : ""} ${gatewayLoading ? "loading" : ""}`}>
+        <div className="unified-position">
+          <span><Network size={18} /></span>
+          <small>TOTAL GATEWAY POSITION</small>
+          <b>{displayMoney(total)} <em>USDC</em></b>
+          <p>{gatewayLoading ? "Reading your live Circle Gateway position" : gatewayError || (unifiedBalance === null ? "Connect your wallet to load a live Gateway balance" : pending > 0 ? "Your confirmed balance is ready while new deposits finish indexing" : "Your confirmed spendable balance across supported chains")}</p>
+        </div>
+        <div className="unified-breakdown">
+          <div className="unified-balance-metrics">
+            <span><small>SPENDABLE NOW</small><b>{displayMoney(confirmed)} <em>USDC</em></b></span>
+            <span className={pending > 0 ? "active" : ""}><small>PENDING INDEXING</small><b>{displayMoney(pending)} <em>USDC</em></b></span>
+          </div>
+          <div className="unified-balance-track" aria-label={`${displayMoney(confirmed)} USDC confirmed and ${displayMoney(pending)} USDC pending`}>
+            <i className="confirmed" style={{ width: `${confirmedShare}%` }} />
+            <i className="pending" style={{ width: `${pendingShare}%` }} />
+          </div>
+          <p>{pending > 0 ? "Circle Gateway is finalizing the pending source deposits shown below." : "No deposits are waiting for Gateway finality."}</p>
+        </div>
+        <button className="session-launch-button unified-deposit-cta" onClick={onDeposit}>
+          <span><ArrowDownToLine size={18} /></span>
+          <div><small>ADD LIQUIDITY</small><b>Deposit USDC</b><em>Choose A Source Chain</em></div>
+          <ArrowRight size={17} />
+        </button>
+      </section>
       <div className="unified-chain-head"><div><span className="section-tag">SOURCE ALLOCATION</span><h2>Balance by chain</h2><p>Live Gateway positions returned by Circle App Kit for this connected account.</p></div><span><i /> CONFIRMED <i /> PENDING</span></div>
-      <div className="unified-chain-grid">{(chainBalances ?? SOURCE_CHAINS.map((chain) => ({ chain, confirmed: "0", pending: "0", queried: chain !== "Solana_Devnet" }))).map((position) => <article className={!position.queried ? "unlinked" : ""} key={position.chain}><div className="unified-chain-logo"><ChainLogo chain={position.chain} size={33}/></div><div><small>{CHAIN_LABELS[position.chain].toUpperCase()}</small><b>{position.queried ? displayMoney(position.confirmed) : "-"} <em>USDC</em></b><p>{!position.queried ? "Connect Solana wallet to query" : Number(position.pending) > 0 ? `${displayMoney(position.pending)} USDC pending` : "Gateway confirmed"}</p></div><span className={Number(position.pending) > 0 ? "pending" : "online"}><i />{Number(position.pending) > 0 ? "INDEXING" : position.queried ? "LIVE" : "UNLINKED"}</span></article>)}</div>
+      <div className="unified-chain-grid">{positions.map((position) => {
+        const chainConfirmed = Number(position.confirmed);
+        const chainPending = Number(position.pending);
+        const chainTotal = chainConfirmed + chainPending;
+        const chainConfirmedShare = chainTotal > 0 ? Math.min(100, (chainConfirmed / chainTotal) * 100) : 0;
+        const chainPendingShare = chainTotal > 0 ? Math.min(100, (chainPending / chainTotal) * 100) : 0;
+        return <article className={!position.queried ? "unlinked" : chainPending > 0 ? "indexing" : ""} key={position.chain}>
+          <div className="unified-chain-logo"><ChainLogo chain={position.chain} size={33}/></div>
+          <div><small>{CHAIN_LABELS[position.chain].toUpperCase()}</small><b>{position.queried ? displayMoney(position.confirmed) : "-"} <em>USDC</em></b><p>{!position.queried ? "Connect Solana Wallet To Query" : chainPending > 0 ? `${displayMoney(position.pending)} USDC awaiting finality` : "Gateway confirmed"}</p></div>
+          {position.queried && <div className={`unified-chain-progress ${chainPending > 0 ? "has-pending" : ""}`} aria-label={`${displayMoney(chainConfirmed)} USDC confirmed and ${displayMoney(chainPending)} USDC pending`}><i className="confirmed" style={{ width: `${chainConfirmedShare}%` }} /><i className="pending" style={{ width: `${chainPendingShare}%` }} /></div>}
+          <span className={chainPending > 0 ? "pending" : "online"}><i />{chainPending > 0 ? "INDEXING" : position.queried ? "LIVE" : "UNLINKED"}</span>
+        </article>;
+      })}</div>
       <div className="unified-wallet-balance"><ChainLogo chain="Arc_Testnet" size={25}/><div><small>ARC TESTNET WALLET · OUTSIDE GATEWAY</small><b>{arcBalance === null ? "-" : displayMoney(arcBalance)} USDC</b></div><span>{walletOnArc ? "ARC TESTNET ACTIVE" : "CONNECTED ON ANOTHER CHAIN"}</span></div>
       <div className={`unified-wallet-balance solana-wallet-balance ${solanaAddress ? "connected" : ""}`}><ChainLogo chain="Solana_Devnet" size={25}/><div><small>{solanaAddress ? `SOLANA DEVNET · ${solanaWalletName.toUpperCase()}` : "SOLANA DEVNET · SOURCE WALLET"}</small><b className={solanaAddress ? "wallet-balance-value" : "wallet-balance-prompt"}>{solanaAddress ? `${solanaUsdcBalance === null ? "-" : displayMoney(solanaUsdcBalance)} USDC` : "Connect to deposit or bridge"}</b>{solanaAddress && <em>{shortAddress(solanaAddress, 6)}</em>}</div><button onClick={onConnectSolana} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={12}/> : solanaAddress ? <RefreshCw size={12}/> : <Wallet size={12}/>} {solanaAddress ? "Refresh" : "Connect Solana"}</button></div>
     </>}
