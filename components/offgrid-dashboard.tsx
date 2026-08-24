@@ -55,8 +55,8 @@ import { createPublicClient, encodeFunctionData, http, isAddress, parseUnits } f
 import { arcTestnet } from "viem/chains";
 import { NeonMesh } from "@/components/ui/neon-mesh";
 import { ArcPayrollClient, getArcMintStep, type BrowserSolanaAdapter, type BrowserViemAdapter, type CircleAdapter, type GatewayMintRetry } from "@/lib/arc/app-kit-client";
-import { discoverBrowserWallets, ensureArcTestnet, requestWalletAccount, type BrowserWallet } from "@/lib/arc/browser-wallet";
-import { ARC, CCTP_SOURCE_CHAINS, CHAIN_LABELS, SOURCE_CHAINS, type CctpSourceChain, type SourceChain } from "@/lib/arc/config";
+import { discoverBrowserWallets, ensureArcTestnet, ensureGatewaySourceChain, requestWalletAccount, type BrowserWallet } from "@/lib/arc/browser-wallet";
+import { ARC, CCTP_SOURCE_CHAINS, CHAIN_LABELS, SOURCE_CHAINS, type CctpSourceChain, type EvmSourceChain, type SourceChain } from "@/lib/arc/config";
 import { connectSolanaWallet as requestSolanaAccount, discoverSolanaWallets, getSolanaWalletProvider, type SolanaBrowserWallet } from "@/lib/arc/solana-wallet";
 import type { PaymentRail, PaymentSessionView } from "@/lib/payment-session-types";
 import { MassPaymentView, type MassFunding, type MassRunResult, type MassTeamMember } from "@/components/mass-payment-view";
@@ -288,7 +288,7 @@ function compactPaymentError(message: string) {
 function describeGatewayDepositIssue(message: string, chain: SourceChain) {
   const source = CHAIN_LABELS[chain];
   if (/user rejected|user denied|rejected the request|request rejected/i.test(message)) return "Deposit cancelled in your wallet. No Gateway transaction was submitted.";
-  if (/chain is not available on free plan|sepolia\.drpc\.org/i.test(message)) return `Your wallet's saved ${source} RPC is unavailable. No transaction was submitted. OffGrid now supplies the nonce and gas from a working public RPC before opening the wallet. Retry the deposit.`;
+  if (/chain is not available on free plan|sepolia\.drpc\.org/i.test(message)) return `Your wallet is still using its retired ${source} RPC. No transaction was submitted. In Rabby, open Settings, Networks, Modify RPC URL, select ${source}, and use https://rpc.sepolia.org. You can also retry with MetaMask.`;
   if (/rpc request failed|failed to fetch|network request failed|timeout|timed out/i.test(message)) return `${source} could not complete the network check. No transaction was submitted. Retry when the source network responds.`;
   if (/insufficient funds|insufficient balance/i.test(message)) return `Your ${source} wallet needs enough USDC and native gas for this deposit.`;
   if (/chain.*mismatch|unknown blockchain|unsupported chain/i.test(message)) return `Switch your wallet to ${source}, then review the Gateway deposit again.`;
@@ -2368,6 +2368,10 @@ export function OffGridDashboard() {
         const ready = await ensureClientAndAdapter();
         client = ready.client;
         adapter = ready.adapter;
+        if (!providerRef.current) throw new Error("Reconnect your EVM wallet before depositing");
+        if (depositChain !== "Arc_Testnet") {
+          await ensureGatewaySourceChain(providerRef.current, depositChain as EvmSourceChain);
+        }
       }
       if (!(Number(depositAmount) > 0)) throw new Error("Enter an amount greater than zero");
       let confirmedBefore = Number(gatewayChainBalances?.find((position) => position.chain === depositChain)?.confirmed ?? 0);
@@ -2757,7 +2761,6 @@ export function OffGridDashboard() {
         <div className="header-actions">
           {displayWalletAddress && !walletOnArc && <button className="arc-switch-button" onClick={switchToArc} disabled={walletBusy}>{walletBusy ? <LoaderCircle className="spin" size={12} /> : <Network size={12} />} Switch to Arc Testnet</button>}
           
-          <button className="faucet-button onramp-header-btn" onClick={() => setShowOnRamp(true)}><CreditCard size={15} /> Buy USDC (On-Ramp)</button>
           <a className="faucet-button" href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><Fuel size={15} /> Get Test USDC <ExternalLink size={12} /></a>
 
           {displayWalletAddress ? (
@@ -2798,7 +2801,6 @@ export function OffGridDashboard() {
         <aside className="command-rail">
           <div className="rail-user"><span className="user-avatar-glowing rail-user-avatar"><User size={17} /><i className="avatar-ring-glow" /></span><div><b>{user.displayName}</b><small>@{user.username}</small></div><BadgeCheck size={16} /></div>
           <nav><button className={activeView === "transfer" ? "active" : ""} onClick={() => setActiveView("transfer")}><Send size={17} /> Transfer</button><button className={activeView === "history" ? "active" : ""} onClick={() => setActiveView("history")}><Receipt size={17} /> History {displayWalletAddress && <span>{activity.length + fiatPayouts.length + cctpOperations.filter((operation) => !operation.invoiceId && isSubmittedCctpOperation(operation)).length + gatewayDeposits.length}</span>}</button><button className={activeView === "unified" ? "active" : ""} onClick={() => { setActiveView("unified"); void loadBalances(); }}><Network size={17} /> Unified Balance</button><button className={activeView === "mass" ? "active" : ""} onClick={() => setActiveView("mass")}><UserRound size={17} /> Mass Payment</button><button className={activeView === "escrow" ? "active" : ""} onClick={() => setActiveView("escrow")}><Scale size={17} /> Escrow Market</button><button className={activeView === "agents" ? "active" : ""} onClick={() => setActiveView("agents")}><Sparkles size={17} /> Agent Payments <span className="soon-badge">SOON</span></button></nav>
-          <div className="rail-flow"><small>LIVE PAYMENT STACK</small><div><span>01</span><p><b>IDENTITY</b><em>Authenticated</em></p><Check size={13} /></div><i /><div><span>02</span><p><b>WALLET</b><em>{displayWalletAddress ? "Connected" : "Waiting"}</em></p>{displayWalletAddress ? <Check size={13} /> : <Radio size={13} />}</div><i /><div><span>03</span><p><b>NETWORK</b><em>{walletOnArc ? "Arc Testnet active" : chainReady ? "Switch network" : "Not configured"}</em></p>{walletOnArc ? <Check size={13} /> : <Radio size={13} />}</div><i /><div><span>04</span><p><b>SETTLEMENT</b><em>App Kit</em></p><Zap size={13} /></div></div>
           <button className="logout-button" onClick={logout}><LogOut size={15} /> Sign Out</button>
         </aside>
 

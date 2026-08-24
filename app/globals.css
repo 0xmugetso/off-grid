@@ -150,7 +150,7 @@ body:has(.auth-shell) { overflow: hidden; }
 .user-menu > span { width: 23px; height: 23px; border-radius: 4px; background: #252b1f; display: grid; place-items: center; color: var(--acid); font: 8px var(--mono); }
 .wallet-error-toast { position: fixed; z-index: 90; top: 78px; right: 18px; width: min(330px,calc(100vw - 28px)); min-height: 55px; padding: 8px 8px 8px 11px; border: 1px solid rgba(255,139,81,.28); border-radius: 7px; background: rgba(14,15,12,.96); box-shadow: 0 16px 50px rgba(0,0,0,.42); backdrop-filter: blur(15px); display: flex; align-items: center; gap: 9px; animation: premium-enter .24s ease-out both; }.wallet-error-toast > span { min-width: 0; flex: 1; display: flex; flex-direction: column; }.wallet-error-toast b { font-size: 7px; }.wallet-error-toast small { margin-top: 3px; color: #c69a82; font-size: 6px; line-height: 1.35; }.wallet-error-toast > button { width: 27px; height: 27px; border: 1px solid var(--line); border-radius: 4px; background: #101210; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
 .product-grid { display: grid; grid-template-columns: 246px minmax(0, 1fr); }
-.command-rail { min-height: calc(100vh - 68px); position: sticky; top: 68px; align-self: start; height: calc(100vh - 68px); border-right: 1px solid var(--line); background: #090a08; padding: 21px 14px 16px; display: flex; flex-direction: column; }
+.command-rail { min-height: 0; position: sticky; top: 68px; align-self: start; height: calc(100dvh - 68px); overflow: hidden; border-right: 1px solid var(--line); background: #090a08; padding: 21px 14px 16px; display: flex; flex-direction: column; }
 .rail-user { display: flex; align-items: center; gap: 9px; padding: 10px 9px 19px; border-bottom: 1px solid var(--line); }
 .rail-user > span { width: 34px; height: 34px; border-radius: 7px; background: linear-gradient(145deg, #27321e, #141812); color: var(--acid); border: 1px solid #34412a; display: grid; place-items: center; font: 700 9px var(--mono); }
 .rail-user div { min-width: 0; flex: 1; display: flex; flex-direction: column; }
@@ -173,7 +173,7 @@ body:has(.auth-shell) { overflow: hidden; }
 .rail-flow em { color: var(--faint); font-size: 7px; font-style: normal; margin-top: 3px; }
 .rail-flow svg { color: var(--acid); }
 .rail-flow > i { display: block; width: 1px; height: 17px; background: var(--line); margin: 3px 0 3px 11px; }
-.logout-button { margin-top: 16px; height: 37px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--faint); display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 8px; }
+.logout-button { margin-top: auto; flex: 0 0 auto; height: 37px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--faint); display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 8px; }
 .product-main { position: relative; z-index: 1; width: 100%; min-height: calc(100vh - 68px); padding: 47px clamp(16px, 3.5vw, 42px) 60px; overflow: hidden; }
 .product-main > .neon-mesh-container { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
 .product-main > *:not(.neon-mesh-container) { position: relative; z-index: 2; width: min(1240px, 100%); margin-left: auto; margin-right: auto; }
@@ -243,9 +243,9 @@ body:has(.auth-shell) { overflow: hidden; }
 .real-balance > div { display: flex; align-items: center; gap: 7px; }
 .balance-icon { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; background: rgba(199,255,61,.08); }
 .balance-icon.fiat { background: rgba(255,255,255,.04); color: var(--ink); }
-.balance-icon.total-money { background: rgba(78,220,255,.07); color: var(--cyan); }
+.balance-icon.total-money { background: rgba(255,255,255,.055); color: #f4f6f2; }
 .balance-icon .og-logo { transform: scale(.65); }
-.balance-icon.gateway { color: var(--cyan); }
+.balance-icon.gateway { color: #f4f6f2; }
 .real-balance div > small { color: var(--muted); font: 7px var(--mono); letter-spacing: .09em; }
 .real-balance div > button { margin-left: auto; border: 0; background: none; color: var(--faint); cursor: pointer; }
 .real-balance > b { display: block; font-size: 22px; letter-spacing: -.04em; margin-top: 20px; }
@@ -334,7 +334,9 @@ body:has(.auth-shell) { overflow: hidden; }
 .route-node > span { width: 29px; height: 29px; border-radius: 5px; display: grid; place-items: center; background: #171b14; color: var(--acid); }.route-node > span .og-logo { transform: scale(.67); }
 .route-node > span.chain-logo-only { border: 0; background: transparent; }
 .route-node > div { display: flex; flex: 1; min-width: 0; flex-direction: column; }.route-node small { color: var(--faint); font: 6px var(--mono); }.route-node b { font-size: 8px; margin-top: 2px; }.route-node em { color: #697062; font-size: 6px; font-style: normal; margin-top: 2px; }.route-node > svg { color: var(--acid); }
-.route-line { display: block; height: 18px; width: 1px; background: var(--line); margin-left: 22px; position: relative; }.route-line b { display: block; width: 3px; height: 6px; background: var(--acid); position: absolute; top: 5px; left: -1px; animation: pulse 1.4s infinite; }
+.route-line { width: 29px; height: 18px; margin-left: 8px; display: grid; place-items: center; position: relative; background: none; }
+.route-line::before { content:""; width:1px; height:100%; grid-area:1/1; background:linear-gradient(180deg,var(--line),rgba(199,255,61,.38),var(--line)); }
+.route-line b { display:block; width:3px; height:6px; grid-area:1/1; border-radius:2px; background:var(--acid); box-shadow:0 0 7px rgba(199,255,61,.42); animation:pulse 1.4s infinite; }
 .route-panel dl { margin: 20px 0 15px; padding-top: 15px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
 .route-panel dl > div { display: flex; justify-content: space-between; }.route-panel dt { color: var(--faint); font-size: 7px; }.route-panel dd { margin: 0; color: #a9b0a0; font: 7px var(--mono); }
 .pay-now { width: 100%; min-height: 52px; margin-top: 7px; padding: 0 17px; position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: 22px minmax(0,1fr) 22px; align-items: center; gap: 8px; border: 0; background: #0d120b; color: var(--acid); box-shadow: 0 10px 28px rgba(0,0,0,.25), 0 0 24px rgba(199,255,61,.07); }
@@ -4036,6 +4038,8 @@ html[data-theme="light"] .user-avatar-glowing {
   box-shadow:0 0 0 5px rgba(43,123,78,.08),0 10px 25px rgba(33,82,55,.14);
 }
 html[data-theme="light"] .avatar-ring-glow { border-color:rgba(43,123,78,.42); }
+html[data-theme="light"] .balance-icon.gateway,
+html[data-theme="light"] .balance-icon.total-money { color:#1b2820; background:rgba(27,40,32,.06); }
 html[data-theme="light"] :is(.faucet-button,.connected-wallet,.solana-wallet-button,.user-menu,.theme-toggle,.quiet-refresh) {
   background:#f8faf8;
   border-color:#d1dad4;
