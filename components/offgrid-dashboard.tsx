@@ -2756,7 +2756,7 @@ export function OffGridDashboard() {
 
       <div className="product-grid" id="top">
         <aside className="command-rail">
-          <div className="rail-user"><span className="user-emblem"><User size={16} /></span><div><b>{user.displayName}</b><small>@{user.username}</small></div><BadgeCheck size={16} /></div>
+          <div className="rail-user"><span className="user-avatar-glowing rail-user-avatar"><User size={17} /><i className="avatar-ring-glow" /></span><div><b>{user.displayName}</b><small>@{user.username}</small></div><BadgeCheck size={16} /></div>
           <nav><button className={activeView === "transfer" ? "active" : ""} onClick={() => setActiveView("transfer")}><Send size={17} /> Transfer</button><button className={activeView === "history" ? "active" : ""} onClick={() => setActiveView("history")}><Receipt size={17} /> History {displayWalletAddress && <span>{activity.length + fiatPayouts.length + cctpOperations.filter((operation) => !operation.invoiceId && isSubmittedCctpOperation(operation)).length + gatewayDeposits.length}</span>}</button><button className={activeView === "unified" ? "active" : ""} onClick={() => { setActiveView("unified"); void loadBalances(); }}><Network size={17} /> Unified Balance</button><button className={activeView === "mass" ? "active" : ""} onClick={() => setActiveView("mass")}><UserRound size={17} /> Mass Payment</button><button className={activeView === "escrow" ? "active" : ""} onClick={() => setActiveView("escrow")}><Scale size={17} /> Escrow Market</button><button className={activeView === "agents" ? "active" : ""} onClick={() => setActiveView("agents")}><Sparkles size={17} /> Agent Payments <span className="soon-badge">SOON</span></button></nav>
           <div className="rail-flow"><small>LIVE PAYMENT STACK</small><div><span>01</span><p><b>IDENTITY</b><em>Authenticated</em></p><Check size={13} /></div><i /><div><span>02</span><p><b>WALLET</b><em>{displayWalletAddress ? "Connected" : "Waiting"}</em></p>{displayWalletAddress ? <Check size={13} /> : <Radio size={13} />}</div><i /><div><span>03</span><p><b>NETWORK</b><em>{walletOnArc ? "Arc Testnet active" : chainReady ? "Switch network" : "Not configured"}</em></p>{walletOnArc ? <Check size={13} /> : <Radio size={13} />}</div><i /><div><span>04</span><p><b>SETTLEMENT</b><em>App Kit</em></p><Zap size={13} /></div></div>
           <button className="logout-button" onClick={logout}><LogOut size={15} /> Sign Out</button>
@@ -2773,7 +2773,7 @@ export function OffGridDashboard() {
               <button className="session-launch-button" onClick={() => { setCreatedSessionLink(""); setSessionError(""); setSessionLinkCopied(false); setShowSessionCreator(true); }}><span><Plus size={18} /></span><div><small>NEW SECURE FLOW</small><b>Create Payment Session</b></div><ArrowRight size={18} /></button>
               <button type="button" className="live-sessions-text-link" onClick={() => { setSessionError(""); setShowLiveSessionsModal(true); void refreshPaymentSessions(); }}>
                 <Radio size={12} className="spin-slow" />
-                <span>View Active Payment Sessions ({paymentSessionsList.filter((session) => session.status === "open" || session.status === "ready").length})</span>
+                <span>View Active Payment Sessions</span>
                 <ArrowRight size={12} />
               </button>
             </div>

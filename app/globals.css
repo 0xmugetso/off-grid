@@ -3887,3 +3887,170 @@ html[data-theme="light"] .escrow-stat-card:first-child { border-color:rgba(21,13
 .history-view .ledger-table td>strong { font-size:19px; }
 .history-view .ledger-table td>strong small { margin-top:5px; font-size:8px; }
 .history-view .ledger-proof-button { min-height:30px; font-size:8px; }
+
+/* Shared product identity. The navigation now uses the same living avatar as
+   the account panel instead of a separate square placeholder. */
+.rail-user > .rail-user-avatar {
+  width: 38px;
+  height: 38px;
+  overflow: visible;
+  border-radius: 50%;
+  background: linear-gradient(145deg,#182213,#0c110b);
+  border: 1px solid color-mix(in srgb,var(--acid) 78%,var(--line));
+  box-shadow: 0 0 22px color-mix(in srgb,var(--acid) 17%,transparent),inset 0 0 12px color-mix(in srgb,var(--acid) 8%,transparent);
+}
+.rail-user > .rail-user-avatar .avatar-ring-glow { inset:-4px; animation-duration:20s; }
+.rail-user > .rail-user-avatar svg { color:inherit; }
+.rail-user > .rail-user-avatar + div { padding-left:2px; }
+
+/* Keep the launch surface calm while restoring the small directional signal
+   the three-step guide was designed around. */
+.session-launch-flow > b::after {
+  display:block;
+  opacity:.72;
+  animation:session-sweep 3.4s ease-in-out infinite;
+}
+.session-launch-flow > b:nth-of-type(2)::after { animation-delay:.7s; }
+
+/* One typography system outside Transfer. Display type is reserved for page
+   and section headings, sans is used for reading, and mono is only metadata. */
+:is(.history-view,.unified-view,.escrow-view,.agent-soon-view) {
+  font-family:var(--sans);
+  font-size:11px;
+  font-weight:450;
+  line-height:1.5;
+}
+:is(.history-view,.unified-view,.escrow-view,.agent-soon-view) :is(h1,h2,h3) {
+  font-family:var(--display)!important;
+  font-weight:650;
+  letter-spacing:.012em!important;
+}
+:is(.history-view,.unified-view,.escrow-view,.agent-soon-view) :is(button,input,select,textarea) {
+  font-family:var(--sans);
+  font-weight:550;
+}
+:is(.history-view,.unified-view,.escrow-view,.agent-soon-view) .view-heading p,
+.unified-view .unified-chain-head p,
+.escrow-view .escrow-market-intro p,
+.agent-soon-view > p { font-size:11px; line-height:1.6; font-weight:450; }
+:is(.history-view,.unified-view,.escrow-view,.agent-soon-view) .section-tag { font:700 8px/1.35 var(--mono); letter-spacing:.13em; }
+.unified-view :is(.quiet-refresh,.unified-deposit-cta,.solana-wallet-balance>button) { font-size:9px; }
+.unified-view .unified-chain-head h2 { font-size:24px; }
+.unified-view .unified-chain-grid small { font-size:7px; }
+.unified-view .unified-chain-grid b { font-size:17px; }
+.unified-view .unified-chain-grid b em { font-size:7px; }
+.unified-view .unified-chain-grid p,
+.unified-view .unified-chain-grid article>span { font-size:8px; line-height:1.45; }
+.unified-view .unified-wallet-balance small,
+.unified-view .unified-wallet-balance>span,
+.unified-view .solana-wallet-balance em { font-size:7px; }
+.unified-view .unified-wallet-balance b { font-size:13px; }
+.escrow-view .escrow-market-label b,
+.escrow-view .escrow-workspace-title b { font-size:13px; }
+.escrow-view .escrow-market-label small,
+.escrow-view .escrow-workspace-title small,
+.escrow-view .escrow-item-card :is(p,small),
+.escrow-view .escrow-workspace-modal .escrow-specs-text { font-size:9px; line-height:1.5; }
+.escrow-view .escrow-item-card h3 { font-size:17px; line-height:1.22; }
+.escrow-view .escrow-item-card :is(button,a) { font-size:9px; }
+.agent-soon-grid b { font-size:11px; }
+.agent-soon-grid small { font-size:9px; line-height:1.5; }
+.agent-soon-view>em { font-size:8px; }
+
+/* Light mode is a neutral product surface, not an inverted dark theme. */
+html[data-theme="light"] {
+  color-scheme:light;
+  --bg:#e8ece9;
+  --panel:#f7f9f7;
+  --panel-2:#f0f3f1;
+  --panel-3:#e5ebe7;
+  --line:#d2dad5;
+  --line-bright:#b7c4bc;
+  --ink:#162019;
+  --muted:#58665e;
+  --faint:#78847d;
+  --acid:#2b7b4e;
+  --acid-2:#20643e;
+  --cyan:#267f72;
+}
+html[data-theme="light"] body { background:#e8ece9; color:var(--ink); }
+html[data-theme="light"] .product-shell {
+  background:
+    radial-gradient(circle at 76% 8%,rgba(43,123,78,.105),transparent 29%),
+    radial-gradient(circle at 22% 48%,rgba(38,127,114,.07),transparent 34%),
+    linear-gradient(145deg,#edf0ee,#e4e9e6);
+}
+html[data-theme="light"] .product-header {
+  background:rgba(248,250,248,.92);
+  border-color:#d5ddd8;
+  box-shadow:0 8px 28px rgba(33,59,45,.065);
+}
+html[data-theme="light"] .command-rail {
+  background:linear-gradient(180deg,#f5f7f5,#edf1ee);
+  box-shadow:8px 0 28px rgba(35,61,48,.04);
+}
+html[data-theme="light"] .command-rail nav button:hover,
+html[data-theme="light"] .command-rail nav button.active { background:#e5ebe7; }
+html[data-theme="light"] .command-rail nav button span { background:#dde5e0; color:#526158; }
+html[data-theme="light"] .rail-user > .rail-user-avatar {
+  color:#f7fff9;
+  background:linear-gradient(145deg,#347e55,#205f3d);
+  border-color:#2b7b4e;
+  box-shadow:0 0 0 4px rgba(43,123,78,.08),0 8px 20px rgba(33,82,55,.13);
+}
+html[data-theme="light"] .rail-user > .rail-user-avatar .avatar-ring-glow { border-color:rgba(43,123,78,.42); }
+html[data-theme="light"] .product-main > .neon-mesh-container {
+  opacity:.42!important;
+  filter:saturate(.78) contrast(1.06);
+  mix-blend-mode:multiply;
+}
+html[data-theme="light"] :is(.workspace-head h1,.session-launch-copy h2,.balance-intro h2,.console-head h2,.view-heading h1,.agent-soon-view h1,.escrow-stat-card b),
+html[data-theme="light"] :is(.workspace-head p,.session-launch-copy p,.balance-intro p,.section-tag,.field-label,.real-balance p,.view-heading p) {
+  text-shadow:none!important;
+}
+html[data-theme="light"] :is(.history-view,.unified-view,.escrow-view,.agent-soon-view) {
+  color:var(--ink);
+}
+html[data-theme="light"] :is(.history-stats article,.ledger-panel,.cctp-hash-recovery,.cctp-operations-tray,.unified-hero,.unified-chain-grid article,.unified-wallet-balance,.escrow-market-panel,.escrow-item-card,.escrow-stat-card,.agent-soon-grid>span,.unified-empty) {
+  border-color:var(--line);
+  background:rgba(248,250,248,.9);
+  box-shadow:0 12px 32px rgba(35,61,48,.065);
+}
+html[data-theme="light"] :is(.ledger-search,.ledger-select,.chain-select-trigger,.team-search,.team-row>label,.mass-funding button,.escrow-route-line,.escrow-evidence-panel,.escrow-inspector-meta) {
+  background:#fbfcfb;
+  border-color:var(--line);
+}
+html[data-theme="light"] :is(.overlay,.escrow-workspace-backdrop) {
+  background:rgba(58,70,63,.42);
+}
+html[data-theme="light"] :is(.user-control-modal,.session-create-modal,.invoice-modal,.history-proof-modal,.escrow-wizard-premium,.escrow-market-panel.escrow-workspace-modal) {
+  color:var(--ink);
+  border-color:#c2cec6;
+  background:linear-gradient(155deg,#fafbfa,#eef2ef 64%);
+  box-shadow:0 30px 90px rgba(37,58,46,.2);
+}
+html[data-theme="light"] .user-avatar-glowing {
+  color:#f8fff9;
+  border-color:#2b7b4e;
+  background:linear-gradient(145deg,#347e55,#205f3d);
+  box-shadow:0 0 0 5px rgba(43,123,78,.08),0 10px 25px rgba(33,82,55,.14);
+}
+html[data-theme="light"] .avatar-ring-glow { border-color:rgba(43,123,78,.42); }
+html[data-theme="light"] :is(.faucet-button,.connected-wallet,.solana-wallet-button,.user-menu,.theme-toggle,.quiet-refresh) {
+  background:#f8faf8;
+  border-color:#d1dad4;
+  color:#33443a;
+  box-shadow:none;
+}
+html[data-theme="light"] :is(.session-launchpad,.unified-hero) { box-shadow:0 14px 36px rgba(35,61,48,.085); }
+html[data-theme="light"] .session-launchpad {
+  background:linear-gradient(125deg,#f8faf8,#edf2ef 72%);
+  border-color:rgba(43,123,78,.22);
+}
+html[data-theme="light"] .session-launch-flow>b { background:#c3cec7; }
+html[data-theme="light"] .session-launch-flow>b::after { background:linear-gradient(90deg,transparent,#2b7b4e,transparent); }
+
+@media (prefers-reduced-motion:reduce) {
+  .rail-user-avatar .avatar-ring-glow,
+  .session-launch-flow>b::after { animation:none!important; }
+}

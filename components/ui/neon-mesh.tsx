@@ -45,10 +45,19 @@ export function NeonMesh({
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    setIsDarkMode(mediaQuery.matches);
-    const handler = (e: MediaQueryListEvent) => setIsDarkMode(e.matches);
+    const readTheme = () => {
+      const selectedTheme = document.documentElement.dataset.theme;
+      setIsDarkMode(selectedTheme ? selectedTheme !== "light" : mediaQuery.matches);
+    };
+    readTheme();
+    const handler = () => readTheme();
+    const observer = new MutationObserver(readTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     mediaQuery.addEventListener("change", handler);
-    return () => mediaQuery.removeEventListener("change", handler);
+    return () => {
+      observer.disconnect();
+      mediaQuery.removeEventListener("change", handler);
+    };
   }, []);
 
   useEffect(() => {
@@ -232,8 +241,8 @@ export function NeonMesh({
       const sinY = Math.sin(mouse.angleY);
 
       // OffGrid Brand Acid Green RGB: 199, 255, 61
-      const baseMeshColor = "199, 255, 61";
-      const neonAcid = "#c7ff3d";
+      const baseMeshColor = isDarkMode ? "199, 255, 61" : "43, 123, 78";
+      const neonAcid = isDarkMode ? "#c7ff3d" : "#2b7b4e";
 
       ctx.clearRect(0, 0, width, height);
 

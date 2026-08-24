@@ -36,3 +36,29 @@ html[data-theme="light"] .team-row>code,html[data-theme="light"] .mass-summary d
 html[data-theme="light"] .mass-review-modal{border-color:var(--line-bright);background:linear-gradient(150deg,#f2f4f0,#e4e7e2 58%);box-shadow:0 30px 90px rgba(46,52,43,.22)}
 html[data-theme="light"] .mass-progress>div{background:#cdd2ca}
 html[data-theme="light"] .agent-soon-grid>span{background:var(--panel)}
+
+/* Match the Transfer tab's readable hierarchy. Mono remains limited to route
+   data and labels while every interactive control uses the product sans. */
+.mass-payment-view{font-family:var(--sans);font-size:11px;font-weight:450;line-height:1.5}
+.mass-payment-view :is(h1,h2,h3){font-family:var(--display);font-weight:650;letter-spacing:.012em!important}
+.mass-payment-view :is(button,input,textarea){font-family:var(--sans);font-weight:550}
+.mass-heading p{font-size:11px;line-height:1.6}
+.mass-flow b{font-size:10px}.mass-flow small{font-size:8px}
+.team-builder-head p,.bulk-import p,.team-empty p{font-size:9px;line-height:1.5}
+.team-builder-head>button,.team-search input,.team-search>button,.bulk-import button,.allocation-toggle button{font-size:9px}
+.team-results b,.member-identity b,.equal-pay b,.mass-funding b,.mass-route-note b{font-size:10px}
+.team-results small,.member-identity small,.team-row>code,.equal-pay small,.mass-funding small,.mass-route-note p{font-size:8px;line-height:1.45}
+.team-table-head,.mass-total small,.funding-label{font-size:7px}
+.team-row input{font-size:13px}.team-row label em{font-size:7px}
+.mass-total p,.mass-summary dt,.mass-summary dd,.mass-custody{font-size:8px}
+.mass-review-button small{font-size:7px}.mass-review-button b{font-size:10px}
+.mass-review-modal>p,.mass-review-list b,.mass-review-route b,.mass-success>p{font-size:10px}
+.mass-review-list small,.mass-review-list strong,.mass-review-route small,.mass-review-route em,.mass-progress p,.mass-final-note,.mass-success>small,.mass-success>a,.mass-done{font-size:8px}
+
+html[data-theme="light"] .mass-payment-view{color:var(--ink)}
+html[data-theme="light"] :is(.team-builder,.mass-summary,.mass-connect,.mass-review-modal){border-color:var(--line);background:rgba(248,250,248,.92);box-shadow:0 14px 38px rgba(35,61,48,.075)}
+html[data-theme="light"] :is(.team-search,.bulk-import,.bulk-import textarea,.allocation-toggle,.equal-pay,.equal-pay>div,.team-table,.team-row>label,.mass-total,.mass-funding button,.mass-route-note,.mass-review-list,.mass-review-route){background:#fbfcfb;border-color:var(--line)}
+html[data-theme="light"] .allocation-toggle button.active{color:var(--ink);background:#e3eae5;box-shadow:inset 0 0 0 1px #c5d0c9}
+html[data-theme="light"] .mass-funding button.active{border-color:rgba(43,123,78,.34);background:rgba(43,123,78,.055)}
+html[data-theme="light"] .mass-route-note b{color:var(--ink)}
+html[data-theme="light"] .mass-heading :is(h1,p),html[data-theme="light"] .agent-soon-view :is(h1,p){text-shadow:none!important}
