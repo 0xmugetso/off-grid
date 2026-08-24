@@ -57,7 +57,7 @@ import { NeonMesh } from "@/components/ui/neon-mesh";
 import { ArcPayrollClient, getArcMintStep, type BrowserSolanaAdapter, type BrowserViemAdapter, type CircleAdapter, type GatewayMintRetry } from "@/lib/arc/app-kit-client";
 import { discoverBrowserWallets, ensureArcTestnet, ensureGatewaySourceChain, requestWalletAccount, type BrowserWallet } from "@/lib/arc/browser-wallet";
 import { ARC, CCTP_SOURCE_CHAINS, CHAIN_LABELS, SOURCE_CHAINS, type CctpSourceChain, type EvmSourceChain, type SourceChain } from "@/lib/arc/config";
-import { connectSolanaWallet as requestSolanaAccount, discoverSolanaWallets, getSolanaWalletProvider, type SolanaBrowserWallet } from "@/lib/arc/solana-wallet";
+import { connectSolanaWallet as requestSolanaAccount, discoverSolanaWallets, getSolanaWalletProvider, reconnectSolanaWallet, type SolanaBrowserWallet } from "@/lib/arc/solana-wallet";
 import type { PaymentRail, PaymentSessionView } from "@/lib/payment-session-types";
 import { MassPaymentView, type MassFunding, type MassRunResult, type MassTeamMember } from "@/components/mass-payment-view";
 import { ChainLogo, ChainName, ChainSelect } from "@/components/chain-logo";
@@ -915,7 +915,7 @@ function HistoryView({ invoices, paymentSessions, deposits, walletAddress, viewe
     <div className="view-heading"><div><span className="section-tag">TRANSACTION INTELLIGENCE</span><h1>History</h1><p>Every real OffGrid settlement, protocol log, and transaction proof in one place.</p></div><div className="history-live-actions"><button className="quiet-refresh" onClick={onRecover} disabled={recovering}>{recovering ? <LoaderCircle className="spin" size={13}/> : <RefreshCw size={13}/>} {recovering ? "Scanning chains…" : "Recover CCTP"}</button><span className="live-data-pill"><i /> LIVE TESTNET DATA</span></div></div>
     {(recoveryNote || manualRecoveryNote) && <p className="history-recovery-note"><CircleCheck size={13}/>{manualRecoveryNote || recoveryNote}</p>}
     <form className="cctp-hash-recovery" onSubmit={(event) => { event.preventDefault(); void recoverHash(); }}><div><span className="section-tag">MISSING A CCTP TRANSFER?</span><p>Paste its source-chain burn hash. OffGrid verifies it with Circle and restores the live attestation or destination mint status.</p></div><ChainSelect value={recoveryChain} chains={CCTP_SOURCE_CHAINS.filter((chain) => chain !== "Solana_Devnet")} onChange={(chain) => setRecoveryChain(chain as CctpSourceChain)} /><label><Search size={13}/><input value={recoveryHash} onChange={(event) => setRecoveryHash(event.target.value.trim())} placeholder="0x source transaction hash" /></label><button type="submit" disabled={manualRecoveryBusy || !/^0x[a-fA-F0-9]{64}$/.test(recoveryHash)}>{manualRecoveryBusy ? <LoaderCircle className="spin" size={12}/> : <Blocks size={12}/>} Track Transfer</button></form>
-    <div className="gateway-recovery-toggle"><button onClick={() => setGatewayRecoveryOpen((open) => !open)}><ArrowDownToLine size={13}/> Missing A Gateway Deposit? <ChevronDown className={gatewayRecoveryOpen ? "open" : ""} size={12}/></button>{gatewayRecoveryOpen && <form onSubmit={recoverGatewayDeposit}><ChainSelect value={gatewayRecoveryChain} chains={SOURCE_CHAINS.filter((chain) => chain !== "Solana_Devnet")} onChange={(chain) => setGatewayRecoveryChain(chain)} /><label><input value={gatewayRecoveryAmount} onChange={(event) => setGatewayRecoveryAmount(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="Amount"/><span>USDC</span></label><label><Search size={12}/><input value={gatewayRecoveryHash} onChange={(event) => setGatewayRecoveryHash(event.target.value.trim())} placeholder="0x deposit transaction hash"/></label><button type="submit" disabled={gatewayRecoveryBusy || !(Number(gatewayRecoveryAmount) > 0) || !/^0x[a-fA-F0-9]{64}$/.test(gatewayRecoveryHash)}>{gatewayRecoveryBusy ? <LoaderCircle className="spin" size={12}/> : <Radio size={12}/>} Restore Proof</button></form>}{gatewayRecoveryNote && <p>{gatewayRecoveryNote}</p>}</div>
+    <div className="gateway-recovery-toggle"><button onClick={() => setGatewayRecoveryOpen((open) => !open)}><ArrowDownToLine size={14}/> Missing A Gateway Deposit? <ChevronDown className={gatewayRecoveryOpen ? "open" : ""} size={12}/></button>{gatewayRecoveryOpen && <form onSubmit={recoverGatewayDeposit}><ChainSelect value={gatewayRecoveryChain} chains={SOURCE_CHAINS.filter((chain) => chain !== "Solana_Devnet")} onChange={(chain) => setGatewayRecoveryChain(chain)} /><label className="gateway-recovery-amount"><input value={gatewayRecoveryAmount} onChange={(event) => setGatewayRecoveryAmount(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="Amount"/><span>USDC</span></label><label className="gateway-recovery-hash"><Search size={15}/><input value={gatewayRecoveryHash} onChange={(event) => setGatewayRecoveryHash(event.target.value.trim())} placeholder="0x deposit transaction hash"/></label><button type="submit" disabled={gatewayRecoveryBusy || !(Number(gatewayRecoveryAmount) > 0) || !/^0x[a-fA-F0-9]{64}$/.test(gatewayRecoveryHash)}>{gatewayRecoveryBusy ? <LoaderCircle className="spin" size={14}/> : <Radio size={14}/>} Restore Proof</button></form>}{gatewayRecoveryNote && <p>{gatewayRecoveryNote}</p>}</div>
     <CctpOperationsTray operations={cctpOperations} onRefresh={onRefreshCctp} />
     {trackedDeposits.length > 0 && <section className="gateway-deposit-stack history-gateway-deposits">
       <div className="gateway-deposit-stack-head"><div><small>GATEWAY DEPOSIT TRACKING</small><b>{trackedDeposits.filter((deposit) => deposit.status !== "confirmed" && deposit.status !== "failed").length} active, with confirmed results clearing after 15 seconds</b></div><button onClick={onRefreshGateway}><RefreshCw size={12} /> Refresh Proof</button></div>
@@ -985,12 +985,12 @@ function UnifiedBalanceView({ walletAddress, walletOnArc, arcBalance, unifiedBal
         return <article className={!position.queried ? "unlinked" : chainPending > 0 ? "indexing" : ""} key={position.chain}>
           <div className="unified-chain-logo"><ChainLogo chain={position.chain} size={33}/></div>
           <div><small>{CHAIN_LABELS[position.chain].toUpperCase()}</small><b>{position.queried ? displayMoney(position.confirmed) : "-"} <em>USDC</em></b><p>{!position.queried ? "Connect Solana Wallet To Query" : chainPending > 0 ? `${displayMoney(position.pending)} USDC awaiting finality` : "Gateway confirmed"}</p></div>
-          {position.queried && <div className={`unified-chain-progress ${chainPending > 0 ? "has-pending" : ""}`} aria-label={`${displayMoney(chainConfirmed)} USDC confirmed and ${displayMoney(chainPending)} USDC pending`}><i className="confirmed" style={{ width: `${chainConfirmedShare}%` }} /><i className="pending" style={{ width: `${chainPendingShare}%` }} /></div>}
+          {position.queried && chainPending > 0 && <div className="unified-chain-progress has-pending" aria-label={`${displayMoney(chainConfirmed)} USDC confirmed and ${displayMoney(chainPending)} USDC pending`}><i className="confirmed" style={{ width: `${chainConfirmedShare}%` }} /><i className="pending" style={{ width: `${chainPendingShare}%` }} /></div>}
           <span className={chainPending > 0 ? "pending" : "online"}><i />{chainPending > 0 ? "INDEXING" : position.queried ? "LIVE" : "UNLINKED"}</span>
         </article>;
       })}</div>
       <div className="unified-wallet-balance"><ChainLogo chain="Arc_Testnet" size={25}/><div><small>ARC TESTNET WALLET · OUTSIDE GATEWAY</small><b>{arcBalance === null ? "-" : displayMoney(arcBalance)} USDC</b></div><span>{walletOnArc ? "ARC TESTNET ACTIVE" : "CONNECTED ON ANOTHER CHAIN"}</span></div>
-      <div className={`unified-wallet-balance solana-wallet-balance ${solanaAddress ? "connected" : ""}`}><ChainLogo chain="Solana_Devnet" size={25}/><div><small>{solanaAddress ? `SOLANA DEVNET · ${solanaWalletName.toUpperCase()}` : "SOLANA DEVNET · SOURCE WALLET"}</small><b className={solanaAddress ? "wallet-balance-value" : "wallet-balance-prompt"}>{solanaAddress ? `${solanaUsdcBalance === null ? "-" : displayMoney(solanaUsdcBalance)} USDC` : "Connect to deposit or bridge"}</b>{solanaAddress && <em>{shortAddress(solanaAddress, 6)}</em>}</div><button onClick={onConnectSolana} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={12}/> : solanaAddress ? <RefreshCw size={12}/> : <Wallet size={12}/>} {solanaAddress ? "Refresh" : "Connect Solana"}</button></div>
+      {!solanaAddress && <div className="unified-wallet-balance solana-wallet-balance"><ChainLogo chain="Solana_Devnet" size={25}/><div><small>SOLANA DEVNET SOURCE WALLET</small><b className="wallet-balance-prompt">Connect Solana to deposit or bridge USDC</b></div><button onClick={onConnectSolana} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={12}/> : <Wallet size={12}/>} Connect Solana</button></div>}
     </>}
   </section>;
 }
@@ -1810,6 +1810,7 @@ export function OffGridDashboard() {
     setSolanaWalletName("");
     setSolanaUsdcBalance(null);
     setSolanaError("");
+    try { window.localStorage.removeItem("offgrid-last-solana-wallet"); } catch { /* Storage can be blocked in private browsing. */ }
   }
 
   const [gatewayError, setGatewayError] = useState("");
@@ -1879,6 +1880,7 @@ export function OffGridDashboard() {
   const activeCctpFormRef = useRef<string | null>(null);
   const knownCctpInvoicesRef = useRef(new Set<string>());
   const autoReconnectAttemptedRef = useRef(false);
+  const solanaAutoReconnectAttemptedRef = useRef(false);
   const sessionSnapshotRef = useRef<Map<string, string> | null>(null);
   const shownSessionEventsRef = useRef<Set<string>>(new Set());
   const walletMenuRef = useRef<HTMLDivElement>(null);
@@ -1901,6 +1903,27 @@ export function OffGridDashboard() {
     }
   }
 
+  function persistSolanaProfile(wallet: SolanaBrowserWallet, address: string) {
+    try {
+      window.localStorage.setItem("offgrid-last-solana-wallet", JSON.stringify({
+        id: wallet.id,
+        name: wallet.name,
+        address,
+      }));
+    } catch {
+      // localStorage is best-effort only.
+    }
+  }
+
+  function readSolanaProfile() {
+    try {
+      const raw = window.localStorage.getItem("offgrid-last-solana-wallet");
+      return raw ? JSON.parse(raw) as { id?: string; name?: string; address?: string } : null;
+    } catch {
+      return null;
+    }
+  }
+
   function readWalletProfile() {
     try {
       const raw = window.localStorage.getItem("offgrid-last-evm-wallet");
@@ -1920,6 +1943,36 @@ export function OffGridDashboard() {
   useEffect(() => {
     if (!user?.walletAddress) return;
     setWalletAddress((current) => current || user.walletAddress || "");
+  }, [user]);
+  useEffect(() => {
+    if (!user || solanaAutoReconnectAttemptedRef.current) return;
+    solanaAutoReconnectAttemptedRef.current = true;
+    const profile = readSolanaProfile();
+    if (!profile?.address) return;
+    void (async () => {
+      try {
+        const discovered = discoverSolanaWallets();
+        const selected = discovered.find((wallet) => wallet.id === profile.id || wallet.name === profile.name);
+        if (!selected) return;
+        const address = await reconnectSolanaWallet(selected.provider);
+        if (address !== profile.address) return;
+        const client = clientRef.current ?? new ArcPayrollClient();
+        clientRef.current = client;
+        const adapter = await client.connectSolanaWallet(selected.provider);
+        solanaAdapterRef.current = adapter;
+        setSolanaAddress(address);
+        setSolanaWalletName(selected.name);
+        try {
+          setSolanaUsdcBalance(await client.getSolanaUsdcBalance(adapter, address));
+          setSolanaError("");
+        } catch (error) {
+          setSolanaUsdcBalance(null);
+          setSolanaError(describeSolanaReadIssue(error instanceof Error ? error.message : "Could not read Solana Devnet USDC"));
+        }
+      } catch {
+        // Trusted reconnect is silent. A disconnected or locked wallet stays unlinked.
+      }
+    })();
   }, [user]);
   useEffect(() => {
     if (!user?.walletAddress) return;
@@ -2469,6 +2522,7 @@ export function OffGridDashboard() {
       solanaAdapterRef.current = adapter;
       setSolanaAddress(address);
       setSolanaWalletName(wallet?.name ?? "Solana Wallet");
+      if (wallet) persistSolanaProfile(wallet, address);
       try {
         const balance = await client.getSolanaUsdcBalance(adapter, address);
         setSolanaUsdcBalance(balance);

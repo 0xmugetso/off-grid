@@ -41,6 +41,19 @@ export async function connectSolanaWallet(provider: SolanaWalletProvider) {
   return address;
 }
 
+export async function reconnectSolanaWallet(provider: SolanaWalletProvider) {
+  const connectedAddress = provider.isConnected ? provider.publicKey?.toString() : undefined;
+  if (connectedAddress) return connectedAddress;
+
+  const trustedProvider = provider as SolanaWalletProvider & {
+    connect(options?: { onlyIfTrusted?: boolean }): Promise<{ publicKey: { toString(): string } }>;
+  };
+  const connection = await trustedProvider.connect({ onlyIfTrusted: true });
+  const address = connection.publicKey?.toString() ?? provider.publicKey?.toString();
+  if (!address) throw new Error("The trusted Solana wallet did not return an address");
+  return address;
+}
+
 export async function disconnectSolanaWallet(provider: SolanaWalletProvider) {
   await provider.disconnect();
 }

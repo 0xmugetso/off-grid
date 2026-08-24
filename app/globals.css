@@ -3943,6 +3943,25 @@ html[data-theme="light"] .escrow-stat-card:first-child { border-color:rgba(21,13
 .unified-view .unified-wallet-balance>span,
 .unified-view .solana-wallet-balance em { font-size:7px; }
 .unified-view .unified-wallet-balance b { font-size:13px; }
+.history-view .gateway-recovery-toggle { margin:-2px 0 16px; }
+.history-view .gateway-recovery-toggle>button { min-height:32px; padding:0 2px; gap:7px; font:600 9px/1.25 var(--sans); }
+.history-view .gateway-recovery-toggle>form { margin-top:8px; padding:11px; grid-template-columns:minmax(210px,250px) minmax(145px,180px) minmax(280px,1fr) 150px; gap:9px; align-items:stretch; border-radius:8px; background:rgba(10,13,10,.82); }
+.history-view .gateway-recovery-toggle :is(.chain-select-trigger,form>label,form>button) { height:48px; min-height:48px; }
+.history-view .gateway-recovery-toggle .chain-select-trigger { padding:0 12px; }
+.history-view .gateway-recovery-toggle form>label { padding:0 12px; gap:8px; border-radius:6px; background:#090b09; }
+.history-view .gateway-recovery-toggle input { font:500 10px var(--sans); }
+.history-view .gateway-recovery-toggle label span { font:700 8px var(--mono); }
+.history-view .gateway-recovery-toggle form>button { padding:0 13px; justify-content:center; gap:7px; border-color:rgba(85,231,209,.24); border-radius:6px; background:rgba(85,231,209,.045); color:var(--cyan); font:700 9px var(--sans); white-space:nowrap; }
+.history-view .gateway-recovery-toggle>p { margin-top:8px; font-size:8px; }
+.unified-view .solana-wallet-balance { min-height:68px; padding:12px 14px; background:#090b09; }
+.unified-view .solana-wallet-balance em { margin-top:4px; font:500 9px/1.4 var(--sans); }
+.unified-view .solana-wallet-balance>button { min-height:36px; padding:0 12px; border-radius:5px; gap:6px; font:650 9px var(--sans); }
+.unified-view .wallet-balance-prompt { font-family:var(--sans); font-weight:600; letter-spacing:0; }
+@media (max-width:1050px) {
+  .history-view .gateway-recovery-toggle>form { grid-template-columns:1fr 1fr; }
+  .history-view .gateway-recovery-toggle .gateway-recovery-hash,
+  .history-view .gateway-recovery-toggle form>button { grid-column:1 / -1; }
+}
 .escrow-view .escrow-market-label b,
 .escrow-view .escrow-workspace-title b { font-size:13px; }
 .escrow-view .escrow-market-label small,
@@ -4339,6 +4358,10 @@ html[data-theme="light"] .unified-chain-progress { border-color:rgba(21,49,36,.0
 html[data-theme="light"] .unified-balance-metrics > span.active small,
 html[data-theme="light"] .unified-balance-metrics > span.active b { color:#007f89; }
 html[data-theme="light"] .unified-chain-grid article.indexing { border-color:rgba(0,127,137,.26); }
+html[data-theme="light"] .unified-view .solana-wallet-balance { border-color:#cbd6cf; background:#f2f5f3; }
+html[data-theme="light"] .history-view .gateway-recovery-toggle>form { border-color:#cbd6cf; background:#edf2ee; }
+html[data-theme="light"] .history-view .gateway-recovery-toggle form>label { border-color:#cbd6cf; background:#f8faf8; }
+html[data-theme="light"] .history-view .gateway-recovery-toggle form>button { border-color:rgba(0,112,120,.24); background:rgba(0,112,120,.055); color:#006f77; }
 
 @media(max-width:1050px) and (min-width:761px) {
   .unified-hero { grid-template-columns:minmax(210px,.9fr) minmax(260px,1.1fr); }
