@@ -4054,3 +4054,111 @@ html[data-theme="light"] .session-launch-flow>b::after { background:linear-gradi
   .rail-user-avatar .avatar-ring-glow,
   .session-launch-flow>b::after { animation:none!important; }
 }
+
+/* Escrow dialogs use one centered, restrained system. Workspace rows support
+   scanning, while protocol evidence stays available without leading the UI. */
+.escrow-workspace-overlay { z-index:10020; overflow:hidden; padding:18px; }
+.escrow-workspace-dialog { width:min(780px,calc(100vw - 36px)); max-height:min(620px,calc(100dvh - 36px)); overflow:hidden; display:flex; flex-direction:column; border:1px solid var(--line-bright); border-radius:12px; background:var(--panel); box-shadow:0 34px 110px rgba(0,0,0,.62); animation:modal-pop-in .2s cubic-bezier(.22,.75,.25,1) both; }
+.escrow-workspace-header { min-height:62px; padding:0 16px; display:flex; align-items:center; justify-content:space-between; gap:14px; border-bottom:1px solid var(--line); background:var(--panel-2); }
+.escrow-workspace-header .modal-x { position:static; flex:0 0 auto; }
+.escrow-workspace-title { min-width:0; display:flex; align-items:center; gap:10px; }
+.escrow-workspace-title>span { width:34px; height:34px; flex:0 0 auto; display:grid; place-items:center; border:1px solid color-mix(in srgb,var(--cyan) 28%,var(--line)); border-radius:8px; background:color-mix(in srgb,var(--cyan) 5%,var(--panel)); color:var(--cyan); }
+.escrow-workspace-title>div { min-width:0; display:grid; gap:2px; }
+.escrow-workspace-title b { font:600 13px var(--sans); color:var(--ink); }
+.escrow-workspace-title small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font:9px var(--sans); }
+.escrow-workspace-tabs { padding:10px 16px 0; display:flex; gap:5px; border-bottom:1px solid var(--line); background:var(--panel); }
+.escrow-workspace-tabs button { min-height:38px; padding:0 12px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--muted); display:flex; align-items:center; gap:7px; font:600 10px var(--sans); cursor:pointer; }
+.escrow-workspace-tabs button b { min-width:18px; padding:2px 5px; border-radius:9px; background:var(--panel-3); color:var(--faint); font:8px var(--mono); }
+.escrow-workspace-tabs button.active { border-bottom-color:var(--acid); color:var(--ink); }
+.escrow-workspace-tabs button.active svg { color:var(--acid); }
+.escrow-workspace-content { min-height:0; overflow:auto; padding:18px; }
+.escrow-workspace-intro { margin-bottom:14px; display:flex; align-items:end; justify-content:space-between; gap:20px; }
+.escrow-workspace-intro h2 { margin:5px 0 0; color:var(--ink); font:600 20px/1.2 var(--sans)!important; letter-spacing:-.025em!important; }
+.escrow-workspace-intro>p { max-width:310px; margin:0; color:var(--muted); font:10px/1.5 var(--sans); text-align:right; }
+.escrow-workspace-list { display:grid; gap:8px; }
+.escrow-workspace-row { min-width:0; min-height:82px; padding:12px; display:grid; grid-template-columns:minmax(0,1fr) 92px 112px auto; align-items:center; gap:14px; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); }
+.escrow-workspace-row-main { min-width:0; display:grid; gap:5px; }
+.escrow-workspace-row-main .escrow-status-pill { font-size:7px; }
+.escrow-workspace-row h3 { margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink); font:600 13px/1.25 var(--sans)!important; letter-spacing:-.01em!important; }
+.escrow-workspace-row p { margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font:9px var(--sans); }
+.escrow-workspace-row-stage,.escrow-workspace-row-value { min-width:0; display:grid; gap:5px; }
+.escrow-workspace-row :is(.escrow-workspace-row-stage,.escrow-workspace-row-value)>small { color:var(--faint); font:7px var(--mono); letter-spacing:.06em; }
+.escrow-workspace-row-stage b { color:var(--ink); font:600 10px var(--sans); }
+.escrow-workspace-row-value b { color:var(--ink); font:400 17px/1 var(--numbers); letter-spacing:.04em; white-space:nowrap; }
+.escrow-workspace-row-value em { color:var(--muted); font:7px var(--mono); font-style:normal; }
+.escrow-workspace-open { min-height:34px; padding:0 10px; border:1px solid var(--line-bright); border-radius:7px; background:transparent; color:var(--ink); display:flex; align-items:center; gap:7px; white-space:nowrap; font:600 9px var(--sans); cursor:pointer; }
+.escrow-workspace-open:hover { border-color:color-mix(in srgb,var(--acid) 48%,var(--line)); color:var(--acid); }
+.escrow-workspace-empty { min-height:210px; display:grid; place-items:center; align-content:center; gap:7px; text-align:center; border:1px dashed var(--line); border-radius:10px; }
+.escrow-workspace-empty>span { width:42px; height:42px; display:grid; place-items:center; border-radius:10px; background:var(--panel-2); color:var(--cyan); }
+.escrow-workspace-empty b { font-size:13px; }.escrow-workspace-empty p { margin:0; color:var(--muted); font-size:10px; }
+
+.history-proof-modal.escrow-inspector { width:min(760px,calc(100vw - 36px)); height:auto; max-height:min(680px,calc(100dvh - 36px)); border-radius:12px; }
+.escrow-inspector-top { min-height:58px; background:var(--panel-2); border-bottom:1px solid var(--line); }
+.escrow-inspector-top>div>small { font:9px var(--sans); letter-spacing:0; }
+.escrow-inspector-body { height:auto; max-height:calc(min(680px,100dvh - 36px) - 58px); padding:0 18px 18px; }
+.escrow-inspector-header { grid-template-columns:minmax(0,1fr) 126px; gap:16px; padding:17px 0 13px; }
+.escrow-inspector-header h2 { margin:8px 0 5px; font:600 21px/1.2 var(--sans)!important; letter-spacing:-.025em!important; }
+.escrow-inspector-header p { max-height:44px; overflow:hidden; margin:0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; color:var(--muted); font:10px/1.5 var(--sans); }
+.escrow-value-hero { min-height:92px; padding:12px; border-radius:9px; }
+.escrow-value-hero b { font-size:27px; }
+.escrow-inspector-meta { min-height:48px; margin-bottom:12px; }
+.escrow-inspector-meta>span { padding:8px 10px; }
+.escrow-inspector-progress { min-height:54px; margin-bottom:12px; padding:9px 12px; display:grid; grid-template-columns:repeat(5,1fr); border:1px solid var(--line); border-radius:9px; background:var(--panel-2); }
+.escrow-inspector-progress span { position:relative; display:grid; place-items:center; gap:5px; color:var(--faint); }
+.escrow-inspector-progress span:not(:last-child)::after { content:""; position:absolute; top:11px; left:calc(50% + 14px); width:calc(100% - 28px); height:1px; background:var(--line-bright); }
+.escrow-inspector-progress span.active { color:var(--acid); }
+.escrow-inspector-progress span.active:not(:last-child)::after { background:color-mix(in srgb,var(--acid) 35%,var(--line)); }
+.escrow-inspector-progress i { width:22px; height:22px; z-index:1; display:grid; place-items:center; border:1px solid currentColor; border-radius:50%; background:var(--panel-2); font:8px var(--mono); font-style:normal; }
+.escrow-inspector-progress small { font:7px var(--mono); }
+.escrow-evidence-section { padding:12px 0; }
+.escrow-evidence-panel { grid-template-columns:minmax(190px,.65fr) minmax(0,1.35fr); }
+.escrow-inspector-disclosures { display:grid; gap:7px; padding-top:12px; border-top:1px solid var(--line); }
+.escrow-inspector-disclosures details { overflow:hidden; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); }
+.escrow-inspector-disclosures summary { min-height:52px; padding:0 13px; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; }
+.escrow-inspector-disclosures summary::-webkit-details-marker { display:none; }
+.escrow-inspector-disclosures summary>span { min-width:0; display:grid; grid-template-columns:20px 1fr; column-gap:8px; align-items:center; }
+.escrow-inspector-disclosures summary>span>svg { grid-row:1 / 3; color:var(--cyan); }
+.escrow-inspector-disclosures summary b { color:var(--ink); font:600 10px var(--sans); }
+.escrow-inspector-disclosures summary small { color:var(--muted); font:8px var(--sans); }
+.escrow-inspector-disclosures summary>svg { color:var(--faint); transition:transform .16s ease; }
+.escrow-inspector-disclosures details[open] summary>svg { transform:rotate(180deg); }
+.escrow-disclosure-body { padding:0 10px 10px; display:grid; gap:8px; border-top:1px solid var(--line); }
+.escrow-disclosure-body .escrow-route-line { margin-top:10px; }
+.escrow-disclosure-body .escrow-tx-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.escrow-disclosure-body .escrow-audit-logs { max-height:190px; overflow:auto; margin:10px 0 0; }
+
+/* Posting is a short three-step task. No animated rail or decorative top
+   gradient competes with the form itself. */
+.escrow-wizard-premium::before { display:none!important; }
+.escrow-wizard-modal.escrow-wizard-premium { width:min(650px,calc(100vw - 36px)); border-radius:12px; box-shadow:0 34px 110px rgba(0,0,0,.62); }
+.escrow-modal-top { min-height:54px; padding:0 17px; }
+.escrow-wizard-head { padding:17px 18px 12px; }
+.escrow-wizard-head h2 { font:600 22px/1.2 var(--sans)!important; letter-spacing:-.025em!important; }
+.escrow-wizard-head p { font-size:10px; }
+.escrow-wizard-premium .premium-stepper { position:relative; margin:0 18px 12px; padding:0 0 10px; gap:0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; }
+.escrow-wizard-premium .premium-stepper .stepper-step { position:relative; min-height:28px; padding:0; justify-content:flex-start; gap:7px; border:0; border-radius:0; background:transparent!important; box-shadow:none!important; }
+.escrow-wizard-premium .premium-stepper .stepper-step:not(:last-child)::after { content:""; position:absolute; right:12px; width:calc(100% - 78px); height:1px; background:var(--line-bright); }
+.escrow-wizard-premium .stepper-step span { width:20px; height:20px; flex:0 0 auto; border:1px solid var(--line-bright); background:var(--panel); color:var(--faint); }
+.escrow-wizard-premium .stepper-step.active span { border-color:var(--acid); color:var(--acid); box-shadow:none; }
+.escrow-wizard-premium .stepper-step small { z-index:1; padding-right:7px; background:var(--panel); color:var(--muted); font:600 8px var(--sans); }
+.escrow-wizard-premium .stepper-step.active small { color:var(--ink); }
+.escrow-wizard-premium .premium-wizard-body { max-height:calc(100dvh - 190px); padding:0 18px 16px; }
+.escrow-wizard-premium .wizard-step-pane { padding:15px; background:transparent; }
+
+html[data-theme="light"] .escrow-workspace-dialog,
+html[data-theme="light"] .history-proof-modal.escrow-inspector,
+html[data-theme="light"] .escrow-wizard-modal.escrow-wizard-premium { border-color:#c4cfc8; background:#f7f9f7; box-shadow:0 28px 75px rgba(37,58,46,.2); }
+html[data-theme="light"] :is(.escrow-workspace-header,.escrow-inspector-top,.escrow-workspace-row,.escrow-inspector-progress,.escrow-inspector-disclosures details) { background:#eef2ef; }
+html[data-theme="light"] .escrow-workspace-tabs { background:#f7f9f7; }
+
+@media(max-width:720px){
+  .escrow-workspace-overlay,.escrow-inspector-overlay,.escrow-create-overlay { padding:8px; }
+  .escrow-workspace-dialog { width:calc(100vw - 16px); max-height:calc(100dvh - 16px); }
+  .escrow-workspace-intro { align-items:start; flex-direction:column; gap:5px; }.escrow-workspace-intro>p { text-align:left; }
+  .escrow-workspace-row { grid-template-columns:minmax(0,1fr) auto; }.escrow-workspace-row-stage { display:none; }.escrow-workspace-row-value { grid-column:1; }.escrow-workspace-open { grid-column:2; grid-row:1 / 3; }
+  .history-proof-modal.escrow-inspector { width:calc(100vw - 16px); max-height:calc(100dvh - 16px); }
+  .escrow-inspector-header { grid-template-columns:1fr; }.escrow-value-hero { min-height:78px; }.escrow-inspector-progress small { display:none; }
+  .escrow-evidence-panel,.escrow-disclosure-body .escrow-tx-list { grid-template-columns:1fr; }
+  .escrow-wizard-modal.escrow-wizard-premium { width:calc(100vw - 16px); max-height:calc(100dvh - 16px); }
+  .escrow-wizard-premium .premium-stepper .stepper-step:not(:last-child)::after { display:none; }
+}
