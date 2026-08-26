@@ -117,14 +117,14 @@ export function ReceiptCodeRain({ modal = false }: { modal?: boolean }) {
           const fade = Math.pow(position, 1.75) * stream.alpha;
 
           if (index === 0) {
-            drawing.fillStyle = dark ? "#efffca" : "#0c6744";
-            drawing.globalAlpha = Math.min(dark ? .94 : .72, fade + (dark ? .36 : .2));
+            drawing.fillStyle = dark ? "#efffca" : "#075d3c";
+            drawing.globalAlpha = Math.min(dark ? .94 : .94, fade + (dark ? .36 : .42));
           } else if (stream.mint) {
-            drawing.fillStyle = dark ? "#55e7d1" : "#007f89";
-            drawing.globalAlpha = fade * (dark ? .72 : .48);
+            drawing.fillStyle = dark ? "#55e7d1" : "#006e74";
+            drawing.globalAlpha = fade * (dark ? .72 : .76);
           } else {
-            drawing.fillStyle = dark ? "#c7ff3d" : "#15875b";
-            drawing.globalAlpha = fade * (dark ? 1 : .54);
+            drawing.fillStyle = dark ? "#c7ff3d" : "#126e49";
+            drawing.globalAlpha = fade * (dark ? 1 : .82);
           }
           drawing.fillText(stream.glyphs[index], stream.x, y);
         }

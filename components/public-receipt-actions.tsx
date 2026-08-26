@@ -1,8 +1,10 @@
 "use client";
 
-import { ArrowLeft, Download, ExternalLink, LoaderCircle } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Download, ExternalLink } from "lucide-react";
+import { useState, type MouseEvent } from "react";
+import { useRouter } from "next/navigation";
 import { downloadReceiptPng } from "@/lib/download-receipt";
+import { OffGridLoader as LoaderCircle } from "@/components/ui/offgrid-loader";
 
 export function PublicReceiptDownload({ receiptId, reference, amount, createdAt }: { receiptId: string; reference: string; amount: string; createdAt: string }) {
   const [busy, setBusy] = useState(false);
@@ -22,8 +24,16 @@ export function PublicReceiptDownload({ receiptId, reference, amount, createdAt 
 }
 
 export function PublicReceiptActions({ explorerUrl }: { explorerUrl: string }) {
+  const router = useRouter();
+  function returnToDashboard(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    const cameFromOffGrid = document.referrer.startsWith(window.location.origin);
+    if (cameFromOffGrid && window.history.length > 1) router.back();
+    else router.push("/");
+  }
+
   return <div className="public-receipt-actions" data-receipt-ignore="true">
-    <a href="/"><ArrowLeft size={14} /> Back To Dashboard</a>
+    <a href="/" onClick={returnToDashboard}><ArrowLeft size={14} /> Back To Dashboard</a>
     {explorerUrl
       ? <a className="primary" href={explorerUrl} target="_blank" rel="noreferrer">View Onchain Proof <ExternalLink size={14} /></a>
       : <span className="primary disabled" title="This sandbox receipt has no public explorer transaction">Onchain Proof Unavailable</span>}

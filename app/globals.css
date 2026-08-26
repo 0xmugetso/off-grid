@@ -4387,3 +4387,109 @@ html[data-theme="light"] .history-view .gateway-recovery-toggle form>button { bo
   .neon-button::after { animation:none; }
   .overlay,.overlay > :is(article,div) { animation-duration:.01ms!important; }
 }
+
+/* One quiet loading language across the product. The bar cluster inherits the
+   OffGrid accent and scales down safely inside buttons and dense status rows. */
+.offgrid-loader {
+  --offgrid-loader-unit:.64px;
+  width:calc(100 * var(--offgrid-loader-unit));
+  height:calc(34 * var(--offgrid-loader-unit));
+  flex:0 0 auto;
+  display:inline-grid;
+  place-items:center;
+  color:var(--acid);
+  filter:drop-shadow(0 0 calc(14 * var(--offgrid-loader-unit)) color-mix(in srgb,var(--acid) 58%,transparent));
+  vertical-align:middle;
+}
+.offgrid-loader > i {
+  width:calc(10 * var(--offgrid-loader-unit));
+  height:calc(30 * var(--offgrid-loader-unit));
+  border-radius:calc(4 * var(--offgrid-loader-unit));
+  color:inherit;
+  background:currentColor;
+  animation:offgrid-loader-height 1s ease-in-out infinite alternate;
+  box-shadow:
+    calc(15 * var(--offgrid-loader-unit)) 0 0 calc(-1 * var(--offgrid-loader-unit)),
+    calc(-15 * var(--offgrid-loader-unit)) 0 0 calc(-1 * var(--offgrid-loader-unit)),
+    calc(30 * var(--offgrid-loader-unit)) 0 0 calc(-2 * var(--offgrid-loader-unit)),
+    calc(-30 * var(--offgrid-loader-unit)) 0 0 calc(-2 * var(--offgrid-loader-unit)),
+    calc(45 * var(--offgrid-loader-unit)) 0 0 calc(-3 * var(--offgrid-loader-unit)),
+    calc(-45 * var(--offgrid-loader-unit)) 0 0 calc(-3 * var(--offgrid-loader-unit));
+}
+@keyframes offgrid-loader-height { to { height:0; } }
+.boot-screen > .offgrid-loader { margin:10px 0 2px; }
+.offgrid-loader.spin { animation:none; }
+
+::view-transition-old(root) { animation:offgrid-view-out .14s ease both; }
+::view-transition-new(root) { animation:offgrid-view-in .22s ease both; }
+@keyframes offgrid-view-out { to { opacity:.35; transform:translateY(-3px); } }
+@keyframes offgrid-view-in { from { opacity:.2; transform:translateY(5px); } }
+
+/* Final light-theme surface audit. These components previously contained
+   hard-coded near-black fills declared after the theme layer. */
+html[data-theme="light"] .connected-wallet-menu {
+  color:var(--ink);
+  border-color:#c8d2cc;
+  background:#f8faf8;
+  box-shadow:0 18px 44px rgba(36,62,49,.16);
+}
+html[data-theme="light"] .connected-wallet-menu button { color:#536159; }
+html[data-theme="light"] .connected-wallet-menu button:hover {
+  color:#176744;
+  border-color:rgba(43,123,78,.2);
+  background:#e8efea;
+}
+html[data-theme="light"] .connected-wallet-menu button:last-child:hover {
+  color:#a83f39;
+  border-color:rgba(168,63,57,.2);
+  background:#f7eae8;
+}
+html[data-theme="light"] .connected-wallet-menu .solana-dropdown-row,
+html[data-theme="light"] .connected-wallet-menu .menu-divider { border-color:#d2dad5; background:#eef3ef; }
+
+html[data-theme="light"] .history-view .ledger-panel {
+  border-color:#c9d3cd;
+  background:rgba(248,250,248,.94);
+  box-shadow:0 18px 50px rgba(35,61,48,.1);
+}
+html[data-theme="light"] .history-view .ledger-toolbar,
+html[data-theme="light"] .history-view .ledger-table th,
+html[data-theme="light"] .history-view .ledger-table td {
+  color:var(--ink);
+  border-color:#d4ddd7;
+  background:#f8faf8;
+}
+html[data-theme="light"] .history-view .ledger-toolbar { background:#eef3ef; }
+html[data-theme="light"] .history-view .ledger-table th { color:#66736b; background:#e8eeea; }
+html[data-theme="light"] .history-view .ledger-table tbody tr:hover td { background:#edf4ef; }
+html[data-theme="light"] .history-view :is(.ledger-search,.ledger-select) { background:#fbfcfb; border-color:#c8d2cc; }
+html[data-theme="light"] .history-view :is(.ledger-search input,.ledger-select select) { color:var(--ink); background:transparent; }
+html[data-theme="light"] .history-view .route-badge { color:#176f63; border-color:rgba(23,111,99,.22); background:rgba(23,111,99,.055); }
+
+html[data-theme="light"] .user-control-modal :is(.modal-stat-chip,.signer-row) {
+  color:var(--ink);
+  border-color:#cbd5ce;
+  background:#f3f6f4;
+}
+html[data-theme="light"] .user-control-modal .modal-stat-chip.primary {
+  border-color:rgba(43,123,78,.28);
+  background:#edf4ef;
+}
+html[data-theme="light"] .user-control-modal .signer-row.connected { border-color:rgba(43,123,78,.28); }
+html[data-theme="light"] .user-control-modal .signer-icon-box { border-color:#cad4cd; background:#e8eeea; }
+html[data-theme="light"] .user-control-modal .user-control-actions > div { background:#edf2ee!important; }
+html[data-theme="light"] .user-control-modal .user-modal-version-footer { border-color:#d2dbd5!important; }
+
+html[data-theme="light"] .receipt-code-rain.is-ready { opacity:.7; filter:contrast(1.16) saturate(1.05); }
+html[data-theme="light"] .receipt-code-rain::before {
+  background:radial-gradient(ellipse 43% 49% at 50% 48%,rgba(236,240,236,.76) 0,rgba(236,240,236,.58) 39%,rgba(236,240,236,.12) 74%,transparent);
+}
+html[data-theme="light"] .receipt-code-rain--modal.is-ready { opacity:.58; }
+html[data-theme="light"] .receipt-code-rain--modal::before {
+  background:radial-gradient(ellipse 38% 52% at 50% 50%,rgba(240,243,239,.72) 0,rgba(240,243,239,.52) 48%,rgba(240,243,239,.08) 82%,transparent);
+}
+
+@media(prefers-reduced-motion:reduce) {
+  .offgrid-loader > i { animation-duration:1.8s; }
+  ::view-transition-old(root),::view-transition-new(root) { animation:none; }
+}

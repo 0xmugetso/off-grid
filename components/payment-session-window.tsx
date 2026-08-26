@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Banknote, Bell, Check, CircleAlert, Copy, ExternalLink, LoaderCircle, LockKeyhole, Radio, ShieldCheck, Wallet, X, Zap } from "lucide-react";
+import { ArrowRight, Banknote, Bell, Check, CircleAlert, Copy, ExternalLink, LockKeyhole, Radio, ShieldCheck, Wallet, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createWalletClient, custom, erc20Abi, getAddress, parseUnits } from "viem";
 import { arcTestnet } from "viem/chains";
@@ -9,6 +9,7 @@ import type { DatabaseUserView, PaymentRail, PaymentSessionView } from "@/lib/pa
 import { discoverBrowserWallets, ensureArcTestnet, requestWalletAccount } from "@/lib/arc/browser-wallet";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ARC } from "@/lib/arc/config";
+import { OffGridLoader as LoaderCircle } from "@/components/ui/offgrid-loader";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {

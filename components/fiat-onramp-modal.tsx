@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { CreditCard, ExternalLink, LoaderCircle, ShieldCheck, Sparkles, X } from "lucide-react";
+import { CreditCard, ExternalLink, ShieldCheck, Sparkles, X } from "lucide-react";
+import { OffGridLoader as LoaderCircle } from "@/components/ui/offgrid-loader";
 
 function shortAddress(address: string, size = 5) {
   if (!address || address.length < size * 2 + 2) return address;

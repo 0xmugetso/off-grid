@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowRight, Check, ChevronDown, CircleAlert, CircleCheck, Copy, ExternalLink, LoaderCircle, Network, Plus, Search, Send, ShieldCheck, Trash2, Upload, UserPlus, Users, Wallet, X, Zap } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, CircleAlert, CircleCheck, Copy, ExternalLink, Network, Plus, Search, Send, ShieldCheck, Trash2, Upload, UserPlus, Users, Wallet, X, Zap } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { getAddress, isAddress } from "viem";
 import type { MassPaymentResult } from "@/lib/arc/app-kit-client";
+import { OffGridLoader as LoaderCircle } from "@/components/ui/offgrid-loader";
 
 interface DirectoryUser {
   id: string;

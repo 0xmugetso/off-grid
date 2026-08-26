@@ -25,7 +25,6 @@ import {
   Fingerprint,
   Fuel,
   Globe2,
-  LoaderCircle,
   Lock,
   LockKeyhole,
   LogOut,
@@ -51,6 +50,7 @@ import {
   Zap,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { createPublicClient, encodeFunctionData, http, isAddress, parseUnits } from "viem";
 import { arcTestnet } from "viem/chains";
 import { NeonMesh } from "@/components/ui/neon-mesh";
@@ -67,6 +67,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ReceiptCodeRain } from "@/components/receipt-code-rain";
 import { downloadReceiptPng } from "@/lib/download-receipt";
 import { gatewayExplorerUrl } from "@/lib/gateway-explorer";
+import { OffGridLoader as LoaderCircle } from "@/components/ui/offgrid-loader";
 
 interface User {
   id: string;
@@ -1746,7 +1747,7 @@ function EscrowView({ walletAddress, arcBalance, onConnect, onRefresh }: { walle
         <div className="escrow-market-label"><span><Globe2 size={16}/></span><div><b>Public Marketplace</b><small>Open work available to verified OffGrid users</small></div></div><button className="escrow-panel-refresh" onClick={() => { void loadEscrows(); onRefresh(); }}><RefreshCw size={13}/> Refresh Jobs</button>
       </div>
       <div className="escrow-market-intro"><div><span className="section-tag">{escrowSection === "marketplace" ? "OPEN OPPORTUNITIES" : escrowSection === "mine" ? "ACTIVE WORK" : "SETTLEMENT RECORDS"}</span><h2>{escrowSection === "marketplace" ? "Protected work, ready to claim" : escrowSection === "mine" ? "Escrows that need your attention" : "Your completed agreements"}</h2><p>{escrowSection === "marketplace" ? "Compare scope, deliverables, and budget before accepting a listing." : escrowSection === "mine" ? "Continue each agreement from acceptance through funding and delivery." : "Review final status, transaction proofs, and protocol audit trails."}</p></div>{sectionEscrows.length > 0 && <span className="escrow-list-count">SHOWING {Math.min(visibleCount, sectionEscrows.length)} OF {sectionEscrows.length}</span>}</div>
-      {loading ? <div className="escrow-loading-state"><div className="escrow-loader-mark"><Scale size={22}/><i/><i/></div><span className="section-tag">SYNCING MARKETPLACE</span><h3>Loading protected work</h3><p>Checking listings, active agreements, and settlement state.</p><div className="escrow-loader-lines"><i/><i/><i/></div></div> : sectionEscrows.length === 0 ? <div className="escrow-empty-state"><div className="escrow-empty-icon">{escrowSection === "marketplace" ? <BriefcaseBusiness size={28}/> : escrowSection === "mine" ? <Scale size={28}/> : <Clock size={28}/>}</div><h3>{escrowSection === "marketplace" ? "No public jobs right now" : escrowSection === "mine" ? "No active escrows" : "No completed escrows"}</h3><p>{escrowSection === "marketplace" ? "Post the first job or check again later." : escrowSection === "mine" ? "Post a job or accept one from the marketplace." : "Completed and refunded agreements will appear here."}</p>{escrowSection !== "history" && <button className="neon-button" onClick={() => walletAddress ? setShowCreateModal(true) : onConnect()}><Plus size={15}/> {walletAddress ? "Post a job" : "Connect wallet"}</button>}</div> : <><div className={`escrow-cards-grid ${escrowSection}`}>{visibleEscrows.map((item) => <article key={item.id} className={`escrow-item-card ${item.status} ${item.visibility || "private"}`}>
+      {loading ? <div className="escrow-loading-state"><LoaderCircle size={72} aria-label="Loading protected work"/><span className="section-tag">SYNCING MARKETPLACE</span><h3>Loading protected work</h3><p>Checking listings, active agreements, and settlement state.</p></div> : sectionEscrows.length === 0 ? <div className="escrow-empty-state"><div className="escrow-empty-icon">{escrowSection === "marketplace" ? <BriefcaseBusiness size={28}/> : escrowSection === "mine" ? <Scale size={28}/> : <Clock size={28}/>}</div><h3>{escrowSection === "marketplace" ? "No public jobs right now" : escrowSection === "mine" ? "No active escrows" : "No completed escrows"}</h3><p>{escrowSection === "marketplace" ? "Post the first job or check again later." : escrowSection === "mine" ? "Post a job or accept one from the marketplace." : "Completed and refunded agreements will appear here."}</p>{escrowSection !== "history" && <button className="neon-button" onClick={() => walletAddress ? setShowCreateModal(true) : onConnect()}><Plus size={15}/> {walletAddress ? "Post a job" : "Connect wallet"}</button>}</div> : <><div className={`escrow-cards-grid ${escrowSection}`}>{visibleEscrows.map((item) => <article key={item.id} className={`escrow-item-card ${item.status} ${item.visibility || "private"}`}>
         <div className="escrow-card-head"><span className={`escrow-category-badge ${item.category}`}>{item.category === "code" ? <FileCode size={12}/> : item.category === "api_key" ? <Bot size={12}/> : <FileCheck size={12}/>}{item.category.toUpperCase().replace("_", " ")}</span><span className={`escrow-status-pill ${item.status}`}><i/>{escrowSection === "marketplace" ? "OPEN" : item.status.replaceAll("_", " ").toUpperCase()}</span></div>
         <div className="escrow-card-copy"><h3 title={item.title}>{item.title}</h3><p className="escrow-specs-text" title={item.terms?.summary || item.specs}>{item.terms?.summary || item.specs}</p><div className={`escrow-task-strip ${item.terms?.tasks?.length ? "" : "empty"}`}><small>{item.terms?.tasks?.length ? `${item.terms.tasks.length} DELIVERABLE${item.terms.tasks.length === 1 ? "" : "S"}` : "FULL BRIEF"}</small><span title={item.terms?.tasks?.[0]?.description || "Open the inspector to read the complete scope and validation rules."}>{item.terms?.tasks?.[0]?.description || "Open the inspector to read the complete scope and validation rules."}</span></div></div>
         {escrowSection !== "marketplace" && <div className="escrow-flow-line">{["Terms", "Contract", "Funded", "Review", "Settled"].map((label, index) => <span key={label} className={index <= flowIndex(item.status) ? "active" : ""}><i>{index < flowIndex(item.status) ? <Check size={9}/> : index + 1}</i><small>{label}</small></span>)}</div>}
@@ -1889,6 +1890,19 @@ export function OffGridDashboard() {
   const hasPendingFiat = fiatPayouts.some((payout) => payout.status === "submitted" || payout.status === "pending");
   const hasPendingGatewayDeposit = gatewayDeposits.some((deposit) => deposit.status !== "confirmed" && deposit.status !== "failed");
 
+  function openWorkspaceView(view: WorkspaceView) {
+    if (view === activeView) return;
+    const update = () => flushSync(() => setActiveView(view));
+    const documentWithTransitions = document as Document & {
+      startViewTransition?: (callback: () => void) => { finished: Promise<void> };
+    };
+    if (documentWithTransitions.startViewTransition && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      documentWithTransitions.startViewTransition(update);
+    } else {
+      update();
+    }
+  }
+
   function persistWalletProfile(wallet: BrowserWallet, address: string) {
     try {
       window.localStorage.setItem("offgrid-last-evm-wallet", JSON.stringify({
@@ -1934,6 +1948,17 @@ export function OffGridDashboard() {
   }
 
   useEffect(() => { api<{ user: User | null }>("/api/auth/me").then(({ user }) => setUser(user)).finally(() => setBooting(false)); }, []);
+  useEffect(() => {
+    try {
+      const stored = window.sessionStorage.getItem("offgrid-workspace-view") as WorkspaceView | null;
+      if (stored && ["transfer", "history", "unified", "mass", "escrow", "agents"].includes(stored)) setActiveView(stored);
+    } catch {
+      // Session storage is optional in privacy-restricted browsers.
+    }
+  }, []);
+  useEffect(() => {
+    try { window.sessionStorage.setItem("offgrid-workspace-view", activeView); } catch { /* Optional persistence. */ }
+  }, [activeView]);
   useEffect(() => {
     const profile = readWalletProfile();
     if (!profile?.address) return;
@@ -2894,7 +2919,7 @@ export function OffGridDashboard() {
         <aside className="command-rail">
           <div className="command-rail-inner">
             <div className="rail-user"><span className="user-avatar-glowing rail-user-avatar"><User size={17} /><i className="avatar-ring-glow" /></span><div><b>{user.displayName}</b><small>@{user.username}</small></div><BadgeCheck size={16} /></div>
-            <nav><button className={activeView === "transfer" ? "active" : ""} onClick={() => setActiveView("transfer")}><Send size={17} /> Transfer</button><button className={activeView === "history" ? "active" : ""} onClick={() => setActiveView("history")}><Receipt size={17} /> History {displayWalletAddress && <span>{activity.length + fiatPayouts.length + cctpOperations.filter((operation) => !operation.invoiceId && isSubmittedCctpOperation(operation)).length + gatewayDeposits.length}</span>}</button><button className={activeView === "unified" ? "active" : ""} onClick={() => { setActiveView("unified"); void loadBalances(); }}><Network size={17} /> Unified Balance</button><button className={activeView === "mass" ? "active" : ""} onClick={() => setActiveView("mass")}><UserRound size={17} /> Mass Payment</button><button className={activeView === "escrow" ? "active" : ""} onClick={() => setActiveView("escrow")}><Scale size={17} /> Escrow Market</button><button className={activeView === "agents" ? "active" : ""} onClick={() => setActiveView("agents")}><Sparkles size={17} /> Agent Payments <span className="soon-badge">SOON</span></button></nav>
+            <nav><button className={activeView === "transfer" ? "active" : ""} onClick={() => openWorkspaceView("transfer")}><Send size={17} /> Transfer</button><button className={activeView === "history" ? "active" : ""} onClick={() => openWorkspaceView("history")}><Receipt size={17} /> History {displayWalletAddress && <span>{activity.length + fiatPayouts.length + cctpOperations.filter((operation) => !operation.invoiceId && isSubmittedCctpOperation(operation)).length + gatewayDeposits.length}</span>}</button><button className={activeView === "unified" ? "active" : ""} onClick={() => { openWorkspaceView("unified"); void loadBalances(); }}><Network size={17} /> Unified Balance</button><button className={activeView === "mass" ? "active" : ""} onClick={() => openWorkspaceView("mass")}><UserRound size={17} /> Mass Payment</button><button className={activeView === "escrow" ? "active" : ""} onClick={() => openWorkspaceView("escrow")}><Scale size={17} /> Escrow Market</button><button className={activeView === "agents" ? "active" : ""} onClick={() => openWorkspaceView("agents")}><Sparkles size={17} /> Agent Payments <span className="soon-badge">SOON</span></button></nav>
             <button className="logout-button" onClick={() => setShowLogoutConfirm(true)}><LogOut size={15} /> Sign Out</button>
           </div>
         </aside>
@@ -2973,7 +2998,7 @@ export function OffGridDashboard() {
                       <button className={`neon-button pay-now ${estimateBusy || gatewayMintBusy ? "is-loading" : ""}`} onClick={gatewayMintRetry ? retryGatewayMint : paymentEstimate ? pay : estimatePayment} disabled={estimateBusy || gatewayMintBusy}><span className="pay-now-leading">{estimateBusy || gatewayMintBusy ? <LoaderCircle className="spin" size={17} /> : gatewayMintRetry ? <RefreshCw size={17} /> : paymentEstimate ? <Zap size={17} /> : <Network size={17} />}</span><span className="pay-now-label">{estimateBusy ? fundingMethod === "fiat_bank" ? "Checking provider route…" : "Checking live route…" : gatewayMintBusy ? "Recovering Arc mint…" : gatewayMintRetry ? "Retry Arc mint" : paymentEstimate ? fundingMethod === "fiat_bank" ? "Start verified settlement" : "Confirm in wallet" : "Get live estimate"}</span><ArrowRight size={16} /></button>
                     </> : step === "processing" ? <><div className="protocol-progress">{(fundingMethod === "fiat_bank" ? [["estimate","Route check"],["settlement","Provider proofs"],["receipt","Onchain receipt"]] : [["estimate","Live estimate"],["signature","Wallet signature"],["settlement",fundingMethod === "cctp_bridge" ? "CCTP lifecycle" : "Network confirmation"],["receipt","Create receipt"]]).map(([phase,label], index, phases) => { const current = phases.findIndex(([name]) => name === paymentPhase); return <span key={phase} className={index <= current ? "active" : ""}><i>{index < current ? <Check size={9} /> : index + 1}</i>{label}</span>; })}</div>{protocolEvents.length > 0 && <div className="protocol-stream">{protocolEvents.map((event) => <span className={event.state} key={event.name}><i />{event.name}<b>{event.state}</b></span>)}</div>}<button className="neon-button pay-now is-loading" disabled><span className="pay-now-leading"><LoaderCircle className="spin" size={17} /></span><span className="pay-now-label">{paymentPhase === "estimate" ? fundingMethod === "fiat_bank" ? "Checking provider route…" : "Estimating with App Kit…" : paymentPhase === "signature" ? "Confirm in your wallet…" : paymentPhase === "settlement" ? fundingMethod === "fiat_bank" ? "Verifying Circle and onchain proofs…" : fundingMethod === "cctp_bridge" ? "Burning, attesting & minting…" : "Waiting for confirmation…" : "Creating verified receipt…"}</span><span className="pay-now-end" /></button></> : <><button className="neon-button pay-now" disabled={!canReview || insufficientBalance} onClick={() => { setPaymentEstimate(null); setPaymentError(""); setStep("review"); }}><span className="pay-now-leading"><Send size={17} /></span><span className="pay-now-label">{fundingMethod === "fiat_bank" ? "Review fiat to Web3" : "Review payment"}</span><ArrowRight size={16} /></button>{reviewBlockReason && <p className="review-blocker"><CircleAlert size={11} /> {reviewBlockReason}</p>}{available === null && canReview && fundingMethod !== "fiat_bank" && <p className="review-warning"><Radio size={11} /> {fundingMethod === "cctp_bridge" ? "App Kit validates source USDC and gas before CCTP execution." : "Balance unavailable in UI; App Kit will check it during estimation."}</p>}</>}
                     <p className="self-custody"><ShieldCheck size={12} /> OffGrid never holds your keys or signs for you.</p>
-                    <button className="view-all-activity" onClick={() => setActiveView("history")}>View all activities <ArrowRight size={12} /></button>
+                    <button className="view-all-activity" onClick={() => openWorkspaceView("history")}>View all activities <ArrowRight size={12} /></button>
                   </aside>
                 </div>
               </section>
