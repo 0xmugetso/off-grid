@@ -34,8 +34,8 @@ export async function POST(request: Request) {
     if (body.rail !== "web3_usdc" && body.rail !== "fiat_bank") throw new Error("Choose a payment rail");
     const parsedAmount = parseUsdc(String(body.amount ?? ""));
     if (parsedAmount <= 0n) throw new Error("Amount must be greater than zero");
-    if (body.intent === "pay" && body.rail === "fiat_bank" && parsedAmount < CIRCLE_MINT_SANDBOX_WIRE_MINIMUM) {
-      throw new Error("Circle Mint sandbox bank payments require at least 2.00 USD");
+    if (body.intent === "pay" && body.rail === "fiat_bank" && parsedAmount <= CIRCLE_MINT_SANDBOX_WIRE_MINIMUM) {
+      throw new Error("Circle Mint sandbox bank payments must be greater than 2.00 USD");
     }
     if (body.rail === "web3_usdc" && !current.walletAddress) throw new Error("Connect and bind your wallet before choosing Web3 USDC");
 

@@ -226,9 +226,28 @@ function fundingLabel(method: FundingMethod) {
 function cctpStatusDetail(operation: CctpOperation) {
   if (operation.errorMessage && /took too long|timed? out/i.test(operation.errorMessage)) return "Source RPC timed out before wallet submission";
   if (operation.errorMessage) return operation.errorMessage.split("\n")[0];
-  if (operation.status === "attesting") return "Waiting for Circle attestation";
+  if (operation.status === "attesting") return `Waiting for Circle attestation · usually ${cctpFinalityEstimate(operation.sourceChain).time}`;
   if (operation.status === "minting") return "Attested; waiting for destination mint confirmation";
   return "CCTP transfer needs attention";
+}
+
+function cctpSourceExplorerUrl(chain: CctpSourceChain, txHash: string) {
+  if (chain === "Base_Sepolia") return `https://sepolia.basescan.org/tx/${txHash}`;
+  if (chain === "Arbitrum_Sepolia") return `https://sepolia.arbiscan.io/tx/${txHash}`;
+  if (chain === "Ethereum_Sepolia") return `https://sepolia.etherscan.io/tx/${txHash}`;
+  return `https://solscan.io/tx/${txHash}?cluster=devnet`;
+}
+
+function cctpFinalityEstimate(chain: CctpSourceChain) {
+  return chain === "Solana_Devnet"
+    ? { time: "about 25 seconds", detail: "Solana needs about 32 finalized blocks before Circle attests the burn." }
+    : { time: "about 15 to 19 minutes", detail: `${CHAIN_LABELS[chain]} settles through Ethereum finality before Circle attests the burn.` };
+}
+
+function gatewayFinalityEstimate(chain: SourceChain) {
+  if (chain === "Arc_Testnet") return { time: "about half a second", detail: "Arc Testnet deposits are normally credited almost immediately." };
+  if (chain === "Solana_Devnet") return { time: "about 8 seconds", detail: "Solana Devnet deposits normally need 2 to 3 blocks before Circle credits the balance." };
+  return { time: "about 13 to 19 minutes", detail: `${CHAIN_LABELS[chain]} deposits wait for Ethereum finality before Circle credits the balance.` };
 }
 
 function normalizeProtocolEvent(payload: unknown): ProtocolEvent | null {
@@ -262,6 +281,29 @@ function persistShownSessionEvents(events: Set<string>) {
     window.sessionStorage.setItem("offgrid-shown-session-events", JSON.stringify(Array.from(events).slice(-120)));
   } catch {
     // Notification deduplication is best effort only.
+  }
+}
+
+function pendingCctpStorageKey(userId: string) {
+  return `offgrid-pending-cctp:${userId}`;
+}
+
+function readPendingCctpNotifications(userId: string) {
+  if (typeof window === "undefined") return new Set<string>();
+  try {
+    const value = JSON.parse(window.localStorage.getItem(pendingCctpStorageKey(userId)) || "[]");
+    return new Set<string>(Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function persistPendingCctpNotifications(userId: string, operationIds: Set<string>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(pendingCctpStorageKey(userId), JSON.stringify(Array.from(operationIds).slice(-100)));
+  } catch {
+    // Cross-refresh completion notifications are best effort in privacy-restricted browsers.
   }
 }
 
@@ -1004,7 +1046,7 @@ function CctpOperationsTray({ operations, onRefresh }: { operations: CctpOperati
     <div className="cctp-tray-head"><div><span><Blocks size={15}/><i /></span><div><small>ONCHAIN CCTP TRACKER</small><b>{visible.length} submitted CCTP {visible.length === 1 ? "transfer" : "transfers"} being tracked</b><p>Only source-chain burns appear here. Preflight and wallet errors are never transaction history.</p></div></div><button onClick={onRefresh}><RefreshCw size={12}/> Refresh Status</button></div>
     <div className="cctp-operation-list">{visible.map((operation) => <article className={operation.status} key={operation.id}>
       <ChainLogo chain={operation.sourceChain} size={28}/><div className="cctp-operation-main"><span><b>{displayMoney(operation.amount)} USDC</b><i><ArrowRight size={10}/></i><ChainName chain="Arc_Testnet" size={15}/></span><small>TO {operation.recipientLabel} · {shortAddress(operation.recipientAddress)}</small></div>
-      <div className="cctp-operation-stage"><span><i />{stage(operation.status)}</span><small>{operation.status === "failed" ? cctpStatusDetail(operation) : operation.status === "attesting" ? "Waiting for source confirmation" : operation.status === "minting" ? "Circle is submitting the destination mint" : "Status is stored securely"}</small></div>
+      <div className="cctp-operation-stage"><span><i />{stage(operation.status)}</span><small>{operation.status === "failed" ? cctpStatusDetail(operation) : operation.status === "attesting" ? `Source submitted · ${cctpFinalityEstimate(operation.sourceChain).time}` : operation.status === "minting" ? "Attested · waiting for the Arc mint" : "Status is stored securely"}</small></div>
       {operation.burnExplorerUrl ? <a href={operation.burnExplorerUrl} target="_blank" rel="noreferrer">Source tx <ExternalLink size={11}/></a> : <span className="cctp-no-hash">{shortAddress(operation.burnTxHash!, 6)}</span>}
     </article>)}</div>
   </section>;
@@ -1917,17 +1959,19 @@ export function OffGridDashboard() {
   const solanaAdapterRef = useRef<BrowserSolanaAdapter | null>(null);
   const clientRef = useRef<ArcPayrollClient | null>(null);
   const unsubscribeProgressRef = useRef<(() => void) | null>(null);
+  const unsubscribeCctpSubmissionRef = useRef<(() => void) | null>(null);
   const unsubscribeChainRef = useRef<(() => void) | null>(null);
-  const cctpRunsRef = useRef(new Map<string, { burnCaptured: boolean }>());
+  const cctpRunsRef = useRef(new Map<string, { burnCaptured: boolean; sourceChain: CctpSourceChain }>());
   const activeCctpFormRef = useRef<string | null>(null);
   const knownCctpInvoicesRef = useRef(new Set<string>());
+  const pendingCctpNotificationsRef = useRef(new Set<string>());
   const autoReconnectAttemptedRef = useRef(false);
   const solanaAutoReconnectAttemptedRef = useRef(false);
   const sessionSnapshotRef = useRef<Map<string, string> | null>(null);
   const shownSessionEventsRef = useRef<Set<string>>(new Set());
   const walletMenuRef = useRef<HTMLDivElement>(null);
   const hasLiveSession = paymentSessionsList.some((session) => session.status === "open" || session.status === "ready");
-  const hasPendingCctp = cctpOperations.some((operation) => operation.status !== "confirmed" && operation.status !== "failed");
+  const hasPendingCctp = cctpOperations.some((operation) => isSubmittedCctpOperation(operation) && operation.status !== "confirmed" && operation.status !== "failed");
   const hasPendingFiat = fiatPayouts.some((payout) => payout.status === "submitted" || payout.status === "pending");
   const hasPendingGatewayDeposit = gatewayDeposits.some((deposit) => deposit.status !== "confirmed" && deposit.status !== "failed");
 
@@ -2077,6 +2121,7 @@ export function OffGridDashboard() {
   }, [showWalletMenu]);
   useEffect(() => () => {
     unsubscribeProgressRef.current?.();
+    unsubscribeCctpSubmissionRef.current?.();
     unsubscribeChainRef.current?.();
   }, []);
   useEffect(() => { if (user) api<{ invoices: InvoiceData[] }>("/api/invoices").then(({ invoices }) => setActivity(invoices)).catch(() => undefined); }, [user, invoice]);
@@ -2209,13 +2254,13 @@ export function OffGridDashboard() {
   const requiresSolanaWallet = fundingMethod === "cctp_bridge" && bridgeSourceChain === "Solana_Devnet";
   const displayWalletAddress = walletAddress || user?.walletAddress || "";
   const canReview = fundingMethod === "fiat_bank"
-    ? Boolean(recipient?.id && recipientAddress && Number(amount) >= 2 && Number(amount) <= 10)
+    ? Boolean(recipient?.id && recipientAddress && Number(amount) > 2 && Number(amount) <= 10)
     : Boolean(displayWalletAddress && chainReady && recipientAddress && Number(amount) > 0 && (!requiresSolanaWallet || solanaAddress));
   const available = fundingMethod === "arc_wallet" ? arcBalance : fundingMethod === "unified_balance" ? unifiedBalance : null;
   const insufficientBalance = available !== null && Number(amount) > Number(available);
   const reviewBlockReason = fundingMethod === "fiat_bank"
     ? recipientQuery.trim() && !recipient?.id ? "Choose a registered OffGrid recipient"
-      : amount.trim() && Number(amount) < 2 ? "Circle sandbox bank payments require at least 2.00 USD"
+      : amount.trim() && Number(amount) <= 2 ? "Circle sandbox bank payments must be greater than 2.00 USD"
         : amount.trim() && Number(amount) > 10 ? "Sandbox payments are limited to 10.00 USD"
           : ""
     : !displayWalletAddress ? "Connect an EVM wallet first"
@@ -2316,6 +2361,26 @@ export function OffGridDashboard() {
     try {
       const { operations } = await api<{ operations: CctpOperation[] }>("/api/cctp-operations");
       setCctpOperations(operations);
+      const previouslyPending = user ? readPendingCctpNotifications(user.id) : pendingCctpNotificationsRef.current;
+      for (const operationId of pendingCctpNotificationsRef.current) previouslyPending.add(operationId);
+      const terminal = operations.find((operation) => (operation.status === "confirmed" || operation.status === "failed") && previouslyPending.has(operation.id));
+      if (terminal) {
+        const eventKey = `cctp:${terminal.id}:${terminal.status}`;
+        if (!shownSessionEventsRef.current.has(eventKey)) {
+          shownSessionEventsRef.current.add(eventKey);
+          persistShownSessionEvents(shownSessionEventsRef.current);
+          setSessionNotice({
+            id: terminal.id,
+            title: terminal.status === "confirmed" ? "CCTP Transfer Confirmed" : "CCTP Transfer Needs Attention",
+            detail: terminal.status === "confirmed" ? `${displayMoney(terminal.amount)} USDC reached ${terminal.recipientLabel} on Arc Testnet.` : cctpStatusDetail(terminal),
+          });
+        }
+      }
+      const pending = new Set(operations
+        .filter((operation) => isSubmittedCctpOperation(operation) && operation.status !== "confirmed" && operation.status !== "failed")
+        .map((operation) => operation.id));
+      pendingCctpNotificationsRef.current = pending;
+      if (user) persistPendingCctpNotifications(user.id, pending);
       const invoiceIds = operations.flatMap((operation) => operation.invoiceId ? [operation.invoiceId] : []);
       const hasNewInvoice = invoiceIds.some((id) => !knownCctpInvoicesRef.current.has(id));
       knownCctpInvoicesRef.current = new Set(invoiceIds);
@@ -2356,6 +2421,30 @@ export function OffGridDashboard() {
   async function persistCctpBurn(operationId: string, txHash: string, explorerUrl?: string) {
     const { operation } = await api<{ operation: CctpOperation }>("/api/cctp-operations", { method: "PATCH", body: JSON.stringify({ id: operationId, event: "burn", txHash, explorerUrl }) });
     setCctpOperations((current) => [operation, ...current.filter((entry) => entry.id !== operation.id)]);
+    pendingCctpNotificationsRef.current.add(operation.id);
+    if (user) persistPendingCctpNotifications(user.id, pendingCctpNotificationsRef.current);
+  }
+
+  async function captureCctpBurn(operationId: string, txHash: string, explorerUrl?: string) {
+    const run = cctpRunsRef.current.get(operationId);
+    if (!run || run.burnCaptured) return;
+    run.burnCaptured = true;
+    setPaymentPhase("settlement");
+    try {
+      await persistCctpBurn(operationId, txHash, explorerUrl ?? cctpSourceExplorerUrl(run.sourceChain, txHash));
+      if (activeCctpFormRef.current !== operationId) return;
+      activeCctpFormRef.current = null;
+      resetPayment();
+      setFundingMethod("arc_wallet");
+      setCctpRecoveryNote("Source burn submitted. Circle attestation and the Arc mint will continue here automatically.");
+      openWorkspaceView("history");
+    } catch (error) {
+      run.burnCaptured = false;
+      if (activeCctpFormRef.current === operationId) {
+        setPaymentError(error instanceof Error ? error.message : "Could not save the submitted CCTP burn");
+        setStep("review");
+      }
+    }
   }
 
   async function refreshGatewayDeposits() {
@@ -2382,40 +2471,38 @@ export function OffGridDashboard() {
     finally { setWalletBusy(false); }
   }
 
+  function subscribeToClient(client: ArcPayrollClient) {
+    unsubscribeProgressRef.current?.();
+    unsubscribeCctpSubmissionRef.current?.();
+    unsubscribeCctpSubmissionRef.current = client.onCctpSourceSubmitted(({ traceId, txHash }) => {
+      void captureCctpBurn(traceId, txHash);
+    });
+    unsubscribeProgressRef.current = client.onProgress((payload) => {
+      const cctpAction = getCctpActionEvent(payload);
+      if (cctpAction?.traceId) {
+        const run = cctpRunsRef.current.get(cctpAction.traceId);
+        if (run && cctpAction.method === "burn" && cctpAction.state === "success" && cctpAction.txHash && !run.burnCaptured) {
+          void captureCctpBurn(cctpAction.traceId, cctpAction.txHash, cctpAction.explorerUrl);
+        }
+        if (activeCctpFormRef.current !== cctpAction.traceId) return;
+      }
+      const event = normalizeProtocolEvent(payload);
+      if (!event) return;
+      setProtocolEvents((current) => {
+        const withoutDuplicate = current.filter((item) => item.name.toLowerCase() !== event.name.toLowerCase());
+        return [...withoutDuplicate, event].slice(-6);
+      });
+      if (/approve|burn|attestation|mint/i.test(event.name)) setPaymentPhase("settlement");
+    });
+  }
+
   async function connectWallet(wallet: BrowserWallet) {
     setShowWallets(false); setShowWalletMenu(false); setWalletBusy(true); setWalletError("");
     try {
       const address = await requestWalletAccount(wallet.provider);
       const client = new ArcPayrollClient();
       const adapter = await client.connectEvmWallet(wallet.provider);
-      unsubscribeProgressRef.current?.();
-      unsubscribeProgressRef.current = client.onProgress((payload) => {
-        const cctpAction = getCctpActionEvent(payload);
-        if (cctpAction?.traceId) {
-          const run = cctpRunsRef.current.get(cctpAction.traceId);
-          if (run && cctpAction.method === "burn" && cctpAction.state === "success" && cctpAction.txHash && !run.burnCaptured) {
-            run.burnCaptured = true;
-            const operationId = cctpAction.traceId;
-            void persistCctpBurn(operationId, cctpAction.txHash, cctpAction.explorerUrl).then(() => {
-              if (activeCctpFormRef.current !== operationId) return;
-              activeCctpFormRef.current = null;
-              resetPayment();
-              setFundingMethod("arc_wallet");
-            }).catch((error) => {
-              run.burnCaptured = false;
-              setPaymentError(error instanceof Error ? error.message : "Could not persist CCTP burn status");
-            });
-          }
-          if (activeCctpFormRef.current !== cctpAction.traceId) return;
-        }
-        const event = normalizeProtocolEvent(payload);
-        if (!event) return;
-        setProtocolEvents((current) => {
-          const withoutDuplicate = current.filter((item) => item.name.toLowerCase() !== event.name.toLowerCase());
-          return [...withoutDuplicate, event].slice(-6);
-        });
-        if (/approve|burn|attestation|mint/i.test(event.name)) setPaymentPhase("settlement");
-      });
+      subscribeToClient(client);
       providerRef.current = wallet.provider; adapterRef.current = adapter; clientRef.current = client;
       setWalletAddress(address); setWalletName(wallet.info.name);
       persistWalletProfile(wallet, address);
@@ -2460,6 +2547,8 @@ export function OffGridDashboard() {
       clientRef.current = null;
       unsubscribeProgressRef.current?.();
       unsubscribeProgressRef.current = null;
+      unsubscribeCctpSubmissionRef.current?.();
+      unsubscribeCctpSubmissionRef.current = null;
       unsubscribeChainRef.current?.();
       unsubscribeChainRef.current = null;
       setWalletAddress("");
@@ -2509,6 +2598,7 @@ export function OffGridDashboard() {
 
     const adapter = await client.connectEvmWallet(wallet.provider);
     adapterRef.current = adapter;
+    subscribeToClient(client);
     return { client, adapter };
   }
 
@@ -2605,6 +2695,11 @@ export function OffGridDashboard() {
   }
 
   async function createPaymentSession() {
+    const paymentSessionAmount = Number(sessionAmount);
+    if (sessionIntent === "pay" && sessionRail === "fiat_bank" && (!Number.isFinite(paymentSessionAmount) || paymentSessionAmount <= 2)) {
+      setSessionError("Circle Mint sandbox bank payments must be greater than 2.00 USD");
+      return;
+    }
     setSessionBusy(true); setSessionError("");
     try {
       const response = await api<{ session: PaymentSessionView; inviteToken: string }>("/api/payment-sessions", { method: "POST", body: JSON.stringify({ intent: sessionIntent, rail: sessionRail, amount: sessionAmount, memo: sessionMemo }) });
@@ -2659,7 +2754,7 @@ export function OffGridDashboard() {
     try {
       if (fundingMethod === "fiat_bank") {
         if (!recipient?.id) throw new Error("Choose a registered OffGrid recipient");
-        if (Number(amount) < 2 || Number(amount) > 10) throw new Error("Circle sandbox payments must be between 2.00 and 10.00 USD");
+        if (Number(amount) <= 2 || Number(amount) > 10) throw new Error("Circle sandbox payments must be greater than 2.00 and no more than 10.00 USD");
         const status = await api<{ configured: boolean }>("/api/fiat/status");
         if (!status.configured) throw new Error("Circle sandbox settlement is not configured");
         setPaymentEstimate({ title: "Fiat to Web3 proof route", detail: "Circle records the sandbox wire and deposit before a developer wallet sends testnet USDC to the recipient.", fees: "No real fiat is charged" });
@@ -2770,11 +2865,11 @@ export function OffGridDashboard() {
         paymentSessionToken: activeSessionToken || undefined,
       };
       let operation: CctpOperation | null = null;
-      let run: { burnCaptured: boolean } | null = null;
+      let run: { burnCaptured: boolean; sourceChain: CctpSourceChain } | null = null;
       try {
         const created = await api<{ operation: CctpOperation }>("/api/cctp-operations", { method: "POST", body: JSON.stringify(operationInput) });
         operation = created.operation;
-        run = { burnCaptured: false };
+        run = { burnCaptured: false, sourceChain: bridgeSourceChain };
         cctpRunsRef.current.set(operation.id, run);
         activeCctpFormRef.current = operation.id;
         setCctpOperations((current) => [operation!, ...current.filter((entry) => entry.id !== operation!.id)]);
@@ -2797,6 +2892,8 @@ export function OffGridDashboard() {
           activeCctpFormRef.current = null;
           resetPayment();
           setFundingMethod("arc_wallet");
+          setCctpRecoveryNote("CCTP completed. The source burn and Arc mint are available in History.");
+          openWorkspaceView("history");
         }
         await refreshCctpOperations();
         await loadBalances();
@@ -3010,7 +3107,7 @@ export function OffGridDashboard() {
 
                     <label className="field-label"><span>02</span> HOW MUCH?</label>
                     <div className="amount-field"><i>$</i><input value={amount} readOnly={Boolean(activeSession)} onChange={(event) => { setAmount(event.target.value.replace(/[^0-9.]/g, "")); setPaymentEstimate(null); setGatewayMintRetry(null); setStep("amount"); }} placeholder="0.00" inputMode="decimal" /><b>USDC</b></div>
-                    <div className="available-line"><span>{fundingMethod === "cctp_bridge" ? <><b>Source-chain USDC</b> · validated by App Kit</> : fundingMethod === "fiat_bank" ? <><b>Circle sandbox route</b> · 2.00 to 10.00 USD · no real fiat charged</> : available === null ? <><b>Balance not loaded</b> · App Kit will validate</> : <>Available: <b>{displayMoney(available)} USDC</b></>}</span>{fundingMethod !== "cctp_bridge" && fundingMethod !== "fiat_bank" && <button onClick={() => { if (available) setAmount(available); setGatewayMintRetry(null); setPaymentEstimate(null); }}>MAX</button>}</div>
+                    <div className="available-line"><span>{fundingMethod === "cctp_bridge" ? <><b>Source-chain USDC</b> · validated by App Kit</> : fundingMethod === "fiat_bank" ? <><b>Circle sandbox route</b> · above 2.00 to 10.00 USD · no real fiat charged</> : available === null ? <><b>Balance not loaded</b> · App Kit will validate</> : <>Available: <b>{displayMoney(available)} USDC</b></>}</span>{fundingMethod !== "cctp_bridge" && fundingMethod !== "fiat_bank" && <button onClick={() => { if (available) setAmount(available); setGatewayMintRetry(null); setPaymentEstimate(null); }}>MAX</button>}</div>
 
                     <label className="field-label"><span>03</span> FUND FROM</label>
                     <div className="funding-options">
@@ -3019,7 +3116,7 @@ export function OffGridDashboard() {
                       <button className={fundingMethod === "cctp_bridge" ? "active" : ""} onClick={() => { setFundingMethod("cctp_bridge"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Blocks size={16} /><span><b>CCTP Bridge</b><small>Cross-chain to Arc Testnet</small></span>{fundingMethod === "cctp_bridge" && <Check size={14} />}</button>
                       <button className={fundingMethod === "fiat_bank" ? "active" : ""} onClick={() => { setFundingMethod("fiat_bank"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Banknote size={16} /><span><b>Fiat to Web3</b><small>Circle sandbox + testnet USDC</small></span>{fundingMethod === "fiat_bank" && <Check size={14} />}</button>
                     </div>
-                    <RevealPanel show={fundingMethod === "cctp_bridge"}><div className="cctp-config"><div className="cctp-source-card"><span className="cctp-card-label">SOURCE CHAIN</span><ChainSelect className="cctp-chain-select" value={bridgeSourceChain} chains={CCTP_SOURCE_CHAINS} eyebrow="PAY FROM" onChange={(chain) => { setBridgeSourceChain(chain as CctpSourceChain); setPaymentEstimate(null); }} /><p>USDC balance and native source-chain gas required.</p></div><div className="cctp-route-card"><div className="cctp-protocol-head"><span><Blocks size={15} /></span><div><small>BRIDGE PROTOCOL</small><b>CCTP V2</b></div><em>FORWARDED</em></div><div className="cctp-mini-route"><ChainName chain={bridgeSourceChain} size={15}/><i><ArrowRight size={12} /></i><ChainName chain="Arc_Testnet" size={15}/></div><p><Check size={11} /> Circle Forwarder <i /> fee shown in estimate</p></div></div>{bridgeSourceChain === "Solana_Devnet" && <div className={`solana-source ${solanaAddress ? "connected" : ""}`}><span><ChainLogo chain="Solana_Devnet" size={22}/></span><div><b>{solanaAddress ? `${solanaWalletName} connected` : "Solana signer required"}</b><small>{solanaAddress ? `${shortAddress(solanaAddress, 6)} · ${solanaUsdcBalance === null ? "balance unavailable" : `${displayMoney(solanaUsdcBalance)} USDC`}` : "Phantom · Solflare · Backpack"}</small></div>{solanaAddress ? <Check size={15} /> : <button onClick={() => void beginSolanaConnection()} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={13} /> : "Connect"}</button>}</div>}{solanaError && <p className="inline-error"><CircleAlert size={13} />{solanaError}</p>}</RevealPanel>
+                    <RevealPanel show={fundingMethod === "cctp_bridge"}><div className="cctp-config"><div className="cctp-source-card"><span className="cctp-card-label">SOURCE CHAIN</span><ChainSelect className="cctp-chain-select" value={bridgeSourceChain} chains={CCTP_SOURCE_CHAINS} eyebrow="PAY FROM" onChange={(chain) => { setBridgeSourceChain(chain as CctpSourceChain); setPaymentEstimate(null); }} /><p>USDC balance and native source-chain gas required.</p></div><div className="cctp-route-card"><div className="cctp-protocol-head"><span><Blocks size={15} /></span><div><small>BRIDGE PROTOCOL</small><b>CCTP V2</b></div><em>FORWARDED</em></div><div className="cctp-mini-route"><ChainName chain={bridgeSourceChain} size={15}/><i><ArrowRight size={12} /></i><ChainName chain="Arc_Testnet" size={15}/></div><p><Check size={11} /> Circle Forwarder <i /> fee shown in estimate</p></div></div><div className="cctp-finality-note"><Clock size={15}/><div><b>Expected Confirmation Time</b><p>{cctpFinalityEstimate(bridgeSourceChain).detail} Most transfers finish in <strong>{cctpFinalityEstimate(bridgeSourceChain).time}</strong>. You can leave this page after submitting; History keeps tracking it.</p></div></div>{bridgeSourceChain === "Solana_Devnet" && <div className={`solana-source ${solanaAddress ? "connected" : ""}`}><span><ChainLogo chain="Solana_Devnet" size={22}/></span><div><b>{solanaAddress ? `${solanaWalletName} connected` : "Solana signer required"}</b><small>{solanaAddress ? `${shortAddress(solanaAddress, 6)} · ${solanaUsdcBalance === null ? "balance unavailable" : `${displayMoney(solanaUsdcBalance)} USDC`}` : "Phantom · Solflare · Backpack"}</small></div>{solanaAddress ? <Check size={15} /> : <button onClick={() => void beginSolanaConnection()} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={13} /> : "Connect"}</button>}</div>}{solanaError && <p className="inline-error"><CircleAlert size={13} />{solanaError}</p>}</RevealPanel>
 
                     <label className="field-label optional"><span>04</span> MEMO <em>OPTIONAL</em></label>
                     <input className="memo-input" value={memo} readOnly={Boolean(activeSession)} onChange={(event) => setMemo(event.target.value)} maxLength={180} placeholder="What is this payment for?" />
@@ -3177,7 +3274,7 @@ export function OffGridDashboard() {
 
       {showLogoutConfirm && <div className="overlay modal-layer-top"><article className="logout-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="logout-confirm-title"><button className="modal-x" onClick={() => setShowLogoutConfirm(false)} aria-label="Close sign out confirmation"><X size={18}/></button><span className="logout-confirm-icon"><LogOut size={20}/></span><span className="section-tag">ACCOUNT SESSION</span><h2 id="logout-confirm-title">Sign out of OffGrid?</h2><p>Your account session will end on this device. Your wallets remain self-custodied and will not be disconnected from their browser extensions.</p><div className="logout-confirm-actions"><button type="button" className="quiet-confirm-button" onClick={() => setShowLogoutConfirm(false)}>Stay Signed In</button><button type="button" className="danger-confirm-button" onClick={() => { setShowLogoutConfirm(false); void logout(); }}><LogOut size={15}/> Sign Out</button></div></article></div>}
 
-      {showSessionCreator && <div className="overlay"><article className="session-create-modal"><button className="modal-x" onClick={() => setShowSessionCreator(false)}><X size={18} /></button><span className="section-tag">PRIVATE PAYMENT SESSION</span>{createdSessionLink ? <><h2>Your payment window is live.</h2><p>Send this capability link to exactly one person. The first authenticated account to accept becomes the counterparty.</p><div className="created-session-link"><LockKeyhole size={15} /><span>{createdSessionLink}</span></div><button className="neon-button" onClick={copyCreatedSession}><Copy size={15} />{sessionLinkCopied ? "Link copied" : "Copy secure link"}</button><a className="open-session-link" href={createdSessionLink}>Open payment window <ExternalLink size={12} /></a></> : <><h2>Who moves the money?</h2><p>Set immutable starting terms. The other participant chooses their own rail after opening the link.</p><label>Your role<div className="intent-options"><button className={sessionIntent === "pay" ? "active" : ""} onClick={() => setSessionIntent("pay")}><ArrowUpRight size={15} /><span><b>I want to pay</b><small>The invitee receives</small></span>{sessionIntent === "pay" && <Check size={14} />}</button><button className={sessionIntent === "receive" ? "active" : ""} onClick={() => setSessionIntent("receive")}><ArrowDownToLine size={15} /><span><b>I want to receive</b><small>The invitee pays</small></span>{sessionIntent === "receive" && <Check size={14} />}</button></div></label><label>Your preferred rail<div className="intent-options"><button className={sessionRail === "web3_usdc" ? "active" : ""} onClick={() => setSessionRail("web3_usdc")}><Wallet size={15} /><span><b>Web3 USDC</b><small>Direct · Gateway · CCTP</small></span>{sessionRail === "web3_usdc" && <Check size={14} />}</button><button className={sessionRail === "fiat_bank" ? "active" : ""} onClick={() => setSessionRail("fiat_bank")}><Banknote size={15} /><span><b>Bank / fiat</b><small>Sandbox provider stages</small></span>{sessionRail === "fiat_bank" && <Check size={14} />}</button></div></label>{sessionRail === "fiat_bank" && <div className="session-rail-advisory"><CircleAlert size={14} /><p><b>Provider-orchestrated rail</b><span>A session stays pending until Circle records every deposit, transfer, or payout stage. Sandbox bank funding requires at least 2.00 USD.</span></p></div>}<label>Amount<div className="fund-amount"><input value={sessionAmount} onChange={(event) => setSessionAmount(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" /><span>USDC / USD</span></div></label>{sessionIntent === "pay" && sessionRail === "fiat_bank" && Number(sessionAmount) > 0 && Number(sessionAmount) < 2 && <p className="inline-error"><CircleAlert size={13} />Circle Mint sandbox bank payments require at least 2.00 USD</p>}<label>Memo <em>OPTIONAL</em><input className="session-memo-input" value={sessionMemo} onChange={(event) => setSessionMemo(event.target.value)} maxLength={180} placeholder="August payroll, design retainer…" /></label>{sessionError && <p className="inline-error"><CircleAlert size={13} />{sessionError}</p>}<button className="neon-button" onClick={createPaymentSession} disabled={sessionBusy || (sessionIntent === "pay" && sessionRail === "fiat_bank" && Number(sessionAmount) > 0 && Number(sessionAmount) < 2)}>{sessionBusy ? <LoaderCircle className="spin" size={15} /> : <LockKeyhole size={15} />} Create immutable session</button></>}</article></div>}
+      {showSessionCreator && <div className="overlay"><article className="session-create-modal"><button className="modal-x" onClick={() => setShowSessionCreator(false)}><X size={18} /></button><span className="section-tag">PRIVATE PAYMENT SESSION</span>{createdSessionLink ? <><h2>Your payment window is live.</h2><p>Send this capability link to exactly one person. The first authenticated account to accept becomes the counterparty.</p><div className="created-session-link"><LockKeyhole size={15} /><span>{createdSessionLink}</span></div><button className="neon-button" onClick={copyCreatedSession}><Copy size={15} />{sessionLinkCopied ? "Link copied" : "Copy secure link"}</button><a className="open-session-link" href={createdSessionLink}>Open payment window <ExternalLink size={12} /></a></> : <><h2>Who moves the money?</h2><p>Set immutable starting terms. The other participant chooses their own rail after opening the link.</p><label>Your role<div className="intent-options"><button className={sessionIntent === "pay" ? "active" : ""} onClick={() => setSessionIntent("pay")}><ArrowUpRight size={15} /><span><b>I want to pay</b><small>The invitee receives</small></span>{sessionIntent === "pay" && <Check size={14} />}</button><button className={sessionIntent === "receive" ? "active" : ""} onClick={() => setSessionIntent("receive")}><ArrowDownToLine size={15} /><span><b>I want to receive</b><small>The invitee pays</small></span>{sessionIntent === "receive" && <Check size={14} />}</button></div></label><label>Your preferred rail<div className="intent-options"><button className={sessionRail === "web3_usdc" ? "active" : ""} onClick={() => setSessionRail("web3_usdc")}><Wallet size={15} /><span><b>Web3 USDC</b><small>Direct · Gateway · CCTP</small></span>{sessionRail === "web3_usdc" && <Check size={14} />}</button><button className={sessionRail === "fiat_bank" ? "active" : ""} onClick={() => setSessionRail("fiat_bank")}><Banknote size={15} /><span><b>Bank / fiat</b><small>Sandbox provider stages</small></span>{sessionRail === "fiat_bank" && <Check size={14} />}</button></div></label>{sessionRail === "fiat_bank" && <div className="session-rail-advisory"><CircleAlert size={14} /><p><b>Provider-orchestrated rail</b><span>A session stays pending until Circle records every deposit, transfer, or payout stage. Sandbox bank funding must be greater than 2.00 USD.</span></p></div>}<label>Amount<div className="fund-amount"><input value={sessionAmount} onChange={(event) => setSessionAmount(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" /><span>USDC / USD</span></div></label>{sessionIntent === "pay" && sessionRail === "fiat_bank" && Number(sessionAmount) > 0 && Number(sessionAmount) <= 2 && <p className="inline-error"><CircleAlert size={13} />Circle Mint sandbox bank payments must be greater than 2.00 USD</p>}<label>Memo <em>OPTIONAL</em><input className="session-memo-input" value={sessionMemo} onChange={(event) => setSessionMemo(event.target.value)} maxLength={180} placeholder="August payroll, design retainer…" /></label>{sessionError && <p className="inline-error"><CircleAlert size={13} />{sessionError}</p>}<button className="neon-button" onClick={createPaymentSession} disabled={sessionBusy || (sessionIntent === "pay" && sessionRail === "fiat_bank" && (!Number.isFinite(Number(sessionAmount)) || Number(sessionAmount) <= 2))}>{sessionBusy ? <LoaderCircle className="spin" size={15} /> : <LockKeyhole size={15} />} Create immutable session</button></>}</article></div>}
 
       {showLiveSessionsModal && (
         <div className="overlay">
@@ -3408,7 +3505,7 @@ export function OffGridDashboard() {
         <button className="neon-button" onClick={depositToGateway} disabled={depositBusy || !walletAddress || !(Number(depositAmount) > 0) || (depositChain === "Solana_Devnet" && !solanaAddress)}>{depositBusy ? <LoaderCircle className="spin" size={17} /> : <ArrowDownToLine size={17} />} {depositBusy ? "Confirm in wallet..." : "Review deposit in wallet"}</button>
         {depositError && <div className="funding-error" role="alert"><CircleAlert size={16}/><div><b>Deposit was not submitted</b><p>{depositError}</p></div></div>}
         {solanaError && <div className="funding-error" role="alert"><CircleAlert size={16}/><div><b>Solana connection needs attention</b><p>{describeSolanaReadIssue(solanaError)}</p></div></div>}
-        <small><ShieldCheck size={12} /> Base, Arbitrum, and Ethereum deposits require about 13 to 19 minutes of finality before Circle credits the balance.</small>
+        <div className="gateway-finality-note"><ShieldCheck size={15}/><div><b>Expected Credit Time</b><p>{gatewayFinalityEstimate(depositChain).detail} Expected wait: <strong>{gatewayFinalityEstimate(depositChain).time}</strong>.</p></div></div>
       </article></div>}
 
       {showOnRamp && <FiatOnRampModal onClose={() => setShowOnRamp(false)} walletAddress={displayWalletAddress} onSuccess={() => { void loadBalances(); void refreshCurrentUser(); }} />}

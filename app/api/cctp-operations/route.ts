@@ -188,6 +188,7 @@ export async function PATCH(request: Request) {
       if (event === "burn") {
         const txHash = String(body.txHash ?? "");
         if (!isSourceTransactionHash(entry.sourceChain, txHash)) throw new Error("Invalid source burn transaction hash");
+        if (entry.burnTxHash && entry.burnTxHash.toLowerCase() !== txHash.toLowerCase()) throw new Error("This CCTP operation already has a different source burn");
         entry.burnTxHash = txHash;
         entry.burnExplorerUrl = typeof body.explorerUrl === "string" && /^https:\/\//.test(body.explorerUrl) ? body.explorerUrl.slice(0, 300) : null;
         if (entry.status !== "confirmed") entry.status = "attesting";

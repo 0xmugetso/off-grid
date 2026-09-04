@@ -56,8 +56,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
         if (session.counterpartyId && session.counterpartyId !== current.id) throw new Error("This invite has already been claimed");
         if (body.rail !== "web3_usdc" && body.rail !== "fiat_bank") throw new Error("Choose a payment rail");
         if (body.rail === "web3_usdc" && !current.walletAddress) throw new Error("Connect and bind your wallet before choosing Web3 USDC");
-        if (session.creatorIntent === "receive" && body.rail === "fiat_bank" && parseUsdc(session.amount) < CIRCLE_MINT_SANDBOX_WIRE_MINIMUM) {
-          throw new Error("Circle Mint sandbox bank payments require at least 2.00 USD. Ask the creator for a new session or choose Web3 USDC.");
+        if (session.creatorIntent === "receive" && body.rail === "fiat_bank" && parseUsdc(session.amount) <= CIRCLE_MINT_SANDBOX_WIRE_MINIMUM) {
+          throw new Error("Circle Mint sandbox bank payments must be greater than 2.00 USD. Ask the creator for a new session or choose Web3 USDC.");
         }
         session.counterpartyId = current.id;
         session.counterpartyRail = body.rail as PaymentRail;

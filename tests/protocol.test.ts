@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { EIP1193Provider } from "viem";
 import { ARC, CCTP_TESTNET_DOMAINS, assertPaymentDecimals } from "../lib/arc/config";
 import { ensureArcTestnet } from "../lib/arc/browser-wallet";
-import { getArcMintStep, validateMassPayouts } from "../lib/arc/app-kit-client";
+import { getArcMintStep, isCctpBurnSubmissionData, validateMassPayouts } from "../lib/arc/app-kit-client";
 import type { BridgeResult } from "@circle-fin/app-kit";
 import { createInviteToken, hashInviteToken, paymentParties } from "../lib/payment-session-security";
 import type { StoredPaymentSession } from "../lib/server/store";
@@ -74,6 +74,12 @@ describe("CCTP receipt selection", () => {
 
     expect(getArcMintStep(result)?.name).toBe("Mint");
     expect(getArcMintStep(result)?.txHash).toBe(`0x${"2".repeat(64)}`);
+  });
+
+  it("captures a submitted CCTP burn without mistaking its approval transaction for the burn", () => {
+    expect(isCctpBurnSubmissionData(`0x095ea7b3${"0".repeat(128)}`)).toBe(false);
+    expect(isCctpBurnSubmissionData(`0x6fd3504e${"0".repeat(128)}`)).toBe(true);
+    expect(isCctpBurnSubmissionData("0x")).toBe(false);
   });
 
   it("persists both EVM hashes and Solana transaction signatures", () => {

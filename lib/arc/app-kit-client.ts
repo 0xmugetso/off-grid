@@ -19,6 +19,7 @@ import type { SolanaWalletProvider } from "./solana-wallet";
 import { formatUsdc, parseUsdc } from "../money";
 
 export type ArcEventListener = (payload: unknown) => void;
+export type CctpSourceSubmission = { traceId: string; txHash: string };
 export type CircleAdapter = AdapterContext["adapter"];
 // The factory preserves the literal readonly supported-chain tuple in its
 // generic result, so the UI boundary intentionally erases only that tuple.
@@ -134,7 +135,13 @@ const PUBLIC_RPC_METHODS = new Set([
   "eth_maxPriorityFeePerGas",
 ]);
 
-function withReliablePublicReads(provider: EIP1193Provider): EIP1193Provider {
+const ERC20_APPROVE_SELECTOR = "0x095ea7b3";
+
+export function isCctpBurnSubmissionData(data: string) {
+  return /^0x[a-fA-F0-9]{8,}$/.test(data) && !data.toLowerCase().startsWith(ERC20_APPROVE_SELECTOR);
+}
+
+function withReliablePublicReads(provider: EIP1193Provider, onTransactionSubmitted?: (txHash: string, data: string) => void): EIP1193Provider {
   return {
     on: provider.on.bind(provider),
     removeListener: provider.removeListener.bind(provider),
@@ -172,7 +179,12 @@ function withReliablePublicReads(provider: EIP1193Provider): EIP1193Provider {
           }
           prepared.chainId ??= `0x${chain.id.toString(16)}`;
 
-          return provider.request({ ...request, params: [prepared, ...params.slice(1)] } as Parameters<EIP1193Provider["request"]>[0]);
+          const result = await provider.request({ ...request, params: [prepared, ...params.slice(1)] } as Parameters<EIP1193Provider["request"]>[0]);
+          const data = typeof prepared.data === "string" ? prepared.data : "";
+          if (typeof result === "string" && /^0x[a-fA-F0-9]{64}$/.test(result) && isCctpBurnSubmissionData(data)) {
+            onTransactionSubmitted?.(result, data);
+          }
+          return result;
         }
       }
 
@@ -213,15 +225,29 @@ export function validateMassPayouts(payouts: MassPayout[]) {
  */
 export class ArcPayrollClient {
   private readonly kit = new AppKit({ disableErrorReporting: true });
+  private readonly cctpSubmissionListeners = new Set<(submission: CctpSourceSubmission) => void>();
+  private activeCctpTraceId: string | null = null;
 
   onProgress(listener: ArcEventListener) {
     this.kit.on("*", listener);
     return () => this.kit.off("*", listener);
   }
 
+  onCctpSourceSubmitted(listener: (submission: CctpSourceSubmission) => void) {
+    this.cctpSubmissionListeners.add(listener);
+    return () => this.cctpSubmissionListeners.delete(listener);
+  }
+
+  private captureCctpSourceSubmission(txHash: string) {
+    const traceId = this.activeCctpTraceId;
+    if (!traceId) return;
+    this.activeCctpTraceId = null;
+    for (const listener of this.cctpSubmissionListeners) listener({ traceId, txHash });
+  }
+
   connectEvmWallet(provider: EIP1193Provider) {
     return createViemAdapterFromProvider({
-      provider: withReliablePublicReads(provider),
+      provider: withReliablePublicReads(provider, (txHash) => this.captureCctpSourceSubmission(txHash)),
       // Public reads must stay chain-specific because App Kit can query several
       // chains without moving the wallet away from the user's signing chain.
       getPublicClient: ({ chain }) => createPublicClient({
@@ -427,6 +453,7 @@ export class ArcPayrollClient {
   }
 
   bridgeToArc(sourceAdapter: CircleAdapter, sourceChain: CctpSourceChain, recipientAddress: string, amount: string, traceId: string) {
+    this.activeCctpTraceId = traceId;
     return this.kit.bridge({
       from: { adapter: sourceAdapter, chain: sourceChain },
       to: { chain: "Arc_Testnet", recipientAddress, useForwarder: true },
@@ -434,7 +461,12 @@ export class ArcPayrollClient {
       token: "USDC",
       invocationMeta: { traceId, callers: [{ type: "app", name: "OffGrid", version: "0.1.0" }] },
       // Standard CCTPv2 uses hard finality; Circle Forwarder completes the Arc mint.
-      config: { transferSpeed: "SLOW" },
+      // Sequential EVM execution exposes the source burn hash as soon as the
+      // wallet submits it, allowing the UI to hand long attestation/mint work
+      // to the persisted History tracker instead of holding the payment form.
+      config: { transferSpeed: "SLOW", batchTransactions: false },
+    }).finally(() => {
+      if (this.activeCctpTraceId === traceId) this.activeCctpTraceId = null;
     });
   }
 

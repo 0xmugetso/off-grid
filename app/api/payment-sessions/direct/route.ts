@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       memo?: string;
     };
     const amount = parseUsdc(String(body.amount ?? ""));
-    if (amount < CIRCLE_MINT_SANDBOX_WIRE_MINIMUM) throw new Error("Circle Mint sandbox bank payments require at least 2.00 USD");
+    if (amount <= CIRCLE_MINT_SANDBOX_WIRE_MINIMUM) throw new Error("Circle Mint sandbox bank payments must be greater than 2.00 USD");
     if (amount > maximumSandboxAmount()) throw new Error(`Sandbox payments are limited to ${formatUsdc(maximumSandboxAmount())} USD`);
     if (!body.recipientUserId) throw new Error("Choose a registered OffGrid recipient");
 

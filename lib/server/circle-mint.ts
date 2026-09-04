@@ -296,8 +296,8 @@ export async function getCircleMintSandboxWireInstructions(bankAccountId: string
 }
 
 export async function createCircleMintSandboxMockWirePayment(input: { bankAccountId: string; amount: string; memo?: string }) {
-  if (parseUsdc(input.amount) < CIRCLE_MINT_SANDBOX_WIRE_MINIMUM) {
-    throw new Error("Circle Mint sandbox bank payments require at least 2.00 USD. Create a new session for 2.00 USD or more.");
+  if (parseUsdc(input.amount) <= CIRCLE_MINT_SANDBOX_WIRE_MINIMUM) {
+    throw new Error("Circle Mint sandbox bank payments must be greater than 2.00 USD. Create a new session above 2.00 USD.");
   }
   const instructions = await getCircleMintSandboxWireInstructions(input.bankAccountId);
   const trackingRef = instructions.data?.trackingRef;
