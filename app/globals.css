@@ -4290,6 +4290,7 @@ html[data-theme="light"] .neon-button.pay-now.is-loading:disabled {
 }
 .neon-button > * { position:relative; z-index:1; }
 .neon-button:hover:not(:disabled) {
+  color:#091006;
   background:
     linear-gradient(#dcff7f,#c2f842) padding-box,
     linear-gradient(110deg,var(--acid),var(--cyan),var(--acid)) border-box;
