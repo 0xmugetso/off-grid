@@ -49,7 +49,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { createPublicClient, encodeFunctionData, http, isAddress, parseUnits } from "viem";
 import { arcTestnet } from "viem/chains";
@@ -1786,6 +1786,41 @@ function EscrowView({ walletAddress, arcBalance, onConnect, onRefresh }: { walle
   </section>;
 }
 
+function RevealPanel({ show, children }: { show: boolean; children: ReactNode }) {
+  const [mounted, setMounted] = useState(show);
+  const [visible, setVisible] = useState(show);
+
+  useEffect(() => {
+    let firstFrame = 0;
+    let secondFrame = 0;
+    let unmountTimer = 0;
+
+    if (show) {
+      setMounted(true);
+      firstFrame = window.requestAnimationFrame(() => {
+        secondFrame = window.requestAnimationFrame(() => setVisible(true));
+      });
+    } else {
+      setVisible(false);
+      unmountTimer = window.setTimeout(() => setMounted(false), 240);
+    }
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+      window.clearTimeout(unmountTimer);
+    };
+  }, [show]);
+
+  if (!mounted) return null;
+
+  return (
+    <div className={`funding-detail-transition ${visible ? "is-visible" : "is-hiding"}`} aria-hidden={!show}>
+      <div className="funding-detail-transition-inner">{children}</div>
+    </div>
+  );
+}
+
 export function OffGridDashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [booting, setBooting] = useState(true);
@@ -2978,7 +3013,7 @@ export function OffGridDashboard() {
                       <button className={fundingMethod === "cctp_bridge" ? "active" : ""} onClick={() => { setFundingMethod("cctp_bridge"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Blocks size={16} /><span><b>CCTP Bridge</b><small>Cross-chain to Arc Testnet</small></span>{fundingMethod === "cctp_bridge" && <Check size={14} />}</button>
                       <button className={fundingMethod === "fiat_bank" ? "active" : ""} onClick={() => { setFundingMethod("fiat_bank"); setPaymentEstimate(null); setGatewayMintRetry(null); }}><Banknote size={16} /><span><b>Fiat to Web3</b><small>Circle sandbox + testnet USDC</small></span>{fundingMethod === "fiat_bank" && <Check size={14} />}</button>
                     </div>
-                    {fundingMethod === "cctp_bridge" && <><div className="cctp-config"><div className="cctp-source-card"><span className="cctp-card-label">SOURCE CHAIN</span><ChainSelect className="cctp-chain-select" value={bridgeSourceChain} chains={CCTP_SOURCE_CHAINS} eyebrow="PAY FROM" onChange={(chain) => { setBridgeSourceChain(chain as CctpSourceChain); setPaymentEstimate(null); }} /><p>USDC balance and native source-chain gas required.</p></div><div className="cctp-route-card"><div className="cctp-protocol-head"><span><Blocks size={15} /></span><div><small>BRIDGE PROTOCOL</small><b>CCTP V2</b></div><em>FORWARDED</em></div><div className="cctp-mini-route"><ChainName chain={bridgeSourceChain} size={15}/><i><ArrowRight size={12} /></i><ChainName chain="Arc_Testnet" size={15}/></div><p><Check size={11} /> Circle Forwarder <i /> fee shown in estimate</p></div></div>{bridgeSourceChain === "Solana_Devnet" && <div className={`solana-source ${solanaAddress ? "connected" : ""}`}><span><ChainLogo chain="Solana_Devnet" size={22}/></span><div><b>{solanaAddress ? `${solanaWalletName} connected` : "Solana signer required"}</b><small>{solanaAddress ? `${shortAddress(solanaAddress, 6)} · ${solanaUsdcBalance === null ? "balance unavailable" : `${displayMoney(solanaUsdcBalance)} USDC`}` : "Phantom · Solflare · Backpack"}</small></div>{solanaAddress ? <Check size={15} /> : <button onClick={() => void beginSolanaConnection()} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={13} /> : "Connect"}</button>}</div>}{solanaError && <p className="inline-error"><CircleAlert size={13} />{solanaError}</p>}</>}
+                    <RevealPanel show={fundingMethod === "cctp_bridge"}><div className="cctp-config"><div className="cctp-source-card"><span className="cctp-card-label">SOURCE CHAIN</span><ChainSelect className="cctp-chain-select" value={bridgeSourceChain} chains={CCTP_SOURCE_CHAINS} eyebrow="PAY FROM" onChange={(chain) => { setBridgeSourceChain(chain as CctpSourceChain); setPaymentEstimate(null); }} /><p>USDC balance and native source-chain gas required.</p></div><div className="cctp-route-card"><div className="cctp-protocol-head"><span><Blocks size={15} /></span><div><small>BRIDGE PROTOCOL</small><b>CCTP V2</b></div><em>FORWARDED</em></div><div className="cctp-mini-route"><ChainName chain={bridgeSourceChain} size={15}/><i><ArrowRight size={12} /></i><ChainName chain="Arc_Testnet" size={15}/></div><p><Check size={11} /> Circle Forwarder <i /> fee shown in estimate</p></div></div>{bridgeSourceChain === "Solana_Devnet" && <div className={`solana-source ${solanaAddress ? "connected" : ""}`}><span><ChainLogo chain="Solana_Devnet" size={22}/></span><div><b>{solanaAddress ? `${solanaWalletName} connected` : "Solana signer required"}</b><small>{solanaAddress ? `${shortAddress(solanaAddress, 6)} · ${solanaUsdcBalance === null ? "balance unavailable" : `${displayMoney(solanaUsdcBalance)} USDC`}` : "Phantom · Solflare · Backpack"}</small></div>{solanaAddress ? <Check size={15} /> : <button onClick={() => void beginSolanaConnection()} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={13} /> : "Connect"}</button>}</div>}{solanaError && <p className="inline-error"><CircleAlert size={13} />{solanaError}</p>}</RevealPanel>
 
                     <label className="field-label optional"><span>04</span> MEMO <em>OPTIONAL</em></label>
                     <input className="memo-input" value={memo} readOnly={Boolean(activeSession)} onChange={(event) => setMemo(event.target.value)} maxLength={180} placeholder="What is this payment for?" />
