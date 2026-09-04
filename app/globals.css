@@ -4250,7 +4250,31 @@ html[data-theme="light"] .arc-chain-logo { color:#111814; }
     linear-gradient(110deg,var(--acid),var(--cyan),var(--acid)) border-box;
   box-shadow:0 9px 28px rgba(199,255,61,.14),inset 0 1px rgba(255,255,255,.48);
 }
-.neon-button.pay-now :is(.pay-now-leading,.pay-now-label,.pay-now-end) { color:#091006; }
+.neon-button.pay-now :is(.pay-now-leading,.pay-now-label,.pay-now-end) { color:inherit; }
+.neon-button.pay-now:disabled {
+  opacity:1;
+  border-color:#2a3126;
+  color:#70796a;
+  background:linear-gradient(115deg,#1a1f17,#131612);
+  box-shadow:inset 0 1px rgba(255,255,255,.025);
+}
+.neon-button.pay-now.is-loading:disabled {
+  color:#aeb8a4;
+  border-color:#35402e;
+  background:linear-gradient(115deg,#20271b,#171c15);
+  box-shadow:inset 0 1px rgba(255,255,255,.035),0 8px 22px rgba(0,0,0,.16);
+}
+html[data-theme="light"] .neon-button.pay-now:disabled {
+  border-color:#c6cec8;
+  color:#78817b;
+  background:linear-gradient(115deg,#e4e8e5,#d9dfdb);
+  box-shadow:inset 0 1px rgba(255,255,255,.72);
+}
+html[data-theme="light"] .neon-button.pay-now.is-loading:disabled {
+  border-color:#aebdb3;
+  color:#4f6257;
+  background:linear-gradient(115deg,#dce5df,#cdd9d1);
+}
 .neon-button::after {
   content:"";
   position:absolute;
