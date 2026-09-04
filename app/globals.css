@@ -323,6 +323,7 @@ body:has(.auth-shell) { overflow: hidden; }
 .funding-detail-transition { display:grid; grid-template-rows:0fr; opacity:0; transform:translateY(-5px); transition:grid-template-rows .24s cubic-bezier(.22,.75,.25,1),opacity .18s ease,transform .24s cubic-bezier(.22,.75,.25,1); }
 .funding-detail-transition.is-visible { grid-template-rows:1fr; opacity:1; transform:translateY(0); }
 .funding-detail-transition-inner { min-height:0; overflow:hidden; }
+.funding-detail-transition.is-settled .funding-detail-transition-inner { overflow:visible; }
 .cctp-config { margin-top: 8px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
 .cctp-source-card, .cctp-route-card { min-width: 0; min-height: 112px; padding: 11px; border: 1px solid rgba(255,255,255,.095); border-radius: 8px; background: radial-gradient(circle at 88% 12%,rgba(199,255,61,.025),transparent 30%),linear-gradient(145deg,#111411,#090b0a 72%); box-shadow: inset 0 1px rgba(255,255,255,.025),0 9px 24px rgba(0,0,0,.16); position: relative; overflow: hidden; }.cctp-source-card { display: block; }.cctp-source-card::after,.cctp-route-card::after { display: none; }
 .cctp-card-label { color: var(--acid); font: 700 6px var(--mono); letter-spacing: .11em; }.cctp-select-shell { height: 47px; margin-top: 8px; padding: 0 9px; border: 1px solid var(--line-bright); border-radius: 6px; background: #090c09; display: flex; align-items: center; gap: 8px; transition: border-color .18s, box-shadow .18s; }.cctp-select-shell:focus-within { border-color: rgba(199,255,61,.38); box-shadow: 0 0 0 3px rgba(199,255,61,.04); }.cctp-chain-icon { width: 28px; height: 28px; flex: 0 0 auto; border-radius: 6px; color: var(--acid); background: rgba(199,255,61,.055); display: grid; place-items: center; }.cctp-select-shell > div { min-width: 0; flex: 1; display: flex; flex-direction: column; }.cctp-select-shell small { color: var(--faint); font: 5px var(--mono); letter-spacing: .1em; }.cctp-select-shell select { width: 100%; margin-top: 2px; padding: 0; border: 0; outline: 0; appearance: none; background: transparent; color: var(--ink); font-size: 8px; cursor: pointer; }.cctp-select-shell > svg { color: var(--faint); pointer-events: none; }.cctp-source-card > p { margin: 7px 1px 0; color: #717972; font-size: 6px; line-height: 1.35; }
@@ -4243,11 +4244,13 @@ html[data-theme="light"] .arc-chain-logo { color:#111814; }
   isolation:isolate;
   overflow:hidden;
   border:1px solid transparent;
+  color:#091006;
   background:
     linear-gradient(#d2ff62,#b9f52e) padding-box,
     linear-gradient(110deg,var(--acid),var(--cyan),var(--acid)) border-box;
   box-shadow:0 9px 28px rgba(199,255,61,.14),inset 0 1px rgba(255,255,255,.48);
 }
+.neon-button.pay-now :is(.pay-now-leading,.pay-now-label,.pay-now-end) { color:#091006; }
 .neon-button::after {
   content:"";
   position:absolute;

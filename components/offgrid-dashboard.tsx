@@ -1789,18 +1789,23 @@ function EscrowView({ walletAddress, arcBalance, onConnect, onRefresh }: { walle
 function RevealPanel({ show, children }: { show: boolean; children: ReactNode }) {
   const [mounted, setMounted] = useState(show);
   const [visible, setVisible] = useState(show);
+  const [settled, setSettled] = useState(show);
 
   useEffect(() => {
     let firstFrame = 0;
     let secondFrame = 0;
+    let settleTimer = 0;
     let unmountTimer = 0;
 
     if (show) {
       setMounted(true);
+      setSettled(false);
       firstFrame = window.requestAnimationFrame(() => {
         secondFrame = window.requestAnimationFrame(() => setVisible(true));
       });
+      settleTimer = window.setTimeout(() => setSettled(true), 260);
     } else {
+      setSettled(false);
       setVisible(false);
       unmountTimer = window.setTimeout(() => setMounted(false), 240);
     }
@@ -1808,6 +1813,7 @@ function RevealPanel({ show, children }: { show: boolean; children: ReactNode })
     return () => {
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(secondFrame);
+      window.clearTimeout(settleTimer);
       window.clearTimeout(unmountTimer);
     };
   }, [show]);
@@ -1815,7 +1821,7 @@ function RevealPanel({ show, children }: { show: boolean; children: ReactNode })
   if (!mounted) return null;
 
   return (
-    <div className={`funding-detail-transition ${visible ? "is-visible" : "is-hiding"}`} aria-hidden={!show}>
+    <div className={`funding-detail-transition ${visible ? "is-visible" : "is-hiding"} ${settled ? "is-settled" : ""}`} aria-hidden={!show}>
       <div className="funding-detail-transition-inner">{children}</div>
     </div>
   );
