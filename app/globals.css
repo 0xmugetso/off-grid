@@ -766,6 +766,21 @@ html[data-theme="light"] .history-proof-summary span,html[data-theme="light"] .h
 html[data-theme="light"] .history-proof-refresh { border-color: rgba(21,135,91,.17); background: rgba(21,135,91,.05); color: #156e57; }
 html[data-theme="light"] .history-proof-refresh:hover { color: #0f5f4b; border-color: rgba(21,135,91,.3); }
 
+.history-transfer-proof { width:min(560px,100%); padding:22px; gap:14px; }
+.history-transfer-proof .history-proof-head { padding:0; display:grid; grid-template-columns:minmax(0,1fr) 34px; align-items:start; gap:18px; }
+.history-transfer-proof .history-proof-copy { min-width:0; display:grid; gap:7px; }
+.history-transfer-proof .history-proof-copy .section-tag { margin:0; }
+.history-transfer-proof .history-proof-copy h2 { margin:0; max-width:430px; line-height:1.08; }
+.history-transfer-proof .history-proof-copy p { margin:0; max-width:445px; color:var(--muted); font-size:10px; line-height:1.5; }
+.history-transfer-proof .modal-x { position:static; width:34px; height:34px; }
+.history-transfer-proof .history-proof-actions { min-height:48px; padding:8px; border:1px solid var(--line); border-radius:8px; background:rgba(255,255,255,.018); display:flex; align-items:center; justify-content:flex-end; gap:8px; }
+.history-transfer-proof .history-proof-actions > * { min-height:32px; margin:0; }
+.history-transfer-proof .history-proof-summary { margin:0; }
+.history-transfer-proof .history-proof-step > div { min-width:0; }
+.history-transfer-proof .history-proof-step code { max-width:100%; overflow-wrap:anywhere; word-break:break-word; }
+html[data-theme="light"] .history-transfer-proof .history-proof-actions { border-color:var(--line-bright); background:rgba(255,255,255,.54); }
+@media(max-width:600px){.history-transfer-proof{padding:18px}.history-transfer-proof .history-proof-actions{display:grid;grid-template-columns:1fr}.history-transfer-proof .history-proof-actions>*{width:100%}.history-transfer-proof .history-proof-summary{grid-template-columns:1fr}.history-transfer-proof .history-proof-step{grid-template-columns:28px minmax(0,1fr) 16px}}
+
 /* Faucet Dropdown & Header Additions */
 .faucet-shell { position: relative; display: inline-block; }
 .faucet-menu { position: absolute; top: calc(100% + 6px); right: 0; min-width: 230px; padding: 6px; border: 1px solid var(--line-bright); border-radius: 8px; background: var(--panel); box-shadow: 0 16px 38px rgba(0,0,0,.5); z-index: 100; display: flex; flex-direction: column; gap: 4px; animation: soft-reveal .18s ease; }

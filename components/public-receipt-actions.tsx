@@ -27,9 +27,7 @@ export function PublicReceiptActions({ explorerUrl }: { explorerUrl: string }) {
   const router = useRouter();
   function returnToDashboard(event: MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
-    const cameFromOffGrid = document.referrer.startsWith(window.location.origin);
-    if (cameFromOffGrid && window.history.length > 1) router.back();
-    else router.push("/");
+    router.replace("/");
   }
 
   return <div className="public-receipt-actions" data-receipt-ignore="true">

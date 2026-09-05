@@ -641,14 +641,14 @@ function proofSteps(entry: LedgerEntry): Array<{ label: string; detail: string; 
     return sandboxTransfer
       ? [
           { label: "Mock wire", detail: entry.meta?.trackingRef ? `Circle tracking reference ${entry.meta.trackingRef}` : "Circle sandbox wire reference unavailable", tone: entry.meta?.trackingRef ? "good" as const : "warning" as const },
-          { label: "Circle deposit", detail: entry.meta?.circleDepositId ? `${entry.meta.circleDepositId} · ${entry.meta.circleDepositStatus ?? "unknown"}${entry.meta.circleDepositAmount ? ` · ${entry.meta.circleDepositAmount} USD` : ""}` : "Circle deposit proof unavailable", txHash: entry.meta?.circleDepositId ?? undefined, tone: entry.meta?.circleDepositId ? "good" as const : "warning" as const },
-          { label: "Wallet payout", detail: entry.meta?.receiverTransferId ?? "Developer wallet transaction ID unavailable", txHash: entry.meta?.receiverTransferId ?? undefined, tone: entry.meta?.receiverTransferId ? "good" as const : "warning" as const },
+          { label: "Circle deposit", detail: entry.meta?.circleDepositId ? `${entry.meta.circleDepositStatus ?? "Status unavailable"}${entry.meta.circleDepositAmount ? ` · ${entry.meta.circleDepositAmount} USD` : ""}` : "Circle deposit proof unavailable", txHash: entry.meta?.circleDepositId ?? undefined, tone: entry.meta?.circleDepositId ? "good" as const : "warning" as const },
+          { label: "Wallet payout", detail: entry.meta?.receiverTransferId ? "Developer wallet delivery submitted" : "Developer wallet transaction ID unavailable", txHash: entry.meta?.receiverTransferId ?? undefined, tone: entry.meta?.receiverTransferId ? "good" as const : "warning" as const },
           { label: "Onchain receipt", detail: `${statusLabel}${entry.meta?.arcBlockNumber ? ` · Arc block ${entry.meta.arcBlockNumber}` : ""}`, txHash: entry.txHash, explorerUrl: entry.explorerUrl, tone: "good" as const },
         ]
       : [
           { label: "Payer deposit", detail: entry.meta?.payerTransferTxHash ? "The exact Arc Testnet USDC transfer was verified." : "Verified payer deposit unavailable", txHash: entry.meta?.payerTransferTxHash ?? undefined, explorerUrl: entry.meta?.payerTransferTxHash ? `https://testnet.arcscan.app/tx/${entry.meta.payerTransferTxHash}` : undefined, tone: entry.meta?.payerTransferTxHash ? "good" as const : "warning" as const },
-          { label: "Circle inbound", detail: entry.meta?.circleInboundTransferId ? `${entry.meta.circleInboundTransferId} · ${entry.meta.circleInboundTransferStatus ?? "unknown"}` : "Circle inbound transfer proof unavailable", txHash: entry.meta?.circleInboundTransferId ?? undefined, tone: entry.meta?.circleInboundTransferId ? "good" as const : "warning" as const },
-          { label: "Circle payout ID", detail: entry.meta?.circlePayoutId ?? entry.txHash, txHash: (entry.meta?.circlePayoutId ?? entry.txHash) || undefined, explorerUrl: entry.explorerUrl || undefined, tone: "good" as const },
+          { label: "Circle inbound", detail: entry.meta?.circleInboundTransferId ? entry.meta.circleInboundTransferStatus ?? "Circle transfer recorded" : "Circle inbound transfer proof unavailable", txHash: entry.meta?.circleInboundTransferId ?? undefined, tone: entry.meta?.circleInboundTransferId ? "good" as const : "warning" as const },
+          { label: "Circle payout", detail: entry.meta?.circlePayoutId ? "Payout request recorded by Circle" : "Payout proof unavailable", txHash: (entry.meta?.circlePayoutId ?? entry.txHash) || undefined, explorerUrl: entry.explorerUrl || undefined, tone: "good" as const },
           { label: "Bank route", detail: `${entry.meta?.bankAccountId ?? "Linked Circle Mint bank account"} · ${statusLabel}${entry.meta?.trackingRef ? ` · tracking ${entry.meta.trackingRef}` : ""}`, tone: entry.status === "failed" ? "warning" as const : "good" as const },
         ];
   }
@@ -665,13 +665,13 @@ function proofSteps(entry: LedgerEntry): Array<{ label: string; detail: string; 
   if (entry.kind === "deposit") {
     return [
       { label: "Intent", detail: "USDC was deposited into Circle Gateway to update the unified balance.", tone: "muted" as const },
-      { label: "Source transaction", detail: entry.txHash, txHash: entry.txHash, explorerUrl: entry.explorerUrl, tone: "good" as const },
+      { label: "Source transaction", detail: "The Gateway deposit was accepted on the selected source chain.", txHash: entry.txHash, explorerUrl: entry.explorerUrl, tone: "good" as const },
       { label: "Gateway indexing", detail: entry.status === "confirmed" ? "Gateway confirmed the deposit and updated the spendable balance." : "Gateway is still indexing this deposit.", tone: entry.status === "confirmed" ? "good" as const : "warning" as const },
     ];
   }
   return [
     { label: "Intent", detail: "A direct wallet transfer or Gateway spend was executed.", tone: "muted" as const },
-    { label: "Transaction hash", detail: entry.txHash, txHash: entry.txHash, explorerUrl: entry.explorerUrl, tone: "good" as const },
+    { label: "Onchain transaction", detail: "The payment transaction was confirmed on its settlement network.", txHash: entry.txHash, explorerUrl: entry.explorerUrl, tone: "good" as const },
     { label: "Receipt", detail: entry.receiptUrl ? "A matching OffGrid receipt is available." : statusLabel, tone: entry.receiptUrl ? "good" as const : "muted" as const },
   ];
 }
@@ -3148,17 +3148,19 @@ export function OffGridDashboard() {
 
       {selectedProofEntry && (
         <div className="overlay">
-          <article className="history-proof-modal">
-            <button className="modal-x" onClick={() => setSelectedProofEntry(null)}><X size={18} /></button>
+          <article className="history-proof-modal history-transfer-proof">
             <div className="history-proof-head">
-              <span className="section-tag">TRANSFER PROOF</span>
-              <div className="history-proof-actions">
-                {selectedProofEntry.kind === "fiat" && <button className="history-proof-refresh" onClick={() => { void refreshFiatPayouts(); }}><RefreshCw size={12} /> Refresh Circle status</button>}
-                {selectedProofEntry.receiptUrl ? <a className="ledger-proof-link" href={selectedProofEntry.receiptUrl}><Receipt size={12} /> Open receipt</a> : selectedProofEntry.explorerUrl ? <a className="ledger-proof-link" href={selectedProofEntry.explorerUrl} target="_blank" rel="noreferrer"><ExternalLink size={12} /> Open explorer</a> : null}
+              <div className="history-proof-copy">
+                <span className="section-tag">TRANSFER PROOF</span>
+                <h2>{selectedProofEntry.activity}</h2>
+                <p>{selectedProofEntry.kind === "fiat" ? "Circle provider status and the available settlement proofs for this sandbox payout." : selectedProofEntry.kind === "cctp" ? "Source burn, Arc mint, and receipt verification for this bridge transfer." : selectedProofEntry.kind === "deposit" ? "Source-chain confirmation and Circle Gateway indexing for this deposit." : "Onchain confirmation and the receipt associated with this transfer."}</p>
               </div>
+              <button className="modal-x" onClick={() => setSelectedProofEntry(null)} aria-label="Close transfer proof"><X size={18} /></button>
             </div>
-            <h2>{selectedProofEntry.activity}</h2>
-            <p>{selectedProofEntry.kind === "fiat" ? "This view shows the payout request, Circle payout ID, and synced verification status. Use it to confirm the sandbox payout completed." : selectedProofEntry.kind === "cctp" ? "This view shows the source burn, Arc mint, and receipt trail for the bridge transfer." : selectedProofEntry.kind === "deposit" ? "This view shows the source transaction that funded Gateway and the indexing step behind the unified balance." : "This view shows the transaction hash and receipt trail behind the transfer."}</p>
+            {(selectedProofEntry.kind === "fiat" || selectedProofEntry.receiptUrl || selectedProofEntry.explorerUrl) && <div className="history-proof-actions">
+              {selectedProofEntry.kind === "fiat" && <button className="history-proof-refresh" onClick={() => { void refreshFiatPayouts(); }}><RefreshCw size={12} /> Refresh Circle Status</button>}
+              {selectedProofEntry.receiptUrl ? <a className="ledger-proof-link" href={selectedProofEntry.receiptUrl}><Receipt size={12} /> Open Receipt</a> : selectedProofEntry.explorerUrl ? <a className="ledger-proof-link" href={selectedProofEntry.explorerUrl} target="_blank" rel="noreferrer"><ExternalLink size={12} /> Open Explorer</a> : null}
+            </div>}
             <div className="history-proof-summary">
               <span><small>STATUS</small><b className={selectedProofEntry.status}>{selectedProofEntry.status}</b></span>
               <span><small>AMOUNT</small><b>{displayMoney(selectedProofEntry.amount)} USDC</b></span>
