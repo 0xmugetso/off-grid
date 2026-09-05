@@ -633,16 +633,20 @@ type LedgerEntry = {
   };
 };
 
+function proofStatusLabel(status: string) {
+  return status.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+}
+
 function proofSteps(entry: LedgerEntry): Array<{ label: string; detail: string; tone: "muted" | "good" | "warning"; txHash?: string; explorerUrl?: string }> {
   const statusLabel = entry.status === "confirmed" ? "Confirmed" : entry.status === "failed" ? "Failed" : entry.status === "submitted" ? "Submitted" : "Pending";
   const sandboxTransfer = entry.meta?.fiatMode === "fiat_to_web3" || /sandbox fiat transfer/i.test(entry.activity) || /sandbox fiat balance/i.test(entry.rail);
   if (entry.kind === "fiat") {
     return sandboxTransfer
       ? [
-          { label: "Mock Wire", detail: entry.meta?.trackingRef ? `Circle tracking reference ${entry.meta.trackingRef}` : "Circle sandbox wire reference unavailable", tone: entry.meta?.trackingRef ? "good" as const : "warning" as const },
-          { label: "Circle Deposit", detail: entry.meta?.circleDepositId ? `${entry.meta.circleDepositStatus ?? "Status unavailable"}${entry.meta.circleDepositAmount ? ` · ${entry.meta.circleDepositAmount} USD` : ""}` : "Circle deposit proof unavailable", txHash: entry.meta?.circleDepositId ?? undefined, tone: entry.meta?.circleDepositId ? "good" as const : "warning" as const },
-          { label: "Wallet Payout", detail: entry.meta?.receiverTransferId ? "Developer wallet delivery submitted" : "Developer wallet transaction ID unavailable", txHash: entry.meta?.receiverTransferId ?? undefined, tone: entry.meta?.receiverTransferId ? "good" as const : "warning" as const },
-          { label: "Onchain Receipt", detail: `${statusLabel}${entry.meta?.arcBlockNumber ? ` · Arc block ${entry.meta.arcBlockNumber}` : ""}`, txHash: entry.txHash, explorerUrl: entry.explorerUrl, tone: "good" as const },
+          { label: "Mock Wire", detail: entry.meta?.trackingRef ? `Circle Tracking Reference ${entry.meta.trackingRef}` : "Circle Sandbox Wire Reference Unavailable", tone: entry.meta?.trackingRef ? "good" as const : "warning" as const },
+          { label: "Circle Deposit", detail: entry.meta?.circleDepositId ? `${proofStatusLabel(entry.meta.circleDepositStatus ?? "Status Unavailable")}${entry.meta.circleDepositAmount ? ` · ${entry.meta.circleDepositAmount} USD` : ""}` : "Circle Deposit Proof Unavailable", txHash: entry.meta?.circleDepositId ?? undefined, tone: entry.meta?.circleDepositId ? "good" as const : "warning" as const },
+          { label: "Wallet Payout", detail: entry.meta?.receiverTransferId ? "Developer Wallet Delivery Submitted" : "Developer Wallet Transaction ID Unavailable", txHash: entry.meta?.receiverTransferId ?? undefined, tone: entry.meta?.receiverTransferId ? "good" as const : "warning" as const },
+          { label: "Onchain Receipt", detail: `${statusLabel}${entry.meta?.arcBlockNumber ? ` · Arc Block ${entry.meta.arcBlockNumber}` : ""}`, txHash: entry.txHash, explorerUrl: entry.explorerUrl, tone: "good" as const },
         ]
       : [
           { label: "Payer Deposit", detail: entry.meta?.payerTransferTxHash ? "The exact Arc Testnet USDC transfer was verified." : "Verified payer deposit unavailable", txHash: entry.meta?.payerTransferTxHash ?? undefined, explorerUrl: entry.meta?.payerTransferTxHash ? `https://testnet.arcscan.app/tx/${entry.meta.payerTransferTxHash}` : undefined, tone: entry.meta?.payerTransferTxHash ? "good" as const : "warning" as const },
@@ -3149,7 +3153,7 @@ export function OffGridDashboard() {
               <button className="modal-x" onClick={() => setSelectedProofEntry(null)} aria-label="Close transfer proof"><X size={18} /></button>
             </div>
             <div className="history-proof-summary">
-              <span><small>STATUS</small><b className={selectedProofEntry.status}>{selectedProofEntry.status}</b></span>
+              <span><small>STATUS</small><b className={selectedProofEntry.status}>{proofStatusLabel(selectedProofEntry.status)}</b></span>
               <span><small>AMOUNT</small><b>{displayMoney(selectedProofEntry.amount)} USDC</b></span>
               <span><small>RAIL</small><b>{selectedProofEntry.rail}</b></span>
             </div>
