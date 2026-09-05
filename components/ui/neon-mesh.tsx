@@ -73,11 +73,11 @@ export function NeonMesh({
     let height = 0;
     let running = true;
     let previousFrame = 0;
+    let modalOpen = Boolean(document.querySelector(".overlay"));
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    // Draw on every display refresh. Expensive constraint solving is decoupled
-    // below so motion stays silky without making the CPU solve the cloth twice
-    // for every painted frame.
-    const frameInterval = 1000 / 60;
+    // Cap the ambient canvas and pause it under dialogs so UI transitions keep
+    // priority over decorative rendering.
+    const frameInterval = 1000 / 30;
 
     const mouse = {
       x: -1000,
@@ -220,7 +220,7 @@ export function NeonMesh({
     let time = 0;
 
     const render = (timestamp: number) => {
-      if (!running || document.hidden) {
+      if (!running || document.hidden || modalOpen) {
         animationFrameId = 0;
         return;
       }
@@ -372,6 +372,7 @@ export function NeonMesh({
     };
 
     const start = () => {
+      if (modalOpen) return;
       running = true;
       previousFrame = 0;
       if (!animationFrameId) animationFrameId = requestAnimationFrame(render);
@@ -381,6 +382,14 @@ export function NeonMesh({
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
       animationFrameId = 0;
     };
+    const modalObserver = new MutationObserver(() => {
+      const nextModalOpen = Boolean(document.querySelector(".overlay"));
+      if (nextModalOpen === modalOpen) return;
+      modalOpen = nextModalOpen;
+      if (modalOpen) stop();
+      else if (!document.hidden) start();
+    });
+    modalObserver.observe(document.body, { childList: true, subtree: true });
     const visibilityObserver = new IntersectionObserver(([entry]) => {
       if (entry?.isIntersecting) start();
       else stop();
@@ -394,6 +403,7 @@ export function NeonMesh({
 
     return () => {
       stop();
+      modalObserver.disconnect();
       visibilityObserver.disconnect();
       document.removeEventListener("visibilitychange", handleVisibility);
       reducedMotion.removeEventListener("change", handleMotionChange);

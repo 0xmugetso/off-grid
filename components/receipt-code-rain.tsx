@@ -40,9 +40,9 @@ export function ReceiptCodeRain({ modal = false }: { modal?: boolean }) {
     let stopped = false;
     let paintedOnce = false;
     let dark = document.documentElement.dataset.theme !== "light";
-    // Keep motion synchronized with the display; the smaller 1x backing store
-    // and shorter streams below make this cheaper than the old 14 fps canvas.
-    const frameInterval = 1000 / 60;
+    // A capped canvas cadence keeps the receipt atmosphere smooth without
+    // competing with modal and route transitions for rendering time.
+    const frameInterval = 1000 / 30;
 
     function buildStreams(width: number, height: number) {
       const preferredSpacing = width < 640 ? 20 : 26;
