@@ -24,7 +24,7 @@ Start at the [live testnet app](https://off-grid-theta.vercel.app/).
 
 New users land on the registration view. OffGrid suggests a short username automatically. Keep it or use the regenerate button until you find one you like, then connect an EVM wallet and sign the login message.
 
-![OffGrid registration](docs/images/offgrid-welcome.png)
+![OffGrid registration](images/offgrid-welcome.png)
 
 The signature is an authentication proof, not a blockchain transaction. It does not spend gas or move funds. Returning users can choose **Sign In** and prove ownership of the same wallet again.
 
@@ -43,7 +43,7 @@ An EVM wallet owns the OffGrid account. A connected Solana wallet is an addition
 
 ## 3. Understand the dashboard
 
-![OffGrid dashboard](docs/images/offgrid-dashboard.png)
+![OffGrid dashboard](images/offgrid-dashboard.png)
 
 The Transfer dashboard has three useful layers:
 
@@ -115,7 +115,7 @@ Circle's sandbox represents the incoming wire and outgoing bank redemption. No r
 
 ## 6. Read and recover transaction proof
 
-![OffGrid transaction history](docs/images/offgrid-history.png)
+![OffGrid transaction history](images/offgrid-history.png)
 
 History is the audit view for submitted activity. Use it to:
 
@@ -132,7 +132,7 @@ For participant-facing text, OffGrid replaces the signed-in account's name with 
 
 ## 7. Build a Unified Balance
 
-![OffGrid Unified Balance](docs/images/offgrid-unified-balance.png)
+![OffGrid Unified Balance](images/offgrid-unified-balance.png)
 
 Circle Gateway combines confirmed USDC positions from supported testnets into one spendable amount.
 
@@ -151,7 +151,7 @@ When spending, App Kit works from the confirmed unified position and selects eli
 
 ## 8. Run a mass payment
 
-![OffGrid mass payment workspace](docs/images/offgrid-mass-payment.png)
+![OffGrid mass payment workspace](images/offgrid-mass-payment.png)
 
 Mass Payment is designed for payroll and team disbursements.
 
@@ -190,7 +190,7 @@ Open **My Escrows** to continue active work or inspect completed agreements. The
 
 ## 10. Share the final receipt
 
-![Verified OffGrid receipt](docs/images/offgrid-receipt.png)
+![Verified OffGrid receipt](images/offgrid-receipt.png)
 
 A completed flow produces one receipt for both participants. It includes the amount, route, timestamp, payment reference, and strongest available proof.
 
@@ -232,7 +232,7 @@ If a provider is delayed, OffGrid should remain pending and explain the current 
 ## Keep exploring
 
 - [Return to the project README](README.md)
-- [Read the architecture and trust boundaries](docs/ARCHITECTURE.md)
-- [Review the payment session rail matrix](docs/PAYMENT_SESSION_RAILS.md)
-- [Inspect the escrow implementation](docs/ARC_ESCROW.md)
-- [Configure the fiat sandbox](docs/FIAT_SANDBOX.md)
+- [Read the architecture and trust boundaries](ARCHITECTURE.md)
+- [Review the payment session rail matrix](PAYMENT_SESSION_RAILS.md)
+- [Inspect the escrow implementation](ARC_ESCROW.md)
+- [Configure the fiat sandbox](FIAT_SANDBOX.md)

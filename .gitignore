@@ -15,3 +15,8 @@ out/
 .data/
 cache/
 broadcast/
+
+/tools/
+/tutorial-output/
+/AGENTS.md
+/CLAUDE.md

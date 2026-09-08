@@ -87,7 +87,7 @@ Fiat payout cannot be truthfully live without a licensed off-ramp, credentials, 
 
 ### Escrow boundary
 
-AI Escrow follows Circle's official `arc-escrow` architecture. OffGrid provisions participant Circle SCAs, deploys a dedicated `RefundProtocol` through Circle Smart Contract Platform, and persists every Circle transaction identifier. The depositor's Circle wallet approves USDC and calls `pay`; beneficiary image evidence is validated server-side and a HIGH-confidence result calls `withdraw([0])`. The beneficiary can instead call `refundByRecipient(0)`. Circle webhook signatures are verified and pending states are reconciled after refresh. See `docs/ARC_ESCROW.md` for hosted configuration and trust boundaries.
+AI Escrow follows Circle's official `arc-escrow` architecture. OffGrid provisions participant Circle SCAs, deploys a dedicated `RefundProtocol` through Circle Smart Contract Platform, and persists every Circle transaction identifier. The depositor's Circle wallet approves USDC and calls `pay`; beneficiary image evidence is validated server-side and a HIGH-confidence result calls `withdraw([0])`. The beneficiary can instead call `refundByRecipient(0)`. Circle webhook signatures are verified and pending states are reconciled after refresh. See `doc/ARC_ESCROW.md` for hosted configuration and trust boundaries.
 
 ## Production migration
 
