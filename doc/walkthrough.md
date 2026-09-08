@@ -231,7 +231,7 @@ If a provider is delayed, OffGrid should remain pending and explain the current 
 
 ## Keep exploring
 
-- [Return to the project README](README.md)
+- [Return to the project README](../README.md)
 - [Read the architecture and trust boundaries](ARCHITECTURE.md)
 - [Review the payment session rail matrix](PAYMENT_SESSION_RAILS.md)
 - [Inspect the escrow implementation](ARC_ESCROW.md)

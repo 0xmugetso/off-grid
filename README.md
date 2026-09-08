@@ -6,11 +6,11 @@
 
 **Pay with the balance you have. Let the other person receive it the way they want.**
 
-[Live Testnet App](https://off-grid-theta.vercel.app/) · [Detailed Walkthrough](walkthrough.md) · [Architecture](ARCHITECTURE.md) · [Request a Video](https://github.com/0xmugetso/off-grid/issues/new?title=Video%20walkthrough%20request)
+[Live Testnet App](https://off-grid-theta.vercel.app/) · [Detailed Walkthrough](doc/walkthrough.md) · [Architecture](doc/ARCHITECTURE.md) · [Request a Video](https://github.com/0xmugetso/off-grid/issues/new?title=Video%20walkthrough%20request)
 
 </div>
 
-![OffGrid dashboard](images/offgrid-dashboard.png)
+![OffGrid dashboard](doc/images/offgrid-dashboard.png)
 
 <sub>Account names and wallet identifiers in documentation screenshots are intentionally obscured.</sub>
 
@@ -43,7 +43,7 @@ Global payments often force both sides into the same provider, network, or payou
 
 ## Compact walkthrough
 
-This is the shortest path from a new account to a verified payment. The [full walkthrough](walkthrough.md) covers every tab, rail, waiting state, and recovery tool.
+This is the shortest path from a new account to a verified payment. The [full walkthrough](doc/walkthrough.md) covers every tab, rail, waiting state, and recovery tool.
 
 ### 1. Create an account
 
@@ -51,7 +51,7 @@ Open the [live app](https://off-grid-theta.vercel.app/), keep the suggested user
 
 **Privacy:** OffGrid has no account passwords. The signed session is stored in an `HttpOnly`, `SameSite=Lax` cookie.
 
-![OffGrid registration](images/offgrid-welcome.png)
+![OffGrid registration](doc/images/offgrid-welcome.png)
 
 ### 2. Prepare a testnet wallet
 
@@ -94,7 +94,7 @@ Long-running deposits and bridges continue tracking after refresh. A status only
 
 Completed flows create a shared receipt with the amount, participants, route, timestamp, reference, and strongest available proof. Open the explorer, copy the receipt URL, or download a clean image.
 
-![Verified OffGrid receipt](images/offgrid-receipt.png)
+![Verified OffGrid receipt](doc/images/offgrid-receipt.png)
 
 ## One payment, two choices
 
@@ -123,7 +123,7 @@ Users can deposit testnet USDC from Base Sepolia, Arbitrum Sepolia, Ethereum Sep
 
 Gateway deposits can remain pending while the source chain reaches Circle's required finality. OffGrid keeps each submitted deposit in History so closing the modal or starting another payment does not erase it.
 
-![OffGrid Unified Balance](images/offgrid-unified-balance.png)
+![OffGrid Unified Balance](doc/images/offgrid-unified-balance.png)
 
 ### CCTP V2
 
@@ -146,7 +146,7 @@ History is a record of submitted activity, not a list of button clicks. Users ca
 - restore a missing CCTP transfer from its source burn hash;
 - restore a Gateway deposit from its chain, amount, and source transaction hash.
 
-![OffGrid transaction history](images/offgrid-history.png)
+![OffGrid transaction history](doc/images/offgrid-history.png)
 
 ## Mass payments
 
@@ -160,7 +160,7 @@ Mass Payment turns a roster into a guided payout run.
 
 Compatible wallets can receive an EIP-5792 batch request for direct payments. Other wallets use a clear sequential fallback. Gateway payouts use one documented spend per recipient. The interface never presents a group as complete when one recipient still lacks proof.
 
-![OffGrid mass payment workspace](images/offgrid-mass-payment.png)
+![OffGrid mass payment workspace](doc/images/offgrid-mass-payment.png)
 
 ## Protected work
 
@@ -175,7 +175,7 @@ The Escrow Market extends Circle's RefundProtocol pattern into a public and priv
 
 The inspector keeps the contract address, payment reference, hashes, evidence digest, validation result, and protocol audit trail together. This implementation follows the sample lifecycle, then adds OffGrid's marketplace and evidence experience. It is a testnet extension, not a claim that the custom marketplace is part of Circle's official sample.
 
-Read [the escrow implementation notes](ARC_ESCROW.md) before testing this feature.
+Read [the escrow implementation notes](doc/ARC_ESCROW.md) before testing this feature.
 
 ## Privacy and security choices
 
@@ -261,7 +261,7 @@ You do not need every provider key to explore the interface.
 | Test fiat sessions | Circle Mint sandbox key, bank account ID, settlement wallet, and webhook secret |
 | Test protected work | Circle API key, registered entity secret, escrow wallet, Smart Contract Platform access, and an AI provider |
 
-Start with [.env.example](../.env.example), then follow the [Vercel deployment guide](VERCEL_DEPLOYMENT.md). Keep Circle API keys, entity secrets, database credentials, and AI provider keys on the server.
+Start with [.env.example](.env.example), then follow the [Vercel deployment guide](doc/VERCEL_DEPLOYMENT.md). Keep Circle API keys, entity secrets, database credentials, and AI provider keys on the server.
 
 ## Verify the project
 
@@ -275,14 +275,14 @@ The prebuild step compiles the RefundProtocol artifact used by the escrow flow.
 
 ## Documentation
 
-- [Detailed product walkthrough](walkthrough.md)
-- [Architecture and trust boundaries](ARCHITECTURE.md)
-- [Arc and Circle alignment audit](ARC_ALIGNMENT_AUDIT.md)
-- [Payment session rails](PAYMENT_SESSION_RAILS.md)
-- [Escrow implementation](ARC_ESCROW.md)
-- [Fiat sandbox setup](FIAT_SANDBOX.md)
-- [SIWE and transaction history](SIWE_AND_HISTORY_GUIDE.md)
-- [Vercel deployment](VERCEL_DEPLOYMENT.md)
+- [Detailed product walkthrough](doc/walkthrough.md)
+- [Architecture and trust boundaries](doc/ARCHITECTURE.md)
+- [Arc and Circle alignment audit](doc/ARC_ALIGNMENT_AUDIT.md)
+- [Payment session rails](doc/PAYMENT_SESSION_RAILS.md)
+- [Escrow implementation](doc/ARC_ESCROW.md)
+- [Fiat sandbox setup](doc/FIAT_SANDBOX.md)
+- [SIWE and transaction history](doc/SIWE_AND_HISTORY_GUIDE.md)
+- [Vercel deployment](doc/VERCEL_DEPLOYMENT.md)
 
 ## Video walkthrough
 
