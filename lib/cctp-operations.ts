@@ -1,5 +1,7 @@
 export type CctpOperationRecord = {
   burnTxHash: string | null;
+  sourceTransactionKind?: "approval" | "burn";
+  errorMessage?: string | null;
   status: "awaiting_signature" | "attesting" | "minting" | "confirmed" | "failed";
   updatedAt: string;
 };
@@ -7,8 +9,8 @@ export type CctpOperationRecord = {
 export const UNSIGNED_CCTP_TTL_MS = 15 * 60 * 1_000;
 
 /** A CCTP transfer becomes history only after its source-chain burn exists. */
-export function isSubmittedCctpOperation(operation: Pick<CctpOperationRecord, "burnTxHash">) {
-  return Boolean(operation.burnTxHash);
+export function isSubmittedCctpOperation(operation: Pick<CctpOperationRecord, "burnTxHash" | "sourceTransactionKind" | "errorMessage">) {
+  return Boolean(operation.burnTxHash) && operation.sourceTransactionKind !== "approval" && !operation.errorMessage?.startsWith("Token approval confirmed");
 }
 
 /**

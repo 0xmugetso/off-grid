@@ -1,3 +1,4 @@
+import { verifiesGatewayCredit } from "@/lib/fast-deposit-proof";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isAddress } from "viem";
@@ -72,11 +73,31 @@ function balanceFor(operation: StoredGatewayDeposit, balances: Array<{ domain: n
   return balances.find((entry) => entry.domain === operation.sourceDomain && entry.depositor.toLowerCase() === operation.sourceAddress.toLowerCase())?.balance ?? null;
 }
 
+async function fastDepositReceipt(operation: StoredGatewayDeposit) {
+  try {
+    const response = await fetch(`https://iris-api-sandbox.circle.com/v2/messages/${operation.sourceDomain}?transactionHash=${operation.txHash}`, { cache: "no-store", signal: AbortSignal.timeout(8_000) });
+    if (!response.ok) return null;
+    const payload = await response.json() as { messages?: Array<{ forwardState?: string; forwardTxHash?: string; decodedMessage?: { destinationDomain?: number } }> };
+    for (const message of payload.messages ?? []) {
+      if (Number(message.decodedMessage?.destinationDomain) !== 26) continue;
+      if (message.forwardState === "FAILED") return { failed: true as const, txHash: null };
+      if (["CONFIRMED", "COMPLETE"].includes(message.forwardState ?? "") && EVM_TX.test(message.forwardTxHash ?? "")) {
+        const receipt = await rpc("Arc_Testnet", "eth_getTransactionReceipt", [message.forwardTxHash]);
+        if (verifiesGatewayCredit(receipt as Parameters<typeof verifiesGatewayCredit>[0], operation.sourceAddress, operation.amount)) return { failed: false as const, txHash: message.forwardTxHash! };
+      }
+    }
+  } catch { /* Keep tracking the existing burn during provider outages. */ }
+  return null;
+}
+
 async function reconcile(ownerId: string) {
   const active = await queryDatabase((database) => database.gatewayDeposits.filter((operation) => operation.ownerId === ownerId && operation.status !== "confirmed" && operation.status !== "failed"));
   let snapshot: Awaited<ReturnType<typeof gatewaySnapshot>> = { balances: [], deposits: [] };
-  try { snapshot = await gatewaySnapshot(active); } catch { /* Existing proof remains visible during provider outages. */ }
-  const receipts = await Promise.all(active.map(async (operation) => ({ id: operation.id, receipt: await evmReceipt(operation) })));
+  try { snapshot = await gatewaySnapshot(active.filter((operation) => operation.mode !== "fast")); } catch { /* Existing proof remains visible during provider outages. */ }
+  const receipts = await Promise.all(active.map(async (operation) => {
+    const receipt = await evmReceipt(operation);
+    return { id: operation.id, receipt, destination: operation.mode === "fast" && receipt?.status === "0x1" ? await fastDepositReceipt(operation) : null };
+  }));
   return mutateDatabase((database) => {
     const now = new Date().toISOString();
     for (const observation of receipts) {
@@ -84,6 +105,26 @@ async function reconcile(ownerId: string) {
       if (!operation) continue;
       operation.explorerUrl = gatewayExplorerUrl(operation.sourceChain as SourceChain, operation.txHash);
       const receipt = observation.receipt;
+      if (operation.mode === "fast") {
+        if (receipt?.status === "0x1") { operation.sourceConfirmedAt ??= now; operation.sourceBlockNumber = receipt.blockNumber ?? operation.sourceBlockNumber; }
+        if (observation.destination?.txHash) {
+          operation.status = "confirmed";
+          operation.destinationTxHash = observation.destination.txHash;
+          operation.errorMessage = null;
+        } else if (observation.destination?.failed) {
+          operation.status = "failed";
+          operation.errorMessage = "The source burn completed, but the destination deposit needs recovery.";
+        } else if (receipt?.status === "0x0") {
+          operation.status = "failed";
+          operation.errorMessage = "The source transaction reverted.";
+        } else if (receipt?.status === "0x1") {
+          operation.status = "indexing";
+          operation.sourceBlockNumber = receipt.blockNumber ?? operation.sourceBlockNumber;
+          operation.sourceConfirmedAt ??= now;
+        }
+        operation.updatedAt = now;
+        continue;
+      }
       if (receipt?.status === "0x0") {
         operation.status = "failed";
         operation.errorMessage = "The source-chain Gateway deposit reverted.";
@@ -133,6 +174,8 @@ export async function POST(request: Request) {
     const body = await request.json() as Record<string, unknown>;
     const sourceChain = String(body.sourceChain ?? "") as SourceChain;
     if (!SOURCE_CHAINS.includes(sourceChain)) throw new Error("Unsupported Gateway source chain");
+    const mode = body.mode === "fast" ? "fast" : "standard";
+    if (mode === "fast" && !["Ethereum_Sepolia", "Arbitrum_Sepolia"].includes(sourceChain)) throw new Error("Unsupported fast deposit source");
     const sourceAddress = String(body.sourceAddress ?? "");
     if (sourceChain === "Solana_Devnet" ? !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(sourceAddress) : !isAddress(sourceAddress)) throw new Error("Invalid source wallet address");
     const txHash = String(body.txHash ?? "");
@@ -155,7 +198,7 @@ export async function POST(request: Request) {
       const expectedConfirmed = baseline == null ? null : (baseline + Number(amount)).toFixed(6);
       const now = new Date().toISOString();
       const entry: StoredGatewayDeposit = {
-        id: randomUUID(), ownerId: current.id, sourceAddress, sourceChain,
+        id: randomUUID(), ownerId: current.id, sourceAddress, sourceChain, mode, ...(mode === "fast" ? { destinationChain: "Arc_Testnet" } : {}),
         sourceDomain: CCTP_TESTNET_DOMAINS[sourceChain], amount, txHash, explorerUrl,
         status: "submitted", confirmedBefore, expectedConfirmed,
         observedGatewayBalance: null, sourceBlockNumber: null, sourceConfirmedAt: null,

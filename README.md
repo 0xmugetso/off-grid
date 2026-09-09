@@ -121,13 +121,15 @@ The payer signs a USDC transfer with the connected wallet on Arc Testnet. OffGri
 
 Users can deposit testnet USDC from Base Sepolia, Arbitrum Sepolia, Ethereum Sepolia, Solana Devnet, and Arc Testnet into Circle Gateway. App Kit returns the unified spendable position and selects confirmed source balances when a user spends.
 
-Gateway deposits can remain pending while the source chain reaches Circle's required finality. OffGrid keeps each submitted deposit in History so closing the modal or starting another payment does not erase it.
+OffGrid uses [App Kit Fast Deposits](https://docs.arc.io/app-kit/tutorials/unified-balance/use-fast-deposits) from Ethereum Sepolia and Arbitrum Sepolia into Arc Testnet. Users review gas and the USDC forwarder fee before signing; the signed estimate is passed unchanged to execution. The full deposit amount is credited on Arc. Base Sepolia, Solana Devnet, and Arc Testnet retain standard deposits because they are not supported fast-deposit sources for this route.
+
+History saves the source transaction as soon as it broadcasts. Fast deposits track Circle's relay and verify the Arc Gateway `Deposited` event for the account, token, and amount before marking the credit confirmed. A pending relay is monitored without submitting another burn. Standard deposits continue to wait for source-chain finality.
 
 ![OffGrid Unified Balance](doc/images/offgrid-unified-balance.png)
 
 ### CCTP V2
 
-OffGrid uses Circle App Kit to burn USDC on a supported source testnet and mint it on Arc Testnet. Submitted transfers persist across refreshes. History keeps the source burn, Circle attestation state, and destination mint status together.
+OffGrid uses Circle App Kit to burn USDC on a supported source testnet and mint it on Arc Testnet. EVM transfers use the [Forwarding Service](https://docs.arc.io/app-kit/tutorials/bridge/use-forwarding-service) with the selected recipient address. [Source-paid fees](https://docs.arc.io/app-kit/tutorials/bridge/pay-fees-on-source) preserve the entered recipient amount: the reviewed signed quote is reused for the burn. Solana transfers use the connected EVM wallet to sign the Arc mint. Approval is a setup step, not a transfer; only actual burns enter transfer history and totals. Submitted transfers persist across refreshes, and completion requires an Arc USDC receipt matching the recipient and amount. Retries use the existing App Kit result rather than starting another bridge.
 
 ### Fiat Sandbox
 

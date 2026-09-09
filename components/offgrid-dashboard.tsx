@@ -54,7 +54,7 @@ import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } 
 import { createPublicClient, encodeFunctionData, http, isAddress, parseUnits } from "viem";
 import { arcTestnet } from "viem/chains";
 import { NeonMesh } from "@/components/ui/neon-mesh";
-import { ArcPayrollClient, getArcMintStep, type BrowserSolanaAdapter, type BrowserViemAdapter, type CircleAdapter, type GatewayMintRetry } from "@/lib/arc/app-kit-client";
+import { ArcPayrollClient, supportsFastDeposit, type DepositEstimate, getArcMintStep, type BrowserSolanaAdapter, type BrowserViemAdapter, type CircleAdapter, type GatewayMintRetry } from "@/lib/arc/app-kit-client";
 import { discoverBrowserWallets, ensureArcTestnet, ensureGatewaySourceChain, requestWalletAccount, type BrowserWallet } from "@/lib/arc/browser-wallet";
 import { ARC, CCTP_SOURCE_CHAINS, CHAIN_LABELS, SOURCE_CHAINS, type CctpSourceChain, type EvmSourceChain, type SourceChain } from "@/lib/arc/config";
 import { connectSolanaWallet as requestSolanaAccount, discoverSolanaWallets, getSolanaWalletProvider, reconnectSolanaWallet, type SolanaBrowserWallet } from "@/lib/arc/solana-wallet";
@@ -110,7 +110,7 @@ interface InvoiceData {
 type PayStep = "recipient" | "amount" | "review" | "processing" | "complete";
 type WorkspaceView = "transfer" | "history" | "unified" | "mass" | "escrow" | "agents";
 type FundingMethod = "arc_wallet" | "unified_balance" | "cctp_bridge" | "fiat_bank";
-type PaymentEstimate = { title: string; detail: string; fees: string };
+type PaymentEstimate = { title: string; detail: string; fees: string; bridgeQuote?: string };
 type PaymentIssue = { title: string; detail: string; retryable: boolean };
 type ProtocolEvent = { name: string; state: string; explorerUrl?: string };
 type ChainAwareProvider = BrowserWallet["provider"] & {
@@ -118,6 +118,9 @@ type ChainAwareProvider = BrowserWallet["provider"] & {
   removeListener?: (event: "chainChanged", listener: (chainId: string) => void) => void;
 };
 type GatewayDeposit = {
+  mode?: "standard" | "fast";
+  destinationChain?: string;
+  destinationTxHash?: string;
   id: string;
   status: "submitted" | "source_confirmed" | "indexing" | "confirmed" | "failed";
   amount: string;
@@ -142,6 +145,7 @@ type GatewayChainBalance = {
   queried: boolean;
 };
 type CctpOperation = {
+  sourceTransactionKind?: "approval" | "burn";
   id: string;
   recipientAddress: string;
   recipientLabel: string;
@@ -720,6 +724,7 @@ function gatewayDepositPresentation(deposit: GatewayDeposit): GatewayDepositPres
     elapsed,
   };
 
+  if (deposit.mode === "fast") return { label: "Depositing on Arc", detail: "Circle is completing the deposit into your Arc unified balance.", delayed: elapsedMs > 120_000, elapsed };
   const timing = deposit.sourceChain === "Arc_Testnet"
     ? { expected: "about 0.5 seconds", delayedAfterMs: 15_000 }
     : deposit.sourceChain === "Solana_Devnet"
@@ -758,7 +763,7 @@ function gatewayDepositLedgerEntry(deposit: GatewayDeposit): LedgerEntry {
     activity: "Fund Unified Balance",
     detail: gatewayDepositDetail(deposit),
     kind: "deposit",
-    rail: `${CHAIN_LABELS[deposit.sourceChain as SourceChain] ?? deposit.sourceChain} → Gateway`,
+    rail: `${CHAIN_LABELS[deposit.sourceChain as SourceChain] ?? deposit.sourceChain} → ${deposit.mode === "fast" ? "Arc Gateway" : "Gateway"}`,
     amount: deposit.amount,
     txHash: deposit.txHash,
     explorerUrl,
@@ -766,7 +771,7 @@ function gatewayDepositLedgerEntry(deposit: GatewayDeposit): LedgerEntry {
     createdAt: deposit.createdAt,
     logs: [
       { name: "Gateway Source Transaction", txHash: deposit.txHash, explorerUrl },
-      { name: deposit.status === "confirmed" ? "Circle Gateway Balance Credited" : gatewayDepositPresentation(deposit).label },
+      { name: deposit.status === "confirmed" ? "Circle Gateway Balance Credited" : gatewayDepositPresentation(deposit).label, ...(deposit.destinationTxHash ? { txHash: deposit.destinationTxHash, explorerUrl: gatewayExplorerUrl("Arc_Testnet", deposit.destinationTxHash) } : {}) },
     ],
   };
 }
@@ -1036,7 +1041,7 @@ function UnifiedBalanceView({ walletAddress, walletOnArc, arcBalance, unifiedBal
           <span className={chainPending > 0 ? "pending" : "online"}><i />{chainPending > 0 ? "INDEXING" : position.queried ? "LIVE" : "UNLINKED"}</span>
         </article>;
       })}</div>
-      <div className="unified-eta-row"><span><Clock size={12} /> Deposit ETA</span><span>Ethereum / Base / Arbitrum <b>~13–19 min</b></span><span>Solana <b>~8 sec</b></span><span>Arc <b>~0.5 sec</b></span></div>
+      <div className="unified-eta-row"><span><Clock size={12} /> Deposit ETA</span><span>Ethereum / Arbitrum <b>Fast · seconds</b></span><span>Base <b>~13–19 min</b></span><span>Solana <b>~8 sec</b></span><span>Arc <b>~0.5 sec</b></span></div>
       <div className="unified-wallet-balance"><ChainLogo chain="Arc_Testnet" size={25}/><div><small>ARC TESTNET WALLET · OUTSIDE GATEWAY</small><b>{arcBalance === null ? "-" : displayMoney(arcBalance)} USDC</b></div><span>{walletOnArc ? "ARC TESTNET ACTIVE" : "CONNECTED ON ANOTHER CHAIN"}</span></div>
       {!solanaAddress && <div className="unified-wallet-balance solana-wallet-balance"><ChainLogo chain="Solana_Devnet" size={25}/><div><small>SOLANA DEVNET SOURCE WALLET</small><b className="wallet-balance-prompt">Connect Solana to deposit or bridge USDC</b></div><button onClick={onConnectSolana} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={12}/> : <Wallet size={12}/>} Connect Solana</button></div>}
     </>}
@@ -1913,7 +1918,8 @@ export function OffGridDashboard() {
   const [depositAmount, setDepositAmount] = useState("10.00");
   const [depositBusy, setDepositBusy] = useState(false);
   const [depositSubmitted, setDepositSubmitted] = useState(false);
-  const [depositNotice, setDepositNotice] = useState<{ chain: SourceChain; hash: string; error?: string } | null>(null);
+  const [depositQuote, setDepositQuote] = useState<{ chain: SourceChain; amount: string; estimate: DepositEstimate } | null>(null);
+  const [depositNotice, setDepositNotice] = useState<{ chain: SourceChain; hash: string; fast?: boolean; error?: string } | null>(null);
   const [depositError, setDepositError] = useState("");
   const [gatewayDeposits, setGatewayDeposits] = useState<GatewayDeposit[]>([]);
   const [bridgeSourceChain, setBridgeSourceChain] = useState<CctpSourceChain>("Base_Sepolia");
@@ -1980,6 +1986,7 @@ export function OffGridDashboard() {
   const hasLiveSession = paymentSessionsList.some((session) => session.status === "open" || session.status === "ready");
   const hasPendingCctp = cctpOperations.some((operation) => isSubmittedCctpOperation(operation) && operation.status !== "confirmed" && operation.status !== "failed");
   const hasPendingFiat = fiatPayouts.some((payout) => payout.status === "submitted" || payout.status === "pending");
+  const fastDepositInFlight = gatewayDeposits.some((deposit) => deposit.mode === "fast" && deposit.sourceChain === depositChain && deposit.status !== "confirmed" && (deposit.status !== "failed" || Boolean(deposit.sourceConfirmedAt)));
   const hasPendingGatewayDeposit = gatewayDeposits.some((deposit) => deposit.status !== "confirmed" && deposit.status !== "failed");
 
   function openWorkspaceView(view: WorkspaceView) {
@@ -2362,7 +2369,7 @@ export function OffGridDashboard() {
       setCctpOperations(operations);
       const previouslyPending = user ? readPendingCctpNotifications(user.id) : pendingCctpNotificationsRef.current;
       for (const operationId of pendingCctpNotificationsRef.current) previouslyPending.add(operationId);
-      const terminal = operations.find((operation) => (operation.status === "confirmed" || operation.status === "failed") && previouslyPending.has(operation.id));
+      const terminal = operations.find((operation) => isSubmittedCctpOperation(operation) && (operation.status === "confirmed" || operation.status === "failed") && previouslyPending.has(operation.id));
       if (terminal) {
         const eventKey = `cctp:${terminal.id}:${terminal.status}`;
         if (!shownSessionEventsRef.current.has(eventKey)) {
@@ -2435,7 +2442,7 @@ export function OffGridDashboard() {
       activeCctpFormRef.current = null;
       resetPayment();
       setFundingMethod("arc_wallet");
-      setCctpRecoveryNote("Source burn submitted. Circle attestation and the Arc mint will continue here automatically.");
+      setCctpRecoveryNote(run.sourceChain === "Solana_Devnet" ? "Source burn submitted. Confirm the Arc mint in your EVM wallet when prompted." : "Source burn submitted. Circle attestation and the Arc mint will continue here automatically.");
       openWorkspaceView("history");
     } catch (error) {
       run.burnCaptured = false;
@@ -2602,7 +2609,7 @@ export function OffGridDashboard() {
   }
 
   async function depositToGateway() {
-    if (depositBusy) return;
+    if (depositBusy || fastDepositInFlight) return;
     setDepositBusy(true); setDepositSubmitted(false); setDepositError("");
     let submittedHash = "";
     let tracking: Promise<void> | undefined;
@@ -2624,6 +2631,13 @@ export function OffGridDashboard() {
         }
       }
       if (!(Number(depositAmount) > 0)) throw new Error("Enter an amount greater than zero");
+      const fast = supportsFastDeposit(depositChain);
+      const quoted = depositQuote?.chain === depositChain && depositQuote.amount === depositAmount ? depositQuote.estimate : undefined;
+      if (fast && !quoted) {
+        const estimate = await client.estimateDeposit(adapter, depositChain, depositAmount);
+        setDepositQuote({ chain: depositChain, amount: depositAmount, estimate });
+        return;
+      }
       let confirmedBefore = Number(gatewayChainBalances?.find((position) => position.chain === depositChain)?.confirmed ?? 0);
       try {
         const before = await refreshGatewayBalance();
@@ -2635,7 +2649,7 @@ export function OffGridDashboard() {
       const saveDeposit = async (txHash: string) => {
         const { deposit } = await api<{ deposit: GatewayDeposit }>("/api/gateway-deposits", {
           method: "POST",
-          body: JSON.stringify({ sourceAddress: depositChain === "Solana_Devnet" ? solanaAddress : (walletAddress || user?.walletAddress), sourceChain: depositChain, amount: depositAmount, txHash, confirmedBefore }),
+          body: JSON.stringify({ sourceAddress: depositChain === "Solana_Devnet" ? solanaAddress : (walletAddress || user?.walletAddress), sourceChain: depositChain, amount: depositAmount, txHash, confirmedBefore, mode: fast ? "fast" : "standard" }),
         });
         setGatewayDeposits((current) => [deposit, ...current.filter((entry) => entry.id !== deposit.id)]);
       };
@@ -2643,13 +2657,14 @@ export function OffGridDashboard() {
         submittedHash = txHash;
         setDepositSubmitted(true);
         setShowFunding(false);
-        setDepositNotice({ chain: depositChain, hash: txHash });
+        setDepositNotice({ chain: depositChain, fast, hash: txHash });
         tracking = saveDeposit(txHash).catch(() => {
-          setDepositNotice({ chain: depositChain, hash: txHash, error: "Deposit sent. History could not be updated yet. Keep this transaction reference and check the explorer before retrying." });
+          setDepositNotice({ chain: depositChain, fast, hash: txHash, error: "Deposit sent. History could not be updated yet. Keep this transaction reference and check the explorer before retrying." });
         });
       };
-      const result = await client.deposit(adapter, depositChain, depositAmount, onSubmitted);
-      if (!submittedHash) onSubmitted(result.txHash);
+      const result = await client.deposit(adapter, depositChain, depositAmount, onSubmitted, quoted);
+      if (!submittedHash && !(fast && result.progress?.status === "DONE")) onSubmitted(result.txHash);
+      setDepositQuote(null);
       await tracking;
       void loadBalances();
       void refreshGatewayDeposits();
@@ -2657,7 +2672,7 @@ export function OffGridDashboard() {
       if (submittedHash) {
         setDepositNotice({ chain: depositChain, hash: submittedHash, error: "Deposit sent. Confirmation is still being checked. Follow its status in History or the explorer." });
         void refreshGatewayDeposits();
-      } else setDepositError(describeGatewayDepositIssue(error instanceof Error ? error.message : "Gateway deposit failed", depositChain));
+      } else { setDepositQuote(null); setDepositError(describeGatewayDepositIssue(error instanceof Error ? error.message : "Gateway deposit failed", depositChain)); }
     }
     finally { setDepositBusy(false); }
   }
@@ -2786,8 +2801,8 @@ export function OffGridDashboard() {
       } else {
         const sourceAdapter = bridgeSourceChain === "Solana_Devnet" ? solanaAdapterRef.current : adapter;
         if (!sourceAdapter) throw new Error("Connect the selected source wallet first");
-        const estimate = await client.estimateBridgeToArc(sourceAdapter, bridgeSourceChain, recipientAddress, amount);
-        setPaymentEstimate({ title: `${CHAIN_LABELS[bridgeSourceChain]} → Arc Testnet`, detail: "CCTP V2 standard burn with Circle Forwarder completing the Arc mint", fees: bridgeFeeSummary(estimate) });
+        const estimate = await client.estimateBridgeToArc(sourceAdapter, bridgeSourceChain, recipientAddress, amount, adapter);
+        setPaymentEstimate({ title: `${CHAIN_LABELS[bridgeSourceChain]} → Arc Testnet`, detail: bridgeSourceChain === "Solana_Devnet" ? "Confirm the source burn in Solana, then the Arc mint in your EVM wallet" : "CCTP V2 · recipient receives the entered amount; fees paid on source", fees: bridgeFeeSummary(estimate), bridgeQuote: "quote" in estimate ? String(estimate.quote) : undefined });
       }
     } catch (error) {
       setPaymentError(error instanceof Error ? error.message : "App Kit could not estimate this route");
@@ -2889,8 +2904,8 @@ export function OffGridDashboard() {
         cctpRunsRef.current.set(operation.id, run);
         activeCctpFormRef.current = operation.id;
         setCctpOperations((current) => [operation!, ...current.filter((entry) => entry.id !== operation!.id)]);
-        let result = await client.bridgeToArc(sourceAdapter, bridgeSourceChain, recipientAddress, amount, operation.id);
-        if (result.state === "error") result = await client.retryBridge(result, sourceAdapter);
+        let result = await client.bridgeToArc(sourceAdapter, bridgeSourceChain, recipientAddress, amount, operation.id, paymentEstimate.bridgeQuote, adapter);
+        if (result.state === "error") result = await client.retryBridge(result, sourceAdapter, bridgeSourceChain === "Solana_Devnet" ? adapter : undefined);
         if (result.state !== "success") {
           const failed = result.steps.find((item) => item.state === "error");
           throw new Error(failed?.errorMessage ?? "CCTP bridge did not complete");
@@ -3516,22 +3531,24 @@ export function OffGridDashboard() {
 
       {sessionNotice && <div className="session-notice-toast" role="status"><span><Bell size={15} /></span><div><b>{sessionNotice.title}</b><p>{sessionNotice.detail}</p></div><button type="button" onClick={() => setSessionNotice(null)} aria-label="Dismiss notification"><X size={13} /></button></div>}
 
-      {depositNotice && <div className="overlay"><article className="funding-modal" role="dialog" aria-modal="true" aria-labelledby="deposit-submitted-title"><button className="modal-x" aria-label="Close deposit notification" onClick={() => setDepositNotice(null)}><X size={18} /></button><span className="section-tag">CIRCLE GATEWAY</span><h2 id="deposit-submitted-title">Deposit submitted</h2><p>{depositNotice.error || "You can leave this window. Track confirmation and Gateway credit in History."}</p><div className="unified-eta-row"><ChainName chain={depositNotice.chain} size={18} /><b>{gatewayFinalityEstimate(depositNotice.chain).time}</b></div><button className="neon-button" onClick={() => { setDepositNotice(null); setShowFunding(false); openWorkspaceView("history"); }}><Receipt size={16} /> Track Deposits <ArrowRight size={16} /></button><a className="deposit-explorer-link" href={gatewayExplorerUrl(depositNotice.chain, depositNotice.hash)} target="_blank" rel="noreferrer">View transaction <ExternalLink size={12} /></a></article></div>}
+      {depositNotice && <div className="overlay"><article className="funding-modal" role="dialog" aria-modal="true" aria-labelledby="deposit-submitted-title"><button className="modal-x" aria-label="Close deposit notification" onClick={() => setDepositNotice(null)}><X size={18} /></button><span className="section-tag">CIRCLE GATEWAY</span><h2 id="deposit-submitted-title">Deposit submitted</h2><p>{depositNotice.error || "You can leave this window. Track confirmation and Gateway credit in History."}</p><div className="unified-eta-row"><ChainName chain={depositNotice.chain} size={18} /><b>{depositNotice.fast ? "Usually seconds" : gatewayFinalityEstimate(depositNotice.chain).time}</b></div><button className="neon-button" onClick={() => { setDepositNotice(null); setShowFunding(false); openWorkspaceView("history"); }}><Receipt size={16} /> Track Deposits <ArrowRight size={16} /></button><a className="deposit-explorer-link" href={gatewayExplorerUrl(depositNotice.chain, depositNotice.hash)} target="_blank" rel="noreferrer">View transaction <ExternalLink size={12} /></a></article></div>}
 
       {showFunding && <div className="overlay"><article className="funding-modal">
         <button className="modal-x" onClick={() => setShowFunding(false)}><X size={18} /></button>
         <span className="section-tag">CIRCLE GATEWAY</span>
         <h2>Fund unified balance</h2>
         <p>Deposit USDC from an EVM testnet or Solana Devnet. Each submitted deposit keeps its own proof and continues tracking after this window closes.</p>
-        <div className="modal-chain-field"><span>Source network</span><ChainSelect value={depositChain} chains={SOURCE_CHAINS} onChange={(chain) => { setDepositChain(chain); setDepositError(""); }} /></div>
+        <div className="modal-chain-field"><span>Source network</span><ChainSelect value={depositChain} chains={SOURCE_CHAINS} onChange={(chain) => { setDepositChain(chain); setDepositQuote(null); setDepositError(""); }} /></div>
         {depositChain === "Solana_Devnet" && <div className={`solana-deposit-wallet ${solanaAddress ? "connected" : ""}`}><ChainLogo chain="Solana_Devnet" size={25}/><div><small>{solanaAddress ? `${solanaWalletName.toUpperCase()} · SOURCE WALLET` : "SOLANA SIGNER REQUIRED"}</small><b>{solanaAddress ? `${solanaUsdcBalance === null ? "-" : displayMoney(solanaUsdcBalance)} USDC` : "Phantom · Solflare · Backpack"}</b>{solanaAddress && <em>{shortAddress(solanaAddress, 6)}</em>}</div><button onClick={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} disabled={solanaBusy}>{solanaBusy ? <LoaderCircle className="spin" size={13}/> : solanaAddress ? <RefreshCw size={13}/> : <Wallet size={13}/>} {solanaAddress ? "Refresh" : "Connect"}</button></div>}
-        <label>Amount<div className="fund-amount"><input value={depositAmount} onChange={(event) => { setDepositAmount(event.target.value.replace(/[^0-9.]/g, "")); setDepositError(""); }} inputMode="decimal" /><span>USDC</span></div></label>
+        <label>Amount<div className="fund-amount"><input value={depositAmount} onChange={(event) => { setDepositAmount(event.target.value.replace(/[^0-9.]/g, "")); setDepositQuote(null); setDepositError(""); }} inputMode="decimal" /><span>USDC</span></div></label>
         <div className="gateway-diagram"><ChainName chain={depositChain} size={20}/><i><ArrowRight size={16} /></i><span>Gateway</span><i><ArrowRight size={16} /></i><span>Unified</span></div>
-        {gatewayDeposits.some((deposit) => deposit.sourceChain === depositChain && deposit.status !== "confirmed" && deposit.status !== "failed") && <div className="funding-background-note"><Radio size={14}/><div><b>Another deposit is still tracking</b><p>You can submit this one safely. Both transactions will remain in History with independent status.</p></div></div>}
-        <button className="neon-button" onClick={depositToGateway} disabled={depositBusy || !walletAddress || !(Number(depositAmount) > 0) || (depositChain === "Solana_Devnet" && !solanaAddress)}>{depositBusy ? <LoaderCircle className="spin" size={17} /> : <ArrowDownToLine size={17} />} {depositBusy ? depositSubmitted ? "Deposit submitted · tracking confirmation…" : "Confirm in wallet…" : "Review deposit in wallet"}</button>
+        {fastDepositInFlight && <button className="quiet-refresh" onClick={() => { setShowFunding(false); openWorkspaceView("history"); }}><Receipt size={13} /> Track Deposits</button>}
+        {gatewayDeposits.some((deposit) => deposit.sourceChain === depositChain && deposit.status !== "confirmed" && deposit.status !== "failed") && <div className="funding-background-note"><Radio size={14}/><div><b>Another deposit is still tracking</b><p>{fastDepositInFlight ? "Follow the existing deposit in History while it finishes." : "You can submit this one safely. Both transactions will remain in History with independent status."}</p></div></div>}
+        {depositQuote && depositQuote.chain === depositChain && depositQuote.amount === depositAmount && <div className="deposit-fee-review"><b>Fast deposit → Arc Testnet</b><span>Deposit <strong>{depositAmount} USDC</strong></span>{depositQuote.estimate.fees.map((fee, index) => <span key={index}>{fee.type === "gasFee" ? "Estimated gas" : "Forwarder fee"}<strong>{fee.amount} {fee.token}</strong></span>)}<small>Fees are paid in addition to your deposit.</small></div>}
+        <button className="neon-button" onClick={depositToGateway} disabled={depositBusy || fastDepositInFlight || !walletAddress || !(Number(depositAmount) > 0) || (depositChain === "Solana_Devnet" && !solanaAddress)}>{depositBusy ? <LoaderCircle className="spin" size={17} /> : <ArrowDownToLine size={17} />} {fastDepositInFlight ? "Track your existing deposit" : depositBusy ? depositSubmitted ? "Deposit submitted · tracking confirmation…" : supportsFastDeposit(depositChain) && !depositQuote ? "Estimating fees…" : "Confirm in wallet…" : supportsFastDeposit(depositChain) && !depositQuote ? "Review fast deposit" : "Review deposit in wallet"}</button>
         {depositError && <div className="funding-error" role="alert"><CircleAlert size={16}/><div><b>Deposit was not submitted</b><p>{depositError}</p></div></div>}
         {solanaError && <div className="funding-error" role="alert"><CircleAlert size={16}/><div><b>Solana connection needs attention</b><p>{describeSolanaReadIssue(solanaError)}</p></div></div>}
-        <div className="gateway-finality-note"><ShieldCheck size={15}/><div><b>Expected Credit Time</b><p>{gatewayFinalityEstimate(depositChain).detail} Expected wait: <strong>{gatewayFinalityEstimate(depositChain).time}</strong>.</p></div></div>
+        <div className="gateway-finality-note"><ShieldCheck size={15}/><div><b>Expected Credit Time</b><p>{supportsFastDeposit(depositChain) ? "Fast deposit to Arc Testnet. Typical credit: seconds after the source burn." : <>{gatewayFinalityEstimate(depositChain).detail} Expected wait: <strong>{gatewayFinalityEstimate(depositChain).time}</strong>.</>}</p></div></div>
       </article></div>}
 
       {showOnRamp && <FiatOnRampModal onClose={() => setShowOnRamp(false)} walletAddress={displayWalletAddress} onSuccess={() => { void loadBalances(); void refreshCurrentUser(); }} />}

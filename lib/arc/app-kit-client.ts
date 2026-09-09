@@ -1,4 +1,4 @@
-import { observeDepositSubmission } from "./deposit-progress";
+import { CCTP_BURN_ACTIONS, observeDepositSubmission } from "./deposit-progress";
 import {
   AppKit,
   isRetryableError,
@@ -223,7 +223,7 @@ export function validateMassPayouts(payouts: MassPayout[]) {
 export class ArcPayrollClient {
   private readonly kit = new AppKit({ disableErrorReporting: true });
   private readonly cctpSubmissionListeners = new Set<(submission: CctpSourceSubmission) => void>();
-  private activeCctpTraceId: string | null = null;
+
 
   onProgress(listener: ArcEventListener) {
     this.kit.on("*", listener);
@@ -235,16 +235,9 @@ export class ArcPayrollClient {
     return () => this.cctpSubmissionListeners.delete(listener);
   }
 
-  private captureCctpSourceSubmission(txHash: string) {
-    const traceId = this.activeCctpTraceId;
-    if (!traceId) return;
-    this.activeCctpTraceId = null;
-    for (const listener of this.cctpSubmissionListeners) listener({ traceId, txHash });
-  }
-
   connectEvmWallet(provider: EIP1193Provider) {
     return createViemAdapterFromProvider({
-      provider: withReliablePublicReads(provider, (txHash) => this.captureCctpSourceSubmission(txHash)),
+      provider: withReliablePublicReads(provider),
       // Public reads must stay chain-specific because App Kit can query several
       // chains without moving the wallet away from the user's signing chain.
       getPublicClient: ({ chain }) => createPublicClient({
@@ -275,13 +268,18 @@ export class ArcPayrollClient {
     return formatUsdc(BigInt(await prepared.execute()));
   }
 
-  async deposit(adapter: CircleAdapter, chain: SourceChain, amount: string, onSubmitted?: (txHash: string) => void) {
+  estimateDeposit(adapter: CircleAdapter, chain: SourceChain, amount: string) {
+    return this.kit.unifiedBalance.estimateDeposit({ from: { adapter, chain }, amount, token: "USDC", ...(supportsFastDeposit(chain) ? { to: { chain: "Arc_Testnet" as const }, config: { transferSpeed: "FAST" as const } } : {}) });
+  }
+
+  async deposit(adapter: CircleAdapter, chain: SourceChain, amount: string, onSubmitted?: (txHash: string) => void, estimate?: DepositEstimate) {
     if (chain !== "Solana_Devnet") {
       const resolvedChain = resolveChainIdentifier(chain);
       if (resolvedChain.type === "evm") await (adapter as BrowserViemAdapter).ensureChain(resolvedChain);
     }
     return this.kit.unifiedBalance.deposit({
-      from: { adapter: onSubmitted ? observeDepositSubmission(adapter, onSubmitted) : adapter, chain },
+      ...estimate,
+      from: { adapter: onSubmitted ? observeDepositSubmission(adapter, onSubmitted, estimate?.to ? CCTP_BURN_ACTIONS : undefined) : adapter, chain },
       amount,
       token: "USDC",
     });
@@ -434,26 +432,26 @@ export class ArcPayrollClient {
     });
   }
 
-  async estimateBridgeToArc(sourceAdapter: CircleAdapter, sourceChain: CctpSourceChain, recipientAddress: string, amount: string) {
+  async estimateBridgeToArc(sourceAdapter: CircleAdapter, sourceChain: CctpSourceChain, recipientAddress: string, amount: string, destinationAdapter?: CircleAdapter) {
     if (sourceChain !== "Solana_Devnet") {
       const resolvedChain = resolveChainIdentifier(sourceChain as EvmSourceChain);
       if (resolvedChain.type !== "evm") throw new Error(`${sourceChain} is not an EVM chain`);
       await (sourceAdapter as BrowserViemAdapter).ensureChain(resolvedChain);
     }
-    return this.kit.estimateBridge({
-      from: { adapter: sourceAdapter, chain: sourceChain },
-      to: { chain: "Arc_Testnet", recipientAddress, useForwarder: true },
-      amount,
-      token: "USDC",
-      config: { transferSpeed: "SLOW" },
-    });
+    const params = { from: { adapter: sourceAdapter, chain: sourceChain }, to: sourceChain === "Solana_Devnet" && destinationAdapter ? { adapter: destinationAdapter, chain: "Arc_Testnet" as const, recipientAddress } : { chain: "Arc_Testnet" as const, recipientAddress, useForwarder: true as const }, amount, token: "USDC" as const };
+    return sourceChain === "Solana_Devnet"
+      ? this.kit.estimateBridge({ ...params, config: { transferSpeed: "SLOW" } })
+      : this.kit.estimateBridge({ ...params, config: { transferSpeed: "SLOW", feePayment: "source" } });
   }
 
-  bridgeToArc(sourceAdapter: CircleAdapter, sourceChain: CctpSourceChain, recipientAddress: string, amount: string, traceId: string) {
-    this.activeCctpTraceId = traceId;
+  bridgeToArc(sourceAdapter: CircleAdapter, sourceChain: CctpSourceChain, recipientAddress: string, amount: string, traceId: string, quote?: string, destinationAdapter?: CircleAdapter) {
+    if (sourceChain !== "Solana_Devnet" && !quote) throw new Error("Review the bridge fees before signing");
+    const observedAdapter = observeDepositSubmission(sourceAdapter, (txHash) => {
+      for (const listener of this.cctpSubmissionListeners) listener({ traceId, txHash });
+    }, CCTP_BURN_ACTIONS);
     return this.kit.bridge({
-      from: { adapter: sourceAdapter, chain: sourceChain },
-      to: { chain: "Arc_Testnet", recipientAddress, useForwarder: true },
+      from: { adapter: observedAdapter, chain: sourceChain },
+      to: sourceChain === "Solana_Devnet" && destinationAdapter ? { adapter: destinationAdapter, chain: "Arc_Testnet", recipientAddress } : { chain: "Arc_Testnet", recipientAddress, useForwarder: true },
       amount,
       token: "USDC",
       invocationMeta: { traceId, callers: [{ type: "app", name: "OffGrid", version: "0.1.0" }] },
@@ -461,16 +459,15 @@ export class ArcPayrollClient {
       // Sequential EVM execution exposes the source burn hash as soon as the
       // wallet submits it, allowing the UI to hand long attestation/mint work
       // to the persisted History tracker instead of holding the payment form.
-      config: { transferSpeed: "SLOW", batchTransactions: false },
-    }).finally(() => {
-      if (this.activeCctpTraceId === traceId) this.activeCctpTraceId = null;
+      config: { transferSpeed: "SLOW", batchTransactions: false, ...(sourceChain !== "Solana_Devnet" ? { feePayment: "source" as const } : {}) },
+      ...(quote ? { quote: quote as `0x${string}` } : {}),
     });
   }
 
-  retryBridge(result: BridgeResult, sourceAdapter: CircleAdapter) {
+  retryBridge(result: BridgeResult, sourceAdapter: CircleAdapter, destinationAdapter?: CircleAdapter) {
     const failedStep = result.steps.find((step) => step.state === "error");
     if (!failedStep?.error || !isRetryableError(failedStep.error)) return Promise.resolve(result);
-    return this.kit.retryBridge(result, { from: sourceAdapter });
+    return this.kit.retryBridge(result, { from: sourceAdapter, ...(destinationAdapter ? { to: destinationAdapter } : {}) });
   }
 }
 
@@ -480,3 +477,6 @@ export function getArcMintStep(result: BridgeResult): BridgeStep | null {
     ?? successful.findLast((step) => step.explorerUrl?.includes("arcscan"))
     ?? null;
 }
+
+export type DepositEstimate = Awaited<ReturnType<ArcPayrollClient["estimateDeposit"]>>;
+export function supportsFastDeposit(chain: SourceChain) { return chain === "Ethereum_Sepolia" || chain === "Arbitrum_Sepolia"; }

@@ -64,6 +64,9 @@ export interface StoredFiatPayout {
 export type GatewayDepositStatus = "submitted" | "source_confirmed" | "indexing" | "confirmed" | "failed";
 
 export interface StoredGatewayDeposit {
+  mode?: "standard" | "fast";
+  destinationChain?: string;
+  destinationTxHash?: string;
   id: string;
   ownerId: string;
   sourceAddress: string;
@@ -85,6 +88,7 @@ export interface StoredGatewayDeposit {
 }
 
 export interface StoredCctpOperation {
+  sourceTransactionKind?: "approval" | "burn";
   id: string;
   ownerId: string;
   recipientUserId: string | null;

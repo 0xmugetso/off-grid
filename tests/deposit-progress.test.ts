@@ -27,3 +27,14 @@ describe("Gateway deposit broadcast", () => {
     expect(observeDepositSubmission(adapter, vi.fn()).waitForTransaction()).toBe("receipt");
   });
 });
+
+import { CCTP_BURN_ACTIONS } from "../lib/arc/deposit-progress";
+it("captures the fast-deposit burn but never its approval", async () => {
+  const submitted = vi.fn();
+  const adapter = { prepareAction: async (action: string) => ({ execute: async () => action === "usdc.approve" ? "0xapproval" : "0xburn" }) };
+  const observed = observeDepositSubmission(adapter, submitted, CCTP_BURN_ACTIONS);
+  await (await observed.prepareAction("usdc.approve")).execute();
+  expect(submitted).not.toHaveBeenCalled();
+  await (await observed.prepareAction("cctp.v2.depositForBurnWithFees")).execute();
+  expect(submitted).toHaveBeenCalledExactlyOnceWith("0xburn");
+});

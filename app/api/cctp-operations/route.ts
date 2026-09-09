@@ -1,3 +1,4 @@
+import { verifyArcDelivery } from "@/lib/fast-deposit-proof";
 import { checkCctpSourceFailure } from "@/lib/cctp-source-proof";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
@@ -70,16 +71,6 @@ function finalizeOperation(database: Database, operation: StoredCctpOperation) {
   }
 }
 
-function messageMatchesOperation(message: IrisMessage, operation: StoredCctpOperation) {
-  const decoded = message.decodedMessage;
-  const body = decoded?.decodedMessageBody;
-  const recipient = String(body?.mintRecipient ?? "").toLowerCase().replace(/^0x/, "").slice(-40);
-  const expectedRecipient = operation.recipientAddress.toLowerCase().replace(/^0x/, "");
-  return Number(decoded?.destinationDomain) === 26
-    && recipient === expectedRecipient
-    && String(body?.amount ?? "") === parseUsdc(operation.amount).toString();
-}
-
 async function queryIris(operation: StoredCctpOperation): Promise<IrisMessage | null> {
   if (!operation.burnTxHash) return null;
   const url = `https://iris-api-sandbox.circle.com/v2/messages/${operation.sourceDomain}?transactionHash=${encodeURIComponent(operation.burnTxHash)}`;
@@ -88,7 +79,7 @@ async function queryIris(operation: StoredCctpOperation): Promise<IrisMessage | 
     if (response.status === 404) return null;
     if (!response.ok) return null;
     const payload = await response.json() as { messages?: IrisMessage[] };
-    return payload.messages?.find((message) => messageMatchesOperation(message, operation)) ?? null;
+    return payload.messages?.find((message) => Number(message.decodedMessage?.destinationDomain) === 26) ?? null;
   } catch {
     return null;
   }
@@ -100,7 +91,9 @@ export async function GET() {
   const pending = await queryDatabase((database) => database.cctpOperations.filter((operation) => operation.ownerId === current.id && operation.burnTxHash && operation.status !== "confirmed" && operation.status !== "failed"));
   const observations = await Promise.all(pending.map(async (operation) => {
     const message = await queryIris(operation);
-    return { id: operation.id, hash: operation.burnTxHash, message, sourceFailure: message ? null : await checkCctpSourceFailure(operation.sourceChain, operation.burnTxHash!) };
+    const mintHash = operation.mintTxHash ?? (message && ["CONFIRMED", "COMPLETE"].includes(message.forwardState ?? "") ? message.forwardTxHash : null);
+    const delivered = Boolean(mintHash && TX_HASH.test(mintHash) && await verifyArcDelivery(mintHash, operation.recipientAddress, operation.amount));
+    return { id: operation.id, hash: operation.burnTxHash, message, mintHash, delivered, sourceFailure: message || delivered ? null : await checkCctpSourceFailure(operation.sourceChain, operation.burnTxHash!) };
   }));
   const operations = await mutateDatabase((database) => {
     // Remove legacy preflight failures and abandoned wallet prompts. These do
@@ -112,25 +105,26 @@ export async function GET() {
       const operation = database.cctpOperations.find((entry) => entry.id === observation.id && entry.ownerId === current.id);
       if (!operation || operation.burnTxHash !== observation.hash || operation.status === "confirmed") continue;
       if (observation.sourceFailure) {
+        if (observation.sourceFailure.startsWith("Token approval confirmed")) operation.sourceTransactionKind = "approval";
         operation.status = "failed";
         operation.errorMessage = observation.sourceFailure;
         operation.updatedAt = new Date().toISOString();
         continue;
       }
-      if (!observation.message || !messageMatchesOperation(observation.message, operation)) continue;
-      if (observation.message.forwardState === "FAILED") {
+      if (!observation.message && !observation.delivered) continue;
+      if (observation.message?.forwardState === "FAILED" && !observation.delivered) {
         operation.status = "failed";
         operation.errorMessage = "Circle Forwarder reported a failed destination mint";
-      } else if (observation.message.forwardState === "COMPLETE" && observation.message.forwardTxHash && TX_HASH.test(observation.message.forwardTxHash)) {
-        operation.mintTxHash = observation.message.forwardTxHash;
-        operation.mintExplorerUrl = `https://testnet.arcscan.app/tx/${observation.message.forwardTxHash}`;
+      } else if (observation.delivered && observation.mintHash) {
+        operation.mintTxHash = observation.mintHash;
+        operation.mintExplorerUrl = `https://testnet.arcscan.app/tx/${observation.mintHash}`;
         operation.bridgeSteps = [
           { name: "Burn confirmed", txHash: operation.burnTxHash ?? undefined, explorerUrl: operation.burnExplorerUrl ?? undefined },
           { name: "Circle attestation complete" },
           { name: "Arc mint confirmed", txHash: operation.mintTxHash, explorerUrl: operation.mintExplorerUrl },
         ];
         finalizeOperation(database, operation);
-      } else if (observation.message.status === "complete") {
+      } else if (observation.message?.status === "complete") {
         operation.status = "minting";
       } else {
         operation.status = "attesting";
