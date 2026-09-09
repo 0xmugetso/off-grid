@@ -1,3 +1,4 @@
+import { checkCctpSourceFailure } from "@/lib/cctp-source-proof";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isAddress } from "viem";
@@ -87,7 +88,7 @@ async function queryIris(operation: StoredCctpOperation): Promise<IrisMessage | 
     if (response.status === 404) return null;
     if (!response.ok) return null;
     const payload = await response.json() as { messages?: IrisMessage[] };
-    return payload.messages?.[0] ?? null;
+    return payload.messages?.find((message) => messageMatchesOperation(message, operation)) ?? null;
   } catch {
     return null;
   }
@@ -97,7 +98,10 @@ export async function GET() {
   const current = await getCurrentUser();
   if (!current) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const pending = await queryDatabase((database) => database.cctpOperations.filter((operation) => operation.ownerId === current.id && operation.burnTxHash && operation.status !== "confirmed" && operation.status !== "failed"));
-  const observations = await Promise.all(pending.map(async (operation) => ({ id: operation.id, message: await queryIris(operation) })));
+  const observations = await Promise.all(pending.map(async (operation) => {
+    const message = await queryIris(operation);
+    return { id: operation.id, hash: operation.burnTxHash, message, sourceFailure: message ? null : await checkCctpSourceFailure(operation.sourceChain, operation.burnTxHash!) };
+  }));
   const operations = await mutateDatabase((database) => {
     // Remove legacy preflight failures and abandoned wallet prompts. These do
     // not have a source-chain burn, so they are attempts rather than transfers.
@@ -105,9 +109,15 @@ export async function GET() {
       operation.ownerId !== current.id || !shouldPruneUnsignedCctpOperation(operation)
     ));
     for (const observation of observations) {
-      if (!observation.message) continue;
       const operation = database.cctpOperations.find((entry) => entry.id === observation.id && entry.ownerId === current.id);
-      if (!operation || !messageMatchesOperation(observation.message, operation)) continue;
+      if (!operation || operation.burnTxHash !== observation.hash || operation.status === "confirmed") continue;
+      if (observation.sourceFailure) {
+        operation.status = "failed";
+        operation.errorMessage = observation.sourceFailure;
+        operation.updatedAt = new Date().toISOString();
+        continue;
+      }
+      if (!observation.message || !messageMatchesOperation(observation.message, operation)) continue;
       if (observation.message.forwardState === "FAILED") {
         operation.status = "failed";
         operation.errorMessage = "Circle Forwarder reported a failed destination mint";

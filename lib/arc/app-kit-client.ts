@@ -132,10 +132,10 @@ const PUBLIC_RPC_METHODS = new Set([
   "eth_maxPriorityFeePerGas",
 ]);
 
-const ERC20_APPROVE_SELECTOR = "0x095ea7b3";
+const ERC20_APPROVAL_SELECTORS = ["0x095ea7b3", "0x39509351", "0xa457c2d7"];
 
 export function isCctpBurnSubmissionData(data: string) {
-  return /^0x[a-fA-F0-9]{8,}$/.test(data) && !data.toLowerCase().startsWith(ERC20_APPROVE_SELECTOR);
+  return /^0x[a-fA-F0-9]{8,}$/.test(data) && !ERC20_APPROVAL_SELECTORS.some((selector) => data.toLowerCase().startsWith(selector));
 }
 
 function withReliablePublicReads(provider: EIP1193Provider, onTransactionSubmitted?: (txHash: string, data: string) => void): EIP1193Provider {
