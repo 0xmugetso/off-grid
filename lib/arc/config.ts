@@ -61,3 +61,8 @@ export const assertPaymentDecimals = (decimals: number) => {
     throw new Error("OffGrid payment amounts must use 6-decimal USDC units");
   }
 };
+
+export const ETHEREUM_SEPOLIA_RPC_URLS = Array.from(new Set([
+  process.env.NEXT_PUBLIC_ETHEREUM_SEPOLIA_RPC_URL?.trim(),
+  "https://ethereum-sepolia-rpc.publicnode.com",
+].filter((url): url is string => Boolean(url))));

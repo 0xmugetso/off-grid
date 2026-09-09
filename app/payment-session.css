@@ -122,3 +122,12 @@
 @media(prefers-reduced-motion:reduce) {
   .provider-proof-steps>div.active>i svg,.progression-node.active .node-circle,.protocol-stream .spin { animation:none!important; }
 }
+
+.protocol-stream>span>i { align-self:center; overflow:hidden; border-radius:50%; }
+.protocol-stream>span>i>svg { display:block; width:12px; height:12px; flex-shrink:0; }
+.protocol-stream>span>em { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.unified-chain-grid .unified-deposit-estimate { display:flex; align-items:flex-start; gap:8px; margin-top:8px; padding-top:10px; border-top:1px solid var(--line); color:var(--muted); }
+.unified-deposit-estimate>svg { flex-shrink:0; margin-top:2px; color:var(--acid); }
+.unified-chain-grid .unified-deposit-estimate b { color:var(--ink); font:600 9px var(--sans); }
+.unified-chain-grid .unified-deposit-estimate p { margin:4px 0; color:var(--acid); font-size:9px; line-height:1.5; }
+.unified-chain-grid .unified-deposit-estimate small { display:block; white-space:normal; color:var(--muted); font:8px/1.5 var(--sans); letter-spacing:0; }

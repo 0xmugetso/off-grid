@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isAddress } from "viem";
-import { CCTP_TESTNET_DOMAINS, SOURCE_CHAINS, type SourceChain } from "@/lib/arc/config";
+import { ETHEREUM_SEPOLIA_RPC_URLS, CCTP_TESTNET_DOMAINS, SOURCE_CHAINS, type SourceChain } from "@/lib/arc/config";
 import { gatewayExplorerUrl } from "@/lib/gateway-explorer";
 import { parseUsdc } from "@/lib/money";
 import { getCurrentUser } from "@/lib/server/auth";
@@ -14,7 +14,7 @@ const SOLANA_TX = /^[1-9A-HJ-NP-Za-km-z]{64,100}$/;
 const RPC_URLS: Partial<Record<SourceChain, string[]>> = {
   Base_Sepolia: ["https://sepolia.base.org", "https://base-sepolia-rpc.publicnode.com"],
   Arbitrum_Sepolia: ["https://sepolia-rollup.arbitrum.io/rpc", "https://arbitrum-sepolia-rpc.publicnode.com"],
-  Ethereum_Sepolia: ["https://rpc.sepolia.org", "https://ethereum-sepolia-rpc.publicnode.com"],
+  Ethereum_Sepolia: ETHEREUM_SEPOLIA_RPC_URLS,
   Arc_Testnet: ["https://rpc.testnet.arc.io", "https://rpc.testnet.arc.network"],
 };
 

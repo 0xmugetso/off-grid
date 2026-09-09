@@ -14,7 +14,7 @@ import { createPublicClient, fallback, getAddress, http, isAddress, type Chain }
 import type { EIP1193Provider } from "viem";
 import { arbitrumSepolia, arcTestnet, baseSepolia, sepolia } from "viem/chains";
 import type { CctpSourceChain, EvmSourceChain, SourceChain } from "./config";
-import { ARC } from "./config";
+import { ARC, ETHEREUM_SEPOLIA_RPC_URLS } from "./config";
 import type { SolanaWalletProvider } from "./solana-wallet";
 import { formatUsdc, parseUsdc } from "../money";
 
@@ -88,11 +88,7 @@ function publicTransportFor(chain: Chain) {
       "https://arbitrum-sepolia-rpc.publicnode.com",
     ].filter((url): url is string => Boolean(url));
   } else if (chain.id === ETHEREUM_SEPOLIA_CHAIN_ID) {
-    rpcUrls = [
-      process.env.NEXT_PUBLIC_ETHEREUM_SEPOLIA_RPC_URL?.trim(),
-      "https://rpc.sepolia.org",
-      "https://ethereum-sepolia-rpc.publicnode.com",
-    ].filter((url): url is string => Boolean(url));
+    rpcUrls = ETHEREUM_SEPOLIA_RPC_URLS;
   } else {
     rpcUrls = [chain.rpcUrls.default.http[0]].filter(Boolean);
   }

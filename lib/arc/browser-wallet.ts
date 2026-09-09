@@ -3,7 +3,7 @@
 import type { EIP1193Provider } from "viem";
 import { createPublicClient, custom, formatUnits, getAddress, http } from "viem";
 import { arcTestnet } from "viem/chains";
-import { ARC, type EvmSourceChain } from "./config";
+import { ARC, ETHEREUM_SEPOLIA_RPC_URLS, type EvmSourceChain } from "./config";
 
 export interface BrowserWallet {
   info: { uuid: string; name: string; icon: string; rdns: string };
@@ -100,41 +100,34 @@ const SOURCE_NETWORKS: Record<EvmSourceChain, {
     chainId: 11_155_111,
     chainName: "Ethereum Sepolia",
     nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
-    rpcUrls: ["https://rpc.sepolia.org", "https://ethereum-sepolia-rpc.publicnode.com"],
+    rpcUrls: ETHEREUM_SEPOLIA_RPC_URLS,
     blockExplorerUrls: ["https://sepolia.etherscan.io"],
   },
 };
 
-/**
- * Activates the requested source chain before App Kit prepares a deposit.
- * The add request also gives wallets a current public RPC list. Wallets that
- * own an integrated network may reject the update, so switching remains the
- * authoritative, idempotent operation.
- */
+/** Activate a source chain without replacing the user's existing RPC settings. */
 export async function ensureGatewaySourceChain(provider: EIP1193Provider, sourceChain: EvmSourceChain) {
   const network = SOURCE_NETWORKS[sourceChain];
   const chainId = `0x${network.chainId.toString(16)}`;
-
-  try {
-    await provider.request({
-      method: "wallet_addEthereumChain",
-      params: [{ ...network, chainId }],
-    });
-  } catch (error) {
-    if (isUserRejection(error)) throw new Error(`${network.chainName} network request was rejected in your wallet`);
-    // Integrated networks commonly report "already added" here. The switch
-    // below is still required and gives the wallet a chance to refresh it.
+  const currentChainId = await provider.request({ method: "eth_chainId" });
+  if (Number(currentChainId) !== network.chainId) {
+    try {
+      await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId }] });
+    } catch (error) {
+      if (isUserRejection(error)) throw new Error(`${network.chainName} network switch was rejected in your wallet`);
+      if (Number(providerErrorCode(error)) !== 4902) throw new Error(`Wallet could not activate ${network.chainName}: ${providerErrorMessage(error)}`);
+      try {
+        await provider.request({ method: "wallet_addEthereumChain", params: [{ ...network, chainId }] });
+        await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId }] });
+      } catch (addError) {
+        if (isUserRejection(addError)) throw new Error(`${network.chainName} network request was rejected in your wallet`);
+        throw new Error(`Wallet could not add ${network.chainName}: ${providerErrorMessage(addError)}`);
+      }
+    }
   }
 
-  try {
-    await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId }] });
-  } catch (error) {
-    if (isUserRejection(error)) throw new Error(`${network.chainName} network switch was rejected in your wallet`);
-    throw new Error(`Wallet could not activate ${network.chainName}: ${providerErrorMessage(error)}`);
-  }
-
-  // Rabby can keep an integrated network on an obsolete RPC even after an
-  // add-chain refresh. Probe its own transport before opening the signing
+  // Rabby can keep an integrated network on an unavailable RPC.
+  // Probe its own transport before opening the signing
   // window so a broken endpoint becomes an actionable in-app message instead
   // of an oversized wallet error that blocks the transaction review.
   if (sourceChain === "Ethereum_Sepolia") {
@@ -145,7 +138,7 @@ export async function ensureGatewaySourceChain(provider: EIP1193Provider, source
       } catch (error) {
         const message = providerErrorMessage(error);
         if (/sepolia\.drpc\.org|chain is not available on free plan/i.test(message)) {
-          throw new Error(`Ethereum Sepolia wallet RPC is unavailable: ${message}`);
+          throw new Error("Rabby's Ethereum Sepolia RPC rejected the request. In Rabby → Settings → Modify RPC URL → Sepolia, use https://ethereum-sepolia-rpc.publicnode.com, then retry. OffGrid cannot change Rabby's internal signing RPC.");
         }
       }
     }
