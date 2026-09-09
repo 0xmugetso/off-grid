@@ -1,3 +1,4 @@
+import { observeDepositSubmission } from "./deposit-progress";
 import {
   AppKit,
   isRetryableError,
@@ -274,13 +275,13 @@ export class ArcPayrollClient {
     return formatUsdc(BigInt(await prepared.execute()));
   }
 
-  async deposit(adapter: CircleAdapter, chain: SourceChain, amount: string) {
+  async deposit(adapter: CircleAdapter, chain: SourceChain, amount: string, onSubmitted?: (txHash: string) => void) {
     if (chain !== "Solana_Devnet") {
       const resolvedChain = resolveChainIdentifier(chain);
       if (resolvedChain.type === "evm") await (adapter as BrowserViemAdapter).ensureChain(resolvedChain);
     }
     return this.kit.unifiedBalance.deposit({
-      from: { adapter, chain },
+      from: { adapter: onSubmitted ? observeDepositSubmission(adapter, onSubmitted) : adapter, chain },
       amount,
       token: "USDC",
     });
