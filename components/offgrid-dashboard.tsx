@@ -3051,14 +3051,14 @@ export function OffGridDashboard() {
           <a className="faucet-button" href="https://faucet.circle.com/" target="_blank" rel="noreferrer"><Fuel size={15} /> Get Test USDC <ExternalLink size={12} /></a>
 
           {displayWalletAddress ? (
-            <div className={`connected-wallet-shell ${showWalletMenu ? "open" : ""}`} ref={walletMenuRef}>
-              <button className="connected-wallet" onClick={() => setShowWalletMenu((current) => !current)} onMouseEnter={() => setShowWalletMenu(true)}>
+            <div className={`connected-wallet-shell ${showWalletMenu ? "open" : ""}`} ref={walletMenuRef} onMouseLeave={() => setShowWalletMenu(false)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setShowWalletMenu(false); }}>
+              <button className="connected-wallet" onClick={(event) => setShowWalletMenu(event.detail === 0 ? !showWalletMenu : true)} onMouseEnter={() => setShowWalletMenu(true)} aria-expanded={showWalletMenu} aria-controls="connected-wallet-menu">
                 <span><Wallet size={14} /></span>
                 <b>{shortAddress(displayWalletAddress)}</b>
                 <small>{walletName || user.displayName}</small>
                 <ChevronDown size={13} />
               </button>
-              <div className="connected-wallet-menu">
+              <div id="connected-wallet-menu" className="connected-wallet-menu" inert={!showWalletMenu}>
                 <button className="solana-dropdown-row" onClick={() => solanaAddress ? void refreshSolanaWalletBalance() : void beginSolanaConnection()} disabled={solanaBusy}>
                   <ChainLogo chain="Solana_Devnet" size={16}/>
                   <span>{solanaAddress ? `Solana: ${shortAddress(solanaAddress, 4)}` : "Connect Solana Wallet"}</span>

@@ -145,7 +145,7 @@ body:has(.auth-shell) { overflow: hidden; }
 .connected-wallet small { color: var(--faint); font-size: 7px; }
 .connected-wallet > svg { margin-left: 4px; }
 .connected-wallet-menu { position: absolute; top: calc(100% + 8px); right: 0; min-width: 168px; padding: 7px; border: 1px solid var(--line); border-radius: 10px; background: rgba(10,12,8,.96); box-shadow: 0 18px 44px rgba(0,0,0,.35); display: grid; gap: 5px; opacity: 0; transform: translateY(-4px) scale(.98); pointer-events: none; transition: opacity .16s ease, transform .16s ease; z-index: 30; }
-.connected-wallet-shell:hover .connected-wallet-menu, .connected-wallet-shell.open .connected-wallet-menu, .connected-wallet-shell:focus-within .connected-wallet-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.connected-wallet-shell.open .connected-wallet-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
 .connected-wallet-menu button { min-height: 31px; padding: 0 10px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 7px; font: 7px var(--mono); text-transform: uppercase; letter-spacing: .08em; cursor: pointer; transition: background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease; }
 .connected-wallet-menu button:hover { background: rgba(199,255,61,.06); border-color: rgba(199,255,61,.16); color: var(--acid); transform: translateX(1px); }
 .connected-wallet-menu button:last-child:hover { background: rgba(255,118,118,.06); border-color: rgba(255,118,118,.16); color: #ff9292; }
@@ -4547,3 +4547,5 @@ html[data-theme="light"] .receipt-code-rain--modal::before {
   .offgrid-loader > i { animation-duration:1.8s; }
   ::view-transition-old(root),::view-transition-new(root) { animation:none; }
 }
+
+.connected-wallet-menu::before { content:""; position:absolute; left:0; right:0; top:-8px; height:8px; }
