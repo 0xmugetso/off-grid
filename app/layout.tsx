@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./mass-payment.css";
+import "./payment-session.css";
 
 export const metadata: Metadata = {
   title: "OffGrid - Money without borders",

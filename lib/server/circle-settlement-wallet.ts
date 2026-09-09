@@ -3,6 +3,7 @@ import "server-only";
 import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
 import { createPublicClient, decodeEventLog, getAddress, http, parseUnits } from "viem";
 import { arcTestnet } from "viem/chains";
+import { parseUsdc, formatUsdc } from "@/lib/money";
 import { ARC } from "@/lib/arc/config";
 
 const transferEvent = [{
@@ -42,6 +43,7 @@ export async function createSettlementWalletTransfer(input: {
   destinationAddress: string;
   amount: string;
   reference: string;
+  retry?: boolean;
 }) {
   const { values, wallets } = client();
   const wallet = await wallets.getWallet({ id: values.walletId });
@@ -51,7 +53,12 @@ export async function createSettlementWalletTransfer(input: {
   const balances = await wallets.getWalletTokenBalance({ id: values.walletId, tokenAddresses: [ARC.contracts.usdc] });
   const usdc = balances.data?.tokenBalances?.find((entry) => entry.token?.tokenAddress?.toLowerCase() === ARC.contracts.usdc.toLowerCase());
   if (!usdc?.token?.id) throw new Error("Circle could not resolve Arc Testnet USDC in the settlement wallet");
-  if (Number(usdc.amount || "0") < Number(input.amount)) throw new Error("The settlement wallet has not received enough Arc Testnet USDC yet");
+  // Replay an interrupted request with its original key even if it already spent the balance.
+  if (!input.retry && parseUsdc(usdc.amount || "0") < parseUsdc(input.amount)) {
+    const error = new Error(`USDC delivery paused: the OffGrid settlement wallet has ${formatUsdc(parseUsdc(usdc.amount || "0"))} USDC; this payment needs ${input.amount} USDC plus network fees. The bank deposit is confirmed. Replenish the settlement wallet on Arc Testnet, then retry this payment.`);
+    error.name = "SettlementWalletFundingError";
+    throw error;
+  }
   const response = await wallets.createTransaction({
     idempotencyKey: input.idempotencyKey,
     walletId: values.walletId,

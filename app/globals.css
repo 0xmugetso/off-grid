@@ -40,6 +40,10 @@ html[data-theme="light"] {
 }
 
 * { box-sizing: border-box; }
+body { -webkit-user-select:none; user-select:none; }
+input,textarea,[contenteditable="true"],code,pre,.selectable,.inline-error,.provider-blocker,.link-text-box {
+  -webkit-user-select:text; user-select:text;
+}
 html { color-scheme: dark; scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; color: var(--ink); background: var(--bg); font-family: var(--sans); -webkit-font-smoothing: antialiased; zoom: 1.08; }
 button, input, select { font: inherit; }

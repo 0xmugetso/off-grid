@@ -154,6 +154,7 @@ export interface StoredFiatSettlement {
   circleTransferTxHash: string | null;
   receiverTransferId: string | null;
   receiverTransferState: string | null;
+  receiverTransferStartedAt?: string | null;
   receiverTxHash: string | null;
   settlementWalletAddress?: string | null;
   settlementWalletBalanceBefore?: string | null;

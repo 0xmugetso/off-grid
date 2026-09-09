@@ -302,10 +302,15 @@ export async function POST(_request: Request, { params }: { params: Promise<{ to
         target.updatedAt = now;
       });
       if (!isCompleteState(depositStatus)) return NextResponse.json({ session: await viewFor(session!.id, current.id), pending: true });
-    } else if (settlement.stage === "circle_deposit_confirmed") {
+    } else if (settlement.stage === "circle_deposit_confirmed" || settlement.stage === "receiver_transfer_creating") {
       const claimed = await mutateDatabase((database) => {
         const target = database.paymentSessions.find((entry) => entry.id === session!.id)!;
-        if (target.fiatSettlement!.stage !== "circle_deposit_confirmed") return false;
+        const saved = target.fiatSettlement!;
+        if (saved.stage === "receiver_transfer_creating") {
+          const started = Date.parse(saved.receiverTransferStartedAt || saved.updatedAt);
+          if (Number.isFinite(started) && Date.now() - started < 60_000) return false;
+        } else if (saved.stage !== "circle_deposit_confirmed") return false;
+        saved.receiverTransferStartedAt = now;
         target.fiatSettlement!.stage = "receiver_transfer_creating";
         target.fiatSettlement!.error = null;
         target.fiatSettlement!.updatedAt = now;
@@ -319,9 +324,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ to
           destinationAddress: receiver.walletAddress,
           amount: session!.amount,
           reference: `session-${session!.id.slice(0, 8)}`,
+          retry: settlement.stage === "receiver_transfer_creating",
         });
         await mutateDatabase((database) => {
           const target = database.paymentSessions.find((entry) => entry.id === session!.id)!;
+          if (target.status === "complete" || target.fiatSettlement!.receiverTransferId) return;
           Object.assign(target.fiatSettlement!, {
             stage: "receiver_transfer_submitted",
             receiverTransferId: relay.id,
@@ -343,19 +350,22 @@ export async function POST(_request: Request, { params }: { params: Promise<{ to
       } catch (error) {
         await mutateDatabase((database) => {
           const target = database.paymentSessions.find((entry) => entry.id === session!.id)!;
-          target.fiatSettlement!.stage = "circle_deposit_confirmed";
+          if (target.fiatSettlement!.stage !== "receiver_transfer_creating" || target.fiatSettlement!.receiverTransferStartedAt !== now) return;
+          // Keep ambiguous submissions replayable with the same idempotency key.
+          target.fiatSettlement!.stage = error instanceof Error && error.name === "SettlementWalletFundingError"
+            ? "circle_deposit_confirmed"
+            : "receiver_transfer_creating";
           target.fiatSettlement!.updatedAt = new Date().toISOString();
           target.updatedAt = target.fiatSettlement!.updatedAt;
         });
         throw error;
       }
-    } else if (settlement.stage === "receiver_transfer_creating") {
-      return NextResponse.json({ session: await viewFor(session!.id, current.id), pending: true });
     } else if (settlement.stage === "receiver_transfer_submitted") {
       const relay = await getSettlementWalletTransfer(settlement.receiverTransferId!);
       if (isFailedState(relay.state)) throw new Error(`Settlement wallet transfer failed${relay.errorReason ? `: ${relay.errorReason}` : ""}`);
       await mutateDatabase((database) => {
         const target = database.paymentSessions.find((entry) => entry.id === session!.id)!;
+        target.fiatSettlement!.error = null;
         target.fiatSettlement!.receiverTransferState = relay.state;
         target.fiatSettlement!.receiverTxHash = relay.txHash;
         target.fiatSettlement!.updatedAt = now;
@@ -407,7 +417,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ to
     if (found?.fiatSettlement) {
       await mutateDatabase((database) => {
         const target = database.paymentSessions.find((entry) => entry.id === found.id);
-        if (target?.fiatSettlement) {
+        if (target?.fiatSettlement && target.status !== "complete") {
           target.fiatSettlement.error = message.startsWith("Only the payer") ? null : message;
           target.fiatSettlement.updatedAt = new Date().toISOString();
           target.updatedAt = target.fiatSettlement.updatedAt;

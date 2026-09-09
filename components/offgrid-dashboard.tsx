@@ -311,7 +311,7 @@ function fiatProofEvents(session: PaymentSessionView): ProtocolEvent[] {
   if (!settlement) return [{ name: "Preparing provider proof route", state: "pending" }];
   return [
     { name: settlement.mockWireTrackingRef ? `Sandbox wire accepted · ${settlement.mockWireTrackingRef}` : "Submitting sandbox wire", state: settlement.mockWireTrackingRef ? "confirmed" : "pending" },
-    { name: settlement.circleDepositId ? `Circle deposit verified · ${settlement.circleDepositId}` : "Waiting for Circle deposit", state: settlement.circleDepositStatus && /fail|denied|cancel/i.test(settlement.circleDepositStatus) ? "failed" : settlement.circleDepositId ? "confirmed" : "pending" },
+    { name: settlement.circleDepositId ? `Circle deposit verified · ${settlement.circleDepositId}` : "Waiting for Circle deposit", state: settlement.circleDepositStatus && /fail|denied|cancel/i.test(settlement.circleDepositStatus) ? "failed" : settlement.circleDepositId && /^(complete|completed|confirmed)$/i.test(settlement.circleDepositStatus || "") ? "confirmed" : "pending" },
     { name: settlement.receiverTransferId ? `Wallet payout submitted · ${settlement.receiverTransferId}` : "Preparing testnet USDC delivery", state: settlement.receiverTransferId ? (settlement.receiverTxHash ? "confirmed" : "pending") : "pending" },
     { name: settlement.receiverTxHash ? `USDC verified onchain · ${shortAddress(settlement.receiverTxHash, 8)}` : "Waiting for onchain receipt", state: settlement.arcBlockNumber ? "confirmed" : "pending", explorerUrl: settlement.receiverTxHash ? `https://testnet.arcscan.app/tx/${settlement.receiverTxHash}` : undefined },
   ];
@@ -3063,17 +3063,17 @@ export function OffGridDashboard() {
           {displayWalletAddress && <section className="session-launchpad">
             <div className="session-launch-glow" />
             <div className="session-launch-icon"><LockKeyhole size={24} /><i /></div>
-            <div className="session-launch-copy"><span><Sparkles size={11} /> START HERE · PRIVATE PAYMENT</span><h2>Open a payment session.</h2><p>Set the direction and amount, share one secure link, then let both sides choose how money moves.</p><div className="session-launch-flow"><span><i>1</i>Set terms</span><b /><span><i>2</i>Share privately</span><b /><span><i>3</i>Settle together</span></div></div>
+            <div className="session-launch-copy"><span><Sparkles size={11} /> PAYMENT LINKS</span><h2>Pay or Request.</h2><p>Set an amount and share a link. Each person chooses a payment method.</p><div className="session-launch-flow"><span><i>1</i>Set terms</span><b /><span><i>2</i>Share privately</span><b /><span><i>3</i>Settle together</span></div></div>
             <div className="session-launch-column">
-              <button className="session-launch-button" onClick={() => { setCreatedSessionLink(""); setSessionError(""); setSessionLinkCopied(false); setShowSessionCreator(true); }}><span><Plus size={18} /></span><div><small>NEW SECURE FLOW</small><b>Create Payment Session</b></div><ArrowRight size={18} /></button>
+              <button className="session-launch-button" onClick={() => { setCreatedSessionLink(""); setSessionError(""); setSessionLinkCopied(false); setShowSessionCreator(true); }}><span><Plus size={18} /></span><div><small>PAY OR REQUEST</small><b>Create Payment Session</b></div><ArrowRight size={18} /></button>
               <button type="button" className="live-sessions-text-link" onClick={() => { setSessionError(""); setShowLiveSessionsModal(true); void refreshPaymentSessions(); }}>
                 <Radio size={12} className="spin-slow" />
-                <span>View Active Payment Sessions</span>
+                <span>View Payment Sessions</span>
                 <ArrowRight size={12} />
               </button>
             </div>
           </section>}
-          <div className="workspace-head"><span><Radio size={11} /> LIVE COMMAND CENTER</span><h1>Move money.<br /><em>Not complexity.</em></h1><p>Agree on both rails, then execute real settlement.</p></div>
+          <div className="workspace-head"><span><Radio size={11} /> TRANSFER</span><h1>Your Next<br /><em>Payment.</em></h1><p>Send USDC or pay through a bank session.</p></div>
 
           {!displayWalletAddress ? (
             <section className="onboarding-card">
@@ -3083,14 +3083,14 @@ export function OffGridDashboard() {
           ) : (
             <>
               <section className="real-balances">
-                <div className="balance-intro"><span className="section-tag">REAL TESTNET BALANCES</span><h2>Your money, live.</h2><p>Read directly from connected networks and Circle Gateway. No demo numbers.</p></div>
+                <div className="balance-intro"><span className="section-tag">REAL TESTNET BALANCES</span><h2>Your Balances</h2><p>Wallet and Circle Gateway balances.</p></div>
                 <article className="real-balance primary"><div><span className="balance-icon"><ChainLogo chain="Arc_Testnet" size={25}/></span><small>ARC TESTNET WALLET</small><button onClick={() => loadBalances()} aria-label="Refresh balances"><RefreshCw size={13} /></button></div><b>{arcBalance === null ? "-" : displayMoney(arcBalance)} <em>USDC</em></b><p className={balanceError ? "balance-read-error" : ""} title={balanceError || undefined}>{balanceError ? "Testnet RPC unavailable · retry" : shortAddress(displayWalletAddress)}</p></article>
                 <article className="real-balance"><div><span className="balance-icon gateway">{gatewayLoading ? <LoaderCircle className="spin" size={16}/> : <Network size={16} />}</span><small>UNIFIED BALANCE</small><button onClick={() => loadBalances()} aria-label="Refresh balances"><RefreshCw className={gatewayLoading ? "spin" : ""} size={13} /></button></div><b>{unifiedBalance === null ? "0.00" : displayMoney(unifiedBalance)} <em>USDC</em></b><p className={gatewayError ? "balance-read-error" : ""} title={gatewayError || undefined}>{gatewayLoading ? "Reading live Circle Gateway balance" : gatewayError || (unifiedBalance === null ? "Connect wallet to load Gateway" : pendingBalance && Number(pendingBalance) > 0 ? `${displayMoney(pendingBalance)} USDC pending` : "Circle Gateway · confirmed")}</p><button className="deposit-link" onClick={() => { setDepositError(""); setShowFunding(true); }}><Plus size={12} /> Deposit</button></article>
                 <article className="real-balance total-money"><div><span className="balance-icon total-money"><Wallet size={16} /></span><small>TOTAL MONEY</small><button onClick={() => { void loadBalances(); }} aria-label="Refresh total money"><RefreshCw size={13} /></button></div><b>{totalMoney === null ? "-" : displayMoney(totalMoney)} <em>USDC</em></b><p>{totalMoney === null ? "Reading confirmed balances" : "Direct Arc Testnet wallet plus confirmed unified balance"}</p></article>
               </section>
 
               <section className="pay-console" id="payment-console">
-                <div className="console-head"><div><span className="section-tag">NEW PAYMENT</span><h2>Send with zero ambiguity.</h2></div><div className="stepper">{["recipient","amount","review"].map((item,index) => <span key={item} className={step === item || (step === "processing" && index === 2) ? "active" : ""}><i>{index + 1}</i>{item}</span>)}</div></div>
+                <div className="console-head"><div><span className="section-tag">NEW PAYMENT</span><h2>Send a Payment</h2></div><div className="stepper">{["recipient","amount","review"].map((item,index) => <span key={item} className={step === item || (step === "processing" && index === 2) ? "active" : ""}><i>{index + 1}</i>{item}</span>)}</div></div>
                 {activeSession && <div className="locked-session-banner"><LockKeyhole size={15} /><div><small>LOCKED PAYMENT SESSION · {activeSession.id.slice(0, 8).toUpperCase()}</small><b>{activeSession.creator?.displayName} and {activeSession.counterparty?.displayName} agreed to {activeSession.amount} USDC</b></div><ShieldCheck size={16} /></div>}
 
                 <div className="console-body">
@@ -3129,7 +3129,12 @@ export function OffGridDashboard() {
                     {step === "review" ? <>
                       {paymentEstimate && <div className="route-estimate"><span><CircleCheck size={14} /></span><div><b>{paymentEstimate.title}</b><small>{paymentEstimate.detail}</small><em>{paymentEstimate.fees}</em></div></div>}
                       <button className={`neon-button pay-now ${estimateBusy || gatewayMintBusy ? "is-loading" : ""}`} onClick={gatewayMintRetry ? retryGatewayMint : paymentEstimate ? pay : estimatePayment} disabled={estimateBusy || gatewayMintBusy}><span className="pay-now-leading">{estimateBusy || gatewayMintBusy ? <LoaderCircle className="spin" size={17} /> : gatewayMintRetry ? <RefreshCw size={17} /> : paymentEstimate ? <Zap size={17} /> : <Network size={17} />}</span><span className="pay-now-label">{estimateBusy ? fundingMethod === "fiat_bank" ? "Checking provider route…" : "Checking live route…" : gatewayMintBusy ? "Recovering Arc mint…" : gatewayMintRetry ? "Retry Arc mint" : paymentEstimate ? fundingMethod === "fiat_bank" ? "Start verified settlement" : "Confirm in wallet" : "Get live estimate"}</span><ArrowRight size={16} /></button>
-                    </> : step === "processing" ? <><div className="protocol-progress">{(fundingMethod === "fiat_bank" ? [["estimate","Route check"],["settlement","Provider proofs"],["receipt","Onchain receipt"]] : [["estimate","Live estimate"],["signature","Wallet signature"],["settlement",fundingMethod === "cctp_bridge" ? "CCTP lifecycle" : "Network confirmation"],["receipt","Create receipt"]]).map(([phase,label], index, phases) => { const current = phases.findIndex(([name]) => name === paymentPhase); return <span key={phase} className={index <= current ? "active" : ""}><i>{index < current ? <Check size={9} /> : index + 1}</i>{label}</span>; })}</div>{protocolEvents.length > 0 && <div className="protocol-stream">{protocolEvents.map((event) => <span className={event.state} key={event.name}><i />{event.name}<b>{event.state}</b></span>)}</div>}<button className="neon-button pay-now is-loading" disabled><span className="pay-now-leading"><LoaderCircle className="spin" size={17} /></span><span className="pay-now-label">{paymentPhase === "estimate" ? fundingMethod === "fiat_bank" ? "Checking provider route…" : "Estimating with App Kit…" : paymentPhase === "signature" ? "Confirm in your wallet…" : paymentPhase === "settlement" ? fundingMethod === "fiat_bank" ? "Verifying Circle and onchain proofs…" : fundingMethod === "cctp_bridge" ? "Burning, attesting & minting…" : "Waiting for confirmation…" : "Creating verified receipt…"}</span><span className="pay-now-end" /></button></> : <><button className="neon-button pay-now" disabled={!canReview || insufficientBalance} onClick={() => { setPaymentEstimate(null); setPaymentError(""); setStep("review"); }}><span className="pay-now-leading"><Send size={17} /></span><span className="pay-now-label">{fundingMethod === "fiat_bank" ? "Review Fiat to Web3" : "Review Payment"}</span><ArrowRight size={16} /></button>{reviewBlockReason && <p className="review-blocker"><CircleAlert size={11} /> {reviewBlockReason}</p>}{available === null && canReview && fundingMethod !== "fiat_bank" && <p className="review-warning"><Radio size={11} /> {fundingMethod === "cctp_bridge" ? "App Kit validates source USDC and gas before CCTP execution." : "Balance unavailable in UI; App Kit will check it during estimation."}</p>}</>}
+                    </> : step === "processing" ? <><div className="protocol-progress">{(fundingMethod === "fiat_bank" ? [["estimate","Route check"],["settlement","Provider proofs"],["receipt","Onchain receipt"]] : [["estimate","Live estimate"],["signature","Wallet signature"],["settlement",fundingMethod === "cctp_bridge" ? "CCTP lifecycle" : "Network confirmation"],["receipt","Create receipt"]]).map(([phase,label], index, phases) => { const current = phases.findIndex(([name]) => name === paymentPhase); return <span key={phase} className={index <= current ? "active" : ""}><i>{index < current ? <Check size={9} /> : index + 1}</i>{label}</span>; })}</div>{protocolEvents.length > 0 && <div className="protocol-stream">{protocolEvents.map((event, index) => {
+                      const done = ["confirmed", "success", "complete"].includes(event.state.toLowerCase());
+                      const failed = ["failed", "error"].includes(event.state.toLowerCase());
+                      const pending = !done && !failed && index === protocolEvents.findIndex((entry) => !["confirmed", "success", "complete"].includes(entry.state.toLowerCase()));
+                      return <span className={done ? "confirmed" : failed ? "failed" : pending ? "pending" : "waiting"} key={event.name}><i>{done ? <Check size={10} /> : failed ? <X size={10} /> : pending ? <LoaderCircle className="spin" size={10} /> : null}</i><em>{event.name}</em><b>{done ? "Confirmed" : failed ? "Failed" : pending ? "Pending" : "Waiting"}</b></span>;
+                    })}</div>}<button className="neon-button pay-now is-loading" disabled><span className="pay-now-leading"><LoaderCircle className="spin" size={17} /></span><span className="pay-now-label">{paymentPhase === "estimate" ? fundingMethod === "fiat_bank" ? "Checking provider route…" : "Estimating with App Kit…" : paymentPhase === "signature" ? "Confirm in your wallet…" : paymentPhase === "settlement" ? fundingMethod === "fiat_bank" ? "Verifying Circle and onchain proofs…" : fundingMethod === "cctp_bridge" ? "Burning, attesting & minting…" : "Waiting for confirmation…" : "Creating verified receipt…"}</span><span className="pay-now-end" /></button></> : <><button className="neon-button pay-now" disabled={!canReview || insufficientBalance} onClick={() => { setPaymentEstimate(null); setPaymentError(""); setStep("review"); }}><span className="pay-now-leading"><Send size={17} /></span><span className="pay-now-label">{fundingMethod === "fiat_bank" ? "Review Fiat to Web3" : "Review Payment"}</span><ArrowRight size={16} /></button>{reviewBlockReason && <p className="review-blocker"><CircleAlert size={11} /> {reviewBlockReason}</p>}{available === null && canReview && fundingMethod !== "fiat_bank" && <p className="review-warning"><Radio size={11} /> {fundingMethod === "cctp_bridge" ? "App Kit validates source USDC and gas before CCTP execution." : "Balance unavailable in UI; App Kit will check it during estimation."}</p>}</>}
                     <p className="self-custody"><ShieldCheck size={12} /> OffGrid never holds your keys or signs for you.</p>
                     <button className="view-all-activity" onClick={() => openWorkspaceView("history")}>View all activities <ArrowRight size={12} /></button>
                   </aside>
@@ -3299,9 +3304,9 @@ export function OffGridDashboard() {
               return (
                 <>
                   <div className="sessions-modal-head" style={{ marginBottom: "14px" }}>
-                    <span className="section-tag">DECOUPLED CLEARING MATRIX</span>
-                    <h2>Active Payment Sessions</h2>
-                    <p>OffGrid coordinates two independent payment preferences and keeps both sides on one shared settlement record.</p>
+                    <span className="section-tag">PAYMENT LINKS</span>
+                    <h2>Payment Sessions</h2>
+                    <p>Track payment methods, delivery, and receipts.</p>
                   </div>
 
                   {/* Horizontal Filter Tabs Aligned Above Session Cards */}
@@ -3351,7 +3356,7 @@ export function OffGridDashboard() {
                             <div className="session-card-header">
                               <div className="session-title-group">
                                 <small style={{ fontFamily: "var(--mono)" }}>SESSION #{sess.id.slice(0, 8)}</small>
-                                <h3 style={{ fontFamily: "var(--mono)" }}>${sess.amount} <span style={{ fontFamily: "var(--mono)" }}>USD</span></h3>
+                                <h3>${sess.amount} <span style={{ fontFamily: "var(--mono)" }}>USD</span></h3>
                                 {sess.memo && <p>{sess.memo}</p>}
                               </div>
                               
@@ -3377,10 +3382,10 @@ export function OffGridDashboard() {
                               <div className="summary-card">
                                 <div className="card-tag">
                                   {sess.payerInputRail === "fiat_bank" ? <Banknote size={12} /> : <Wallet size={12} />}
-                                  PAYER INPUT
+                                  FROM
                                 </div>
                                 <b className="card-val">
-                                  {sess.payerInputRail === "fiat_bank" ? "Bank Wire (Circle Mint)" : sess.payerInputRail === "web3_usdc" ? "Web3 USDC (testnet)" : "Awaiting Choice"}
+                                  {sess.payerInputRail === "fiat_bank" ? "Bank · Circle Sandbox" : sess.payerInputRail === "web3_usdc" ? "USDC · Arc Testnet" : "Awaiting Choice"}
                                 </b>
                                 <span className="card-status">{sess.payerInputRail ? "Choice Locked" : "Pending Selection"}</span>
                               </div>
@@ -3388,19 +3393,19 @@ export function OffGridDashboard() {
                               <div className="summary-card">
                                 <div className="card-tag">
                                   <Zap size={12} className="zap-pulse" />
-                                  OFFGRID CLEARING
+                                  DELIVERY
                                 </div>
-                                <b className="card-val">Live onchain settlement</b>
-                                <span className="card-status">SessionEscrow Contract</span>
+                                <b className="card-val">{sess.status === "complete" ? "Payment Complete" : sess.fiatSettlement?.error ? "Delivery Paused" : sess.fiatSettlement ? "In Progress" : "Awaiting Payment"}</b>
+                                <span className="card-status">{sess.payerInputRail === "fiat_bank" || sess.receiverOutputRail === "fiat_bank" ? "Circle Sandbox · Arc Testnet" : "Arc Testnet"}</span>
                               </div>
 
                               <div className="summary-card">
                                 <div className="card-tag">
                                   {sess.receiverOutputRail === "fiat_bank" ? <Banknote size={12} /> : <Wallet size={12} />}
-                                  RECEIVER OUTPUT
+                                  TO
                                 </div>
                                 <b className="card-val">
-                                  {sess.receiverOutputRail === "fiat_bank" ? "Bank Wire (SEPA/ACH)" : sess.receiverOutputRail === "web3_usdc" ? "Web3 USDC (testnet)" : "Awaiting Choice"}
+                                  {sess.receiverOutputRail === "fiat_bank" ? "Bank · Circle Sandbox" : sess.receiverOutputRail === "web3_usdc" ? "USDC · Arc Testnet" : "Awaiting Choice"}
                                 </b>
                                 <span className="card-status">{sess.receiverOutputRail ? "Choice Locked" : "Pending Selection"}</span>
                               </div>
@@ -3429,7 +3434,7 @@ export function OffGridDashboard() {
 
                                 <div className={`progression-node ${sess.status === "complete" ? "done" : sess.status === "ready" ? "active" : ""}`}>
                                   <div className="node-circle">{sess.status === "complete" ? <Check size={11} /> : <Zap size={11} className="zap-pulse" />}</div>
-                                  <span>3. OffGrid settlement</span>
+                                  <span>3. Delivery</span>
                                 </div>
 
                                 <div className={`progression-node ${sess.status === "complete" ? "done" : ""}`}>
