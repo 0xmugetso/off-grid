@@ -1,66 +1,62 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-interface IERC20 {
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+interface IGatewayMinter {
+    function gatewayMint(bytes calldata attestation, bytes calldata signature) external;
 }
 
-/// @title OffGrid Payroll Router (prototype)
-/// @notice Records an idempotent payroll commitment and fans Arc USDC out to
-///         wallet recipients and licensed off-ramp settlement accounts.
-/// @dev Amounts use the 6-decimal USDC ERC-20 interface. This prototype has
-///      not been audited and must not be deployed with production funds.
-contract PayrollRouter {
-    struct Payout {
-        address recipient;
-        uint256 amount;
-        bytes32 instructionHash;
-    }
-
+/// @notice Atomic USDC payroll. Funds are pulled only from the transaction sender.
+contract PayrollRouter is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+    struct Payout { address recipient; uint256 amount; }
     IERC20 public immutable usdc;
-    mapping(bytes32 batchId => bool executed) public executedBatches;
+    IGatewayMinter public immutable gatewayMinter;
+    mapping(address => mapping(bytes32 => bool)) public executedBatches;
+    error InvalidBatch();
+    error AlreadyExecuted();
+    error IncorrectMint();
+    event PayrollExecuted(address indexed employer, bytes32 indexed batchId, uint256 count, uint256 total);
 
-    error EmptyBatch();
-    error BatchAlreadyExecuted(bytes32 batchId);
-    error InvalidPayout(uint256 index);
-    error TransferFailed(uint256 index);
-
-    event PayrollExecuted(
-        bytes32 indexed batchId,
-        address indexed employer,
-        uint256 payoutCount,
-        uint256 totalUsdc,
-        bytes32 manifestHash
-    );
-    event PayoutRouted(
-        bytes32 indexed batchId,
-        uint256 indexed index,
-        address indexed recipient,
-        uint256 amount,
-        bytes32 instructionHash
-    );
-
-    constructor(address usdcAddress) {
-        if (usdcAddress == address(0)) revert InvalidPayout(0);
-        usdc = IERC20(usdcAddress);
+    constructor(address token, address minter) {
+        require(token != address(0) && minter != address(0));
+        usdc = IERC20(token);
+        gatewayMinter = IGatewayMinter(minter);
     }
 
-    function executePayroll(bytes32 batchId, Payout[] calldata payouts, bytes32 manifestHash) external {
-        if (payouts.length == 0) revert EmptyBatch();
-        if (executedBatches[batchId]) revert BatchAlreadyExecuted(batchId);
+    function executePayroll(bytes32 batchId, Payout[] calldata payouts) external nonReentrant {
+        _pay(batchId, payouts);
+    }
 
-        // Set before external calls. A revert rolls this write back atomically.
-        executedBatches[batchId] = true;
-        uint256 total;
+    /// @notice Compose Circle's mint and all payouts in one reverting transaction.
+    /// The attestation must mint the exact payroll total to msg.sender.
+    function mintAndExecutePayroll(bytes32 batchId, Payout[] calldata payouts, bytes calldata attestation, bytes calldata signature) external nonReentrant {
+        uint256 total = _total(payouts);
+        uint256 beforeBalance = usdc.balanceOf(msg.sender);
+        gatewayMinter.gatewayMint(attestation, signature);
+        if (usdc.balanceOf(msg.sender) != beforeBalance + total) revert IncorrectMint();
+        _pay(batchId, payouts);
+    }
 
+    function _total(Payout[] calldata payouts) private view returns (uint256 total) {
+        if (payouts.length == 0 || payouts.length > 50) revert InvalidBatch();
         for (uint256 i; i < payouts.length; ++i) {
-            Payout calldata payout = payouts[i];
-            if (payout.recipient == address(0) || payout.amount == 0) revert InvalidPayout(i);
-            total += payout.amount;
-            if (!usdc.transferFrom(msg.sender, payout.recipient, payout.amount)) revert TransferFailed(i);
-            emit PayoutRouted(batchId, i, payout.recipient, payout.amount, payout.instructionHash);
+            if (payouts[i].recipient == address(0) || payouts[i].recipient == address(this) || payouts[i].amount == 0) revert InvalidBatch();
+            total += payouts[i].amount;
         }
+    }
 
-        emit PayrollExecuted(batchId, msg.sender, payouts.length, total, manifestHash);
+    function _pay(bytes32 batchId, Payout[] calldata payouts) private {
+        uint256 total = _total(payouts);
+        if (batchId == bytes32(0)) revert InvalidBatch();
+        if (executedBatches[msg.sender][batchId]) revert AlreadyExecuted();
+        executedBatches[msg.sender][batchId] = true;
+        for (uint256 i; i < payouts.length; ++i) {
+            usdc.safeTransferFrom(msg.sender, payouts[i].recipient, payouts[i].amount);
+        }
+        emit PayrollExecuted(msg.sender, batchId, payouts.length, total);
     }
 }

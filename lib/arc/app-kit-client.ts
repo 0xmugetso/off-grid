@@ -1,3 +1,4 @@
+import { executePayrollBatch } from "./payroll-batch";
 import { CCTP_BURN_ACTIONS, observeDepositSubmission } from "./deposit-progress";
 import {
   AppKit,
@@ -28,7 +29,7 @@ export type BrowserViemAdapter = ViemAdapter<any>;
 export type BrowserSolanaAdapter = SolanaAdapter;
 export type MassPayout = { recipientAddress: string; amount: string };
 export type MassPaymentResult = {
-  mode: "wallet_batch" | "sequential" | "gateway_sequential";
+  mode: "wallet_batch" | "sequential" | "gateway_sequential" | "router_batch" | "gateway_batch";
   txHashes: string[];
   explorerUrls: Array<string | undefined>;
   batchId?: string;
@@ -327,99 +328,23 @@ export class ArcPayrollClient {
   }
 
   async massPayArc(adapter: BrowserViemAdapter, payouts: MassPayout[]): Promise<MassPaymentResult> {
-    const validated = validateMassPayouts(payouts);
-    const resolvedArc = resolveChainIdentifier("Arc_Testnet");
-    if (resolvedArc.type !== "evm") throw new Error("Arc Testnet did not resolve as an EVM chain");
-    await adapter.ensureChain(resolvedArc);
-
-    const prepared = await Promise.all(validated.map((payout) => adapter.prepare({
-      type: "evm",
-      address: ARC.contracts.usdc,
-      abi: usdcTransferAbi,
-      functionName: "transfer",
-      args: [payout.recipientAddress, payout.rawAmount],
-    }, { chain: "Arc_Testnet" })));
-
-    if (await adapter.supportsAtomicBatch(ArcTestnet)) {
-      const calls = prepared.map((request) => {
-        const call = request.getCallData?.();
-        if (!call) throw new Error("The connected wallet adapter cannot prepare batch calldata");
-        return call;
-      });
-      const result = await adapter.batchExecute(calls, ArcTestnet);
-      if (!result.receipts.length) throw new Error(`Wallet batch ${result.batchId} was submitted, but confirmation status is not available yet. Do not submit it again.`);
-      const failed = result.receipts.find((receipt) => receipt.status !== "success");
-      if (failed) throw new Error("One or more calls in the wallet batch failed");
-      return {
-        mode: "wallet_batch",
-        batchId: result.batchId,
-        txHashes: result.receipts.map((receipt) => receipt.txHash),
-        explorerUrls: result.receipts.map((receipt) => `${ARC.explorerUrl}/tx/${receipt.txHash}`),
-      };
-    }
-
-    const txHashes: string[] = [];
-    try {
-      for (const request of prepared) {
-        const txHash = await request.execute() as `0x${string}`;
-        let receipt;
-        try {
-          receipt = await adapter.waitForTransaction(txHash, { confirmations: 1, timeout: 120_000 }, ArcTestnet);
-        } catch (error) {
-          const reason = error instanceof Error ? error.message : "confirmation timed out";
-          throw new Error(`Transaction ${txHash} was submitted but could not be confirmed (${reason}). Check Arcscan before retrying this recipient.`);
-        }
-        if (receipt.status !== "success") {
-          throw new Error(`Transaction ${txHash} reverted. This recipient was not paid.`);
-        }
-        txHashes.push(txHash);
-      }
-    } catch (error) {
-      if (!txHashes.length) throw error;
-      return {
-        mode: "sequential",
-        txHashes,
-        explorerUrls: txHashes.map((hash) => `${ARC.explorerUrl}/tx/${hash}`),
-        partial: true,
-        errorMessage: error instanceof Error ? error.message : "The wallet stopped the sequential payroll run",
-      };
-    }
-    return {
-      mode: "sequential",
-      txHashes,
-      explorerUrls: txHashes.map((hash) => `${ARC.explorerUrl}/tx/${hash}`),
-    };
+    validateMassPayouts(payouts);
+    return executePayrollBatch(adapter, payouts);
   }
 
   async massPayUnified(adapters: CircleAdapter[], payouts: MassPayout[], onProgress?: (completed: number, total: number) => void, destinationAdapter: CircleAdapter = adapters[0]): Promise<MassPaymentResult> {
-    if (!destinationAdapter) throw new Error("Connect an EVM wallet before running Gateway payroll");
-    const validated = validateMassPayouts(payouts);
-    const txHashes: string[] = [];
-    const explorerUrls: Array<string | undefined> = [];
-    try {
-      for (let index = 0; index < validated.length; index += 1) {
-        const payout = validated[index];
-        const result = await this.kit.unifiedBalance.spend({
-          from: gatewaySpendSources(adapters),
-          amount: payout.amount,
-          token: "USDC",
-          to: { adapter: destinationAdapter, chain: "Arc_Testnet", recipientAddress: payout.recipientAddress },
-        });
-        txHashes.push(result.txHash);
-        explorerUrls.push(result.explorerUrl);
-        onProgress?.(index + 1, validated.length);
-      }
-    } catch (error) {
-      if (!txHashes.length) throw error;
-      return {
-        mode: "gateway_sequential",
-        txHashes,
-        explorerUrls,
-        partial: true,
-        errorMessage: error instanceof Error ? error.message : "Gateway stopped the payroll run",
-      };
-    }
-    return { mode: "gateway_sequential", txHashes, explorerUrls };
+    if (!destinationAdapter) throw new Error("Connect an EVM wallet before running payroll");
+    validateMassPayouts(payouts);
+    const result = await executePayrollBatch(destinationAdapter as BrowserViemAdapter, payouts, async (destination, owner, amount, retry) => {
+      return this.kit.unifiedBalance.spend({
+        ...(retry ? {} : { from: gatewaySpendSources(adapters) }),
+        amount, token: "USDC",
+        to: { adapter: destination, chain: "Arc_Testnet", recipientAddress: owner },
+        ...(retry ? { config: { retry } } : {}),
+      } as Parameters<typeof this.kit.unifiedBalance.spend>[0]);
+    });
+    onProgress?.(payouts.length, payouts.length);
+    return result;
   }
 
   estimatePayrollToArc(adapters: CircleAdapter[], recipientAddress: string, amount: string, destinationAdapter: CircleAdapter = adapters[0]) {

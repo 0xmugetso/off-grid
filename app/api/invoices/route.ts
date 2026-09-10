@@ -1,3 +1,4 @@
+import { verifyArcDelivery } from "@/lib/fast-deposit-proof";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isAddress } from "viem";
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
   const current = await getCurrentUser();
   if (!current) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const body = await request.json() as Partial<StoredInvoice> & { paymentSessionToken?: string };
+    const body = await request.json() as Partial<StoredInvoice> & { paymentSessionToken?: string; payrollBatchId?: string };
     if (body.fundingMethod !== "arc_wallet" && body.fundingMethod !== "unified_balance" && body.fundingMethod !== "cctp_bridge" && body.fundingMethod !== "fiat_bank") throw new Error("Invalid funding method");
     if (!body.recipientAddress || !isAddress(body.recipientAddress)) throw new Error("Invalid recipient address");
     if (!body.amount) throw new Error("Amount is required");
@@ -34,6 +35,8 @@ export async function POST(request: Request) {
     if (body.fundingMethod === "fiat_bank") throw new Error("Direct fiat ledger transfers are disabled. Use a configured Circle Mint payment session.");
     const txHash = String(body.txHash ?? "");
     if (!body.txHash || !/^0x[a-fA-F0-9]{64}$/.test(body.txHash) || !isTransactionHash(body.txHash)) throw new Error("Invalid Arc transaction hash");
+
+    if (body.payrollBatchId && !await verifyArcDelivery(txHash, recipientAddress, body.amount)) throw new Error("Payroll recipient delivery is not yet confirmed on Arc");
 
     const invoice: StoredInvoice = {
       id: randomUUID(),
@@ -93,6 +96,8 @@ export async function POST(request: Request) {
         session.updatedAt = new Date().toISOString();
       }
 
+      const existing = database.invoices.find((entry) => entry.senderId === current.id && entry.txHash.toLowerCase() === txHash.toLowerCase() && entry.recipientAddress.toLowerCase() === recipientAddress.toLowerCase());
+      if (existing) { Object.assign(invoice, existing); return; }
       database.invoices.push(invoice);
     });
     return NextResponse.json({ invoice }, { status: 201 });

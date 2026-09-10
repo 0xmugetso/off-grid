@@ -3021,12 +3021,13 @@ export function OffGridDashboard() {
         fundingMethod: massFunding,
         txHash,
         memo: `Mass payroll · ${members.length} recipients`,
+        payrollBatchId: settlement.batchId,
         sourceChain: "Arc_Testnet",
       }) });
     }));
     const receiptsSaved = saved.filter((entry) => entry.status === "fulfilled").length;
     await api<{ invoices: InvoiceData[] }>("/api/invoices").then(({ invoices }) => setActivity(invoices)).catch(() => undefined);
-    await loadBalances();
+    await loadBalances().catch(() => undefined);
     return { ...settlement, receiptsSaved };
   }
 

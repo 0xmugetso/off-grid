@@ -306,3 +306,13 @@ Want to see the complete flow before configuring the testnet stack? [Open a vide
 **OffGrid is an experimental testnet product. Do not send mainnet assets or real bank information.**
 
 </div>
+
+### Atomic payroll
+
+Mass Payment uses `PayrollRouter` on Arc Testnet for up to 50 recipients with individual USDC amounts. The wallet grants an allowance for the payroll total when needed, then submits one atomic payout transaction. Unified Balance uses one App Kit spend for the total; the destination adapter composes Circle Gateway's mint with the router payout in that same transaction. Source-wallet burn-intent signatures are still required (including a separate signature scheme for Solana). Any failed payout reverts the complete mint and distribution.
+
+Pending transaction hashes and issued Gateway attestations are retained locally for confirmation/retry, rather than requesting another transfer after a timeout. All recipient receipts reference the shared Arc transaction hash. The router prevents replay of a completed employer/batch ID. If the Gateway mint was submitted separately before payroll, recovery verifies every transfer-spec hash with Circle’s onchain replay state and checks the payer, token, and exact total before submitting only the remaining payout. It never requests a second Gateway transfer to recover that run.
+
+This follows Circle's [Gateway onchain composition guidance](https://developers.circle.com/gateway/references/technical-guide) and [atomic batch operations](https://developers.circle.com/wallets/batch-operations). It is a custom testnet contract, not a Circle-audited contract.
+
+Compile with `node scripts/compile-payroll-router.mjs`. Run contract integration checks against a local Anvil node on port 8547 using `node scripts/test-payroll-router.mjs`. The router is deployed on Arc Testnet at `0x413ed000c68d77ccb2ec12b246888b655f4f1cec`; its verified deployment is recorded in `lib/generated/payroll-router-deployment.json`. Deployment used the existing server-side Circle credentials on Vercel. The temporary protected deployment endpoint was removed after verification. The local deployment script is retained for future explicitly approved deployments with valid local credentials.

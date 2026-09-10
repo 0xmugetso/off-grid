@@ -9,7 +9,7 @@
     "nanoid": "3.3.17"
   },
   "scripts": {
-    "prebuild": "npm run escrow:compile",
+    "prebuild": "npm run escrow:compile && node scripts/compile-payroll-router.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
