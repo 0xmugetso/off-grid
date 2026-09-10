@@ -3,7 +3,7 @@ import { ArcTestnet } from "@circle-fin/app-kit/chains";
 import type { BrowserViemAdapter } from "./app-kit-client";
 import { ARC } from "./config";
 const MINTER = "0x0022222ABE238Cc2C7Bb1f21003F0a260052475B";
-const abi = parseAbi(["function isTransferSpecHashUsed(bytes32 transferSpecHash) view returns (bool)"]);
+const abi = parseAbi(["function isTransferSpecHashUsed(bytes32 transferSpecHash) view returns (bool used)"]);
 
 /** Circle's canonical Attestation/AttestationSet and TransferSpec byte encodings. */
 export function payrollSpecHashes(payload: Hex, owner: string, total: bigint): Hex[] {

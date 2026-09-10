@@ -9,12 +9,12 @@ import deployment from "../generated/payroll-router-deployment.json";
 export const payrollAbi = parseAbi([
   "function executePayroll(bytes32 batchId, (address recipient,uint256 amount)[] payouts)",
   "function mintAndExecutePayroll(bytes32 batchId, (address recipient,uint256 amount)[] payouts, bytes attestation, bytes signature)",
-  "function executedBatches(address employer,bytes32 batchId) view returns (bool)",
-  "function usdc() view returns (address)",
-  "function gatewayMinter() view returns (address)",
+  "function executedBatches(address employer,bytes32 batchId) view returns (bool success)",
+  "function usdc() view returns (address account)",
+  "function gatewayMinter() view returns (address account)",
   "event PayrollExecuted(address indexed employer, bytes32 indexed batchId, uint256 count, uint256 total)",
 ]);
-const tokenAbi = parseAbi(["function allowance(address owner,address spender) view returns (uint256)", "function approve(address spender,uint256 amount) returns (bool)"]);
+export const tokenAbi = parseAbi(["function allowance(address owner,address spender) view returns (uint256 amount)", "function approve(address spender,uint256 amount) returns (bool success)"]);
 type PendingRun = {
   id: Hex;
   manifest: Hex;
