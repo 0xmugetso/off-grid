@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { initiateSmartContractPlatformClient } from "@circle-fin/smart-contract-platform";
+import { initiateSmartContractPlatformClient, type Blockchain } from "@circle-fin/smart-contract-platform";
 import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
 import artifact from "@/lib/generated/payroll-router-artifact.json";
 export const runtime = "nodejs";
@@ -19,10 +19,10 @@ export async function POST(request: Request) {
   const wallets=initiateDeveloperControlledWalletsClient({apiKey,entitySecret});
   const contracts=initiateSmartContractPlatformClient({apiKey,entitySecret});
   const wallet=(await wallets.getWallet({id:walletId})).data?.wallet;
-  if(wallet?.blockchain!=="ARC-TESTNET") throw new Error("Deployment wallet must be on Arc Testnet");
+  if(String(wallet?.blockchain)!=="ARC-TESTNET") throw new Error("Deployment wallet must be on Arc Testnet");
   const deployment=await contracts.deployContract({
    idempotencyKey:"c3f4e37a-c947-48b5-9382-92fef6f9413a", name:"OffGridPayrollRouter",description:"Atomic USDC payroll and composed Circle Gateway mint on Arc Testnet",
-   walletId, blockchain:"ARC-TESTNET",fee:{type:"level",config:{feeLevel:"MEDIUM"}},
+   walletId, blockchain:"ARC-TESTNET" as Blockchain,fee:{type:"level",config:{feeLevel:"MEDIUM"}},
    constructorParameters:["0x3600000000000000000000000000000000000000","0x0022222ABE238Cc2C7Bb1f21003F0a260052475B"],
    abiJson:JSON.stringify(artifact.abi),bytecode:artifact.bytecode
   });
