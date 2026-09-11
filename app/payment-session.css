@@ -139,3 +139,11 @@
 .deposit-fee-review>span { display:flex; justify-content:space-between; gap:12px; }
 .deposit-fee-review strong { color:var(--ink); font-weight:500; }
 .deposit-fee-review small { font-size:10px; }
+
+.unified-chain-logo{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fast-deposit-hint{display:inline-flex;align-items:center;gap:4px;color:var(--acid);font:8px var(--mono);cursor:help}
+.fast-deposit-hint:focus-visible{outline:1px solid var(--acid);outline-offset:4px}
+.unified-chain-grid article .fast-source-total{margin:8px 0;color:var(--muted);font:8px/1.5 var(--mono)}
+.fast-source-total span{color:var(--acid)}
+.fast-deposit-note,.balance-intro .fast-deposit-note{display:flex;align-items:center;gap:6px;color:var(--muted);font:8px/1.6 var(--mono);margin:12px 0}
+.fast-deposit-note svg{flex-shrink:0;color:var(--acid)}
