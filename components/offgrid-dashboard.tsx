@@ -2223,13 +2223,13 @@ export function OffGridDashboard() {
     if (!user) return;
     const sync = () => { if (!document.hidden) void refreshGatewayDeposits(); };
     sync();
-    const interval = hasPendingGatewayDeposit ? window.setInterval(sync, 12_000) : null;
+    const interval = hasPendingGatewayDeposit || activeView === "unified" ? window.setInterval(sync, 12_000) : null;
     document.addEventListener("visibilitychange", sync);
     return () => {
       if (interval) window.clearInterval(interval);
       document.removeEventListener("visibilitychange", sync);
     };
-  }, [user, hasPendingGatewayDeposit]);
+  }, [user, hasPendingGatewayDeposit, activeView]);
   useEffect(() => {
     if (!user) return;
     const token = new URLSearchParams(window.location.search).get("session");
@@ -2457,9 +2457,9 @@ export function OffGridDashboard() {
     try {
       const { deposits } = await api<{ deposits: GatewayDeposit[] }>("/api/gateway-deposits");
       setGatewayDeposits(deposits);
-      if (deposits.some((deposit) => deposit.status === "confirmed" && Date.now() - Date.parse(deposit.updatedAt) < 30_000)) {
-        void loadBalances();
-      }
+      // Gateway indexing can finish after the onchain receipt. Refresh the actual
+      // spendable balance on every reconciliation, including returning to the tab.
+      void loadBalances();
     } catch {
       // Persisted deposit proof remains visible while Circle or a source RPC is unavailable.
     }
