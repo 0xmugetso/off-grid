@@ -143,7 +143,8 @@
 .unified-chain-logo{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .fast-deposit-hint{display:inline-flex;align-items:center;gap:4px;color:var(--acid);font:8px var(--mono);cursor:help}
 .fast-deposit-hint:focus-visible{outline:1px solid var(--acid);outline-offset:4px}
-.unified-chain-grid article .fast-source-total{margin:8px 0;color:var(--muted);font:8px/1.5 var(--mono)}
-.fast-source-total span{color:var(--acid)}
-.fast-deposit-note,.balance-intro .fast-deposit-note{display:flex;align-items:center;gap:6px;color:var(--muted);font:8px/1.6 var(--mono);margin:12px 0}
-.fast-deposit-note svg{flex-shrink:0;color:var(--acid)}
+
+.unified-chain-grid article:has(.fast-deposit-hint:hover),.unified-chain-grid article:has(.fast-deposit-hint:focus){overflow:visible;z-index:5}
+.fast-deposit-hint{position:relative;padding:5px}
+.fast-deposit-tooltip{display:none;position:absolute;right:0;bottom:calc(100% + 8px);width:230px;max-width:65vw;padding:12px;border:1px solid var(--line);border-radius:8px;background:#10150d;color:var(--ink);font:10px/1.5 var(--mono);text-align:left;letter-spacing:normal;box-shadow:0 8px 24px #0008;z-index:20;pointer-events:none}
+.fast-deposit-hint:hover .fast-deposit-tooltip,.fast-deposit-hint:focus .fast-deposit-tooltip{display:block}
