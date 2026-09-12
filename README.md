@@ -6,7 +6,21 @@
 
 **Pay with the balance you have. Let the other person receive it the way they want.**
 
-[Live Testnet App](https://off-grid-theta.vercel.app/) · [Detailed Walkthrough](doc/walkthrough.md) · [Architecture](doc/ARCHITECTURE.md) · [Request a Video](https://github.com/0xmugetso/off-grid/issues/new?title=Video%20walkthrough%20request)
+[Live Testnet App](https://off-grid-theta.vercel.app/) · [Video Walkthrough](https://youtu.be/7rJN8_4hlUE) · [Product Guide](doc/walkthrough.md) · [Architecture](doc/ARCHITECTURE.md)
+
+<br />
+
+<a href="https://youtu.be/7rJN8_4hlUE">
+  <img src="https://img.youtube.com/vi/7rJN8_4hlUE/maxresdefault.jpg" width="920" alt="Watch the complete OffGrid product walkthrough on YouTube" />
+</a>
+
+<p>
+  <a href="https://youtu.be/7rJN8_4hlUE"><strong>▶ Watch the complete product walkthrough</strong></a>
+  <br />
+  <sub>From wallet sign-in and testnet funding to cross-chain payments, private sessions, mass payouts, escrow, and verifiable proof.</sub>
+</p>
+
+<sub>Built on Arc with Circle USDC, Gateway, CCTP, App Kit, and programmable wallets.</sub>
 
 </div>
 
@@ -288,7 +302,9 @@ The prebuild step compiles the RefundProtocol artifact used by the escrow flow.
 
 ## Video walkthrough
 
-Want to see the complete flow before configuring the testnet stack? [Open a video walkthrough request](https://github.com/0xmugetso/off-grid/issues/new?title=Video%20walkthrough%20request&body=I%27d%20like%20a%20guided%20OffGrid%20walkthrough%20covering%3A%20%5Bfeature%20or%20flow%5D.). Mention the feature you want to see so the recording can focus on the right workflow.
+The [20-minute product walkthrough](https://youtu.be/7rJN8_4hlUE) follows the complete testnet flow: account creation, wallet funding, Unified Balance, direct and cross-chain payments, private payment sessions, transaction history, mass payouts, and proof-backed escrow.
+
+Watch it before configuring the testnet stack, or keep it open while testing each workspace in the [live app](https://off-grid-theta.vercel.app/).
 
 ## Built with
 
